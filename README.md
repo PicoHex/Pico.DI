@@ -1,2 +1,2 @@
-# Pico.Ioc
-An IOC container suitable for AOT
+# Pico.IoC
+An IoC container suitable for AOT
