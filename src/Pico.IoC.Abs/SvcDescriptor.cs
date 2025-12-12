@@ -1,58 +1,31 @@
 ﻿namespace Pico.IoC.Abs;
 
-public sealed class SvcDescriptor
+public class SvcDescriptor(
+    Type serviceType,
+    Type? implementationType,
+    SvcLifetime lifetime = SvcLifetime.Singleton
+)
 {
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-    public Type ServiceType { get; }
+    public Type ServiceType { get; } =
+        serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-    public Type? ImplementationType { get; }
-    public Func<ISvcProvider, object>? Factory { get; set; }
-    public object? SingleInstance { get; set; }
-    public SvcLifetime Lifetime { get; }
+    public Type ImplementationType { get; } = implementationType ?? serviceType;
 
-    public SvcDescriptor(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-            Type serviceType,
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-            Type implementationType,
-        SvcLifetime lifetime
-    )
-        : this(serviceType, lifetime)
-    {
-        ImplementationType = implementationType;
-    }
+    public object? Instance { get; }
+
+    public Func<ISvcProvider, object>? Factory { get; }
+
+    public SvcLifetime Lifetime { get; } = lifetime;
+
+    public SvcDescriptor(Type serviceType, object instance)
+        : this(serviceType, serviceType) =>
+        Instance = instance ?? throw new ArgumentNullException(nameof(instance));
 
     public SvcDescriptor(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-            Type serviceType,
-        object singleInstance
-    )
-        : this(serviceType, SvcLifetime.Singleton)
-    {
-        ImplementationType = singleInstance.GetType();
-        SingleInstance = singleInstance;
-    }
-
-    public SvcDescriptor(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-            Type serviceType,
+        Type serviceType,
         Func<ISvcProvider, object> factory,
-        SvcLifetime lifetime
+        SvcLifetime lifetime = SvcLifetime.Singleton
     )
-        : this(serviceType, lifetime)
-    {
-        Factory = factory;
-    }
-
-    internal SvcDescriptor(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-            Type serviceType,
-        SvcLifetime lifetime
-    )
-    {
-        ServiceType = serviceType;
-        ImplementationType = serviceType;
-        Lifetime = lifetime;
-    }
+        : this(serviceType, serviceType, lifetime) =>
+        Factory = factory ?? throw new ArgumentNullException(nameof(factory));
 }

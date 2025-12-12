@@ -1,3 +1,3 @@
-namespace Pico.IoC.Abs;
+﻿namespace Pico.IoC.Abs;
 
-public interface ISvcScope : ISvcProvider;
+public interface ISvcScope : ISvcProvider, IDisposable, IAsyncDisposable { }
