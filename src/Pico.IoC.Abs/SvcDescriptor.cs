@@ -11,9 +11,9 @@ public class SvcDescriptor(
 
     public Type ImplementationType { get; } = implementationType ?? serviceType;
 
-    public object? Instance { get; }
+    public object? Instance { get; set; }
 
-    public Func<ISvcProvider, object>? Factory { get; }
+    public Func<ISvcScope, object>? Factory { get; }
 
     public SvcLifetime Lifetime { get; } = lifetime;
 
@@ -23,7 +23,7 @@ public class SvcDescriptor(
 
     public SvcDescriptor(
         Type serviceType,
-        Func<ISvcProvider, object> factory,
+        Func<ISvcScope, object> factory,
         SvcLifetime lifetime = SvcLifetime.Singleton
     )
         : this(serviceType, serviceType, lifetime) =>
