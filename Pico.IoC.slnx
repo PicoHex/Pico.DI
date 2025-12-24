@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src\Pico.IoC.Abs\Pico.IoC.Abs.csproj" Type="Classic C#" />
+    <Project Path="src\Pico.IoC.Gen\Pico.IoC.Gen.csproj" Type="Classic C#" />
     <Project Path="src\Pico.IoC\Pico.IoC.csproj" Type="Classic C#" />
   </Folder>
   <Folder Name="/tests/">
