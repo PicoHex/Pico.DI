@@ -15,6 +15,7 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
 
     public object GetService(Type serviceType)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (!descriptorCache.TryGetValue(serviceType, out var resolvers))
             throw new PicoIocException($"Service type '{serviceType.FullName}' is not registered.");
         var resolver =
@@ -65,6 +66,7 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
 
     public IEnumerable<object> GetServices(Type serviceType)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (!descriptorCache.TryGetValue(serviceType, out var resolvers))
             throw new PicoIocException($"Service type '{serviceType.FullName}' is not registered.");
 

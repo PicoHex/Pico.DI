@@ -5,9 +5,17 @@ public class SvcContainer : ISvcContainer
     private readonly ConcurrentDictionary<Type, List<SvcDescriptor>> _descriptorCache = new();
     private bool _disposed;
 
-    public ISvcContainer Register(SvcDescriptor descriptor) => this;
+    public ISvcContainer Register(SvcDescriptor descriptor)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return this;
+    }
 
-    public ISvcScope CreateScope() => new SvcScope(_descriptorCache);
+    public ISvcScope CreateScope()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return new SvcScope(_descriptorCache);
+    }
 
     public void Dispose()
     {
