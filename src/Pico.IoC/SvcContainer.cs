@@ -1,6 +1,6 @@
 ﻿namespace Pico.IoC;
 
-public class SvcContainer : ISvcContainer
+public partial class SvcContainer : ISvcContainer
 {
     private readonly ConcurrentDictionary<Type, List<SvcDescriptor>> _descriptorCache = new();
     private bool _disposed;
@@ -8,6 +8,29 @@ public class SvcContainer : ISvcContainer
     public ISvcContainer Register(SvcDescriptor descriptor)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        _descriptorCache.AddOrUpdate(
+            descriptor.ServiceType,
+            _ => [descriptor],
+            (_, list) =>
+            {
+                list.Add(descriptor);
+                return list;
+            }
+        );
+        return this;
+    }
+
+    /// <summary>
+    /// Registers multiple service descriptors at once.
+    /// Useful for registering generated descriptors.
+    /// </summary>
+    public ISvcContainer RegisterRange(IEnumerable<SvcDescriptor> descriptors)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        foreach (var descriptor in descriptors)
+        {
+            Register(descriptor);
+        }
         return this;
     }
 

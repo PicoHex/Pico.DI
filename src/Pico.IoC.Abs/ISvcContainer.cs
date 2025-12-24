@@ -189,4 +189,21 @@ public static class SvcContainerExtensions
 
         #endregion
     }
+
+    // Batch registration
+    extension(ISvcContainer container)
+    {
+        /// <summary>
+        /// Registers multiple service descriptors at once.
+        /// Useful for registering generated descriptors.
+        /// </summary>
+        public ISvcContainer RegisterRange(IEnumerable<SvcDescriptor> descriptors)
+        {
+            foreach (var descriptor in descriptors)
+            {
+                container.Register(descriptor);
+            }
+            return container;
+        }
+    }
 }
