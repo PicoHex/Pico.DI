@@ -20,6 +20,7 @@ public class SvcContainer : ISvcContainer
                 }
             }
         }
+        _descriptorCache.Clear();
     }
 
     public async ValueTask DisposeAsync()
@@ -36,5 +37,6 @@ public class SvcContainer : ISvcContainer
                     break;
             }
         }
+        _descriptorCache.Clear();
     }
 }
