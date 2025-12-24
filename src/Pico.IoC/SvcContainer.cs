@@ -1,6 +1,6 @@
 ﻿namespace Pico.IoC;
 
-public sealed partial class SvcContainer : ISvcContainer
+public partial class SvcContainer : ISvcContainer
 {
     private readonly ConcurrentDictionary<Type, List<SvcDescriptor>> _descriptorCache = new();
     private bool _disposed;
