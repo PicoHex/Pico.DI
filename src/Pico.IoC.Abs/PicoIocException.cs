@@ -1,3 +1,15 @@
 ﻿namespace Pico.IoC.Abs;
 
-public class PicoIocException : Exception;
+/// <summary>
+/// Exception thrown by Pico.IoC container operations.
+/// </summary>
+public class PicoIocException : Exception
+{
+    public PicoIocException() { }
+
+    public PicoIocException(string message)
+        : base(message) { }
+
+    public PicoIocException(string message, Exception innerException)
+        : base(message, innerException) { }
+}

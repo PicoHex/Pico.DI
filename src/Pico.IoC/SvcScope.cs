@@ -9,45 +9,66 @@ public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptor
     public object GetService(Type serviceType)
     {
         if (!descriptorCache.TryGetValue(serviceType, out var resolvers))
-            throw new PicoIocException();
-        var resolver = resolvers.LastOrDefault();
-        if (resolver == null)
-            throw new PicoIocException();
+            throw new PicoIocException($"Service type '{serviceType.FullName}' is not registered.");
+        var resolver =
+            resolvers.LastOrDefault()
+            ?? throw new PicoIocException(
+                $"No service descriptor found for type '{serviceType.FullName}'."
+            );
         return resolver.Lifetime switch
         {
             SvcLifetime.Transient
-                => resolver.Factory != null ? resolver.Factory(this) : throw new PicoIocException(),
+                => resolver.Factory != null
+                    ? resolver.Factory(this)
+                    : throw new PicoIocException(
+                        $"No factory registered for transient service '{serviceType.FullName}'."
+                    ),
             SvcLifetime.Singleton
                 => resolver.Instance ??=
                     resolver.Factory != null
                         ? resolver.Factory(this)
-                        : throw new PicoIocException(),
+                        : throw new PicoIocException(
+                            $"No factory or instance registered for singleton service '{serviceType.FullName}'."
+                        ),
             SvcLifetime.Scoped => GetOrAddScopedInstance(serviceType, resolver),
-            _ => throw new ArgumentOutOfRangeException()
+            _
+                => throw new ArgumentOutOfRangeException(
+                    nameof(resolver.Lifetime),
+                    resolver.Lifetime,
+                    $"Unknown service lifetime '{resolver.Lifetime}'."
+                )
         };
     }
 
     public IEnumerable<object> GetServices(Type serviceType)
     {
         if (!descriptorCache.TryGetValue(serviceType, out var resolvers))
-            throw new PicoIocException();
+            throw new PicoIocException($"Service type '{serviceType.FullName}' is not registered.");
 
-        return resolvers.Select(
-            resolver =>
-                resolver.Lifetime switch
-                {
-                    SvcLifetime.Transient
-                        => resolver.Factory != null
+        return resolvers.Select(resolver =>
+            resolver.Lifetime switch
+            {
+                SvcLifetime.Transient
+                    => resolver.Factory != null
+                        ? resolver.Factory(this)
+                        : throw new PicoIocException(
+                            $"No factory registered for transient service '{serviceType.FullName}'."
+                        ),
+                SvcLifetime.Singleton
+                    => resolver.Instance ??=
+                        resolver.Factory != null
                             ? resolver.Factory(this)
-                            : throw new PicoIocException(),
-                    SvcLifetime.Singleton
-                        => resolver.Instance ??=
-                            resolver.Factory != null
-                                ? resolver.Factory(this)
-                                : throw new PicoIocException(),
-                    SvcLifetime.Scoped => GetOrAddScopedInstance(serviceType, resolver),
-                    _ => throw new ArgumentOutOfRangeException()
-                }
+                            : throw new PicoIocException(
+                                $"No factory or instance registered for singleton service '{serviceType.FullName}'."
+                            ),
+                SvcLifetime.Scoped => GetOrAddScopedInstance(serviceType, resolver),
+                _
+                    => throw new ArgumentOutOfRangeException(
+                        nameof(resolver.Lifetime),
+                        resolver.Lifetime,
+                        $"Unknown service lifetime '{resolver.Lifetime}'."
+                    )
+            }
         );
     }
 
@@ -60,7 +81,9 @@ public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptor
                     var instance =
                         resolver.Factory != null
                             ? resolver.Factory(this)
-                            : throw new PicoIocException();
+                            : throw new PicoIocException(
+                                $"No factory registered for scoped service '{serviceType.FullName}'."
+                            );
                     return [instance];
                 }
             )

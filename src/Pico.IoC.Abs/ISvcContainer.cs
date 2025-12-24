@@ -3,7 +3,7 @@
 public interface ISvcContainer : IDisposable, IAsyncDisposable
 {
     ISvcContainer Register(SvcDescriptor descriptor);
-    ISvcScope CreateScope(ISvcContainer container);
+    ISvcScope CreateScope();
 }
 
 
@@ -40,12 +40,12 @@ public static class SvcContainerExtensions
 
         public ISvcContainer Register<TService>(Func<ISvcScope, TService> factory, SvcLifetime lifetime)
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(ISvcScope), factory, lifetime));
+            container.Register(new SvcDescriptor(typeof(TService), factory, lifetime));
 
         public ISvcContainer Register<TService, TImplementation>(Func<ISvcScope, TImplementation> factory, SvcLifetime lifetime)
             where TService : class
             where TImplementation : class =>
-            container.Register(new SvcDescriptor(typeof(ISvcScope), factory, lifetime));
+            container.Register(new SvcDescriptor(typeof(TService), factory, lifetime));
     }
 
     // Transient
@@ -81,12 +81,12 @@ public static class SvcContainerExtensions
 
         public ISvcContainer RegisterTransient<TService>(Func<ISvcScope, TService> factory)
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(ISvcScope), factory, SvcLifetime.Transient));
+            container.Register(new SvcDescriptor(typeof(TService), factory, SvcLifetime.Transient));
 
         public ISvcContainer RegisterTransient<TService, TImplementation>(Func<ISvcScope, TImplementation> factory)
             where TService : class
             where TImplementation : class =>
-            container.Register(new SvcDescriptor(typeof(ISvcScope), factory, SvcLifetime.Transient));
+            container.Register(new SvcDescriptor(typeof(TService), factory, SvcLifetime.Transient));
 
         #endregion
     }
@@ -124,12 +124,12 @@ public static class SvcContainerExtensions
 
         public ISvcContainer RegisterScoped<TService>(Func<ISvcScope, TService> factory)
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(ISvcScope), factory, SvcLifetime.Scoped));
+            container.Register(new SvcDescriptor(typeof(TService), factory, SvcLifetime.Scoped));
 
         public ISvcContainer RegisterScoped<TService, TImplementation>(Func<ISvcScope, TImplementation> factory)
             where TService : class
             where TImplementation : class =>
-            container.Register(new SvcDescriptor(typeof(ISvcScope), factory, SvcLifetime.Scoped));
+            container.Register(new SvcDescriptor(typeof(TService), factory, SvcLifetime.Scoped));
 
         #endregion
     }
@@ -167,12 +167,12 @@ public static class SvcContainerExtensions
 
         public ISvcContainer RegisterSingleton<TService>(Func<ISvcScope, TService> factory)
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(ISvcScope), factory));
+            container.Register(new SvcDescriptor(typeof(TService), factory));
 
         public ISvcContainer RegisterSingleton<TService, TImplementation>(Func<ISvcScope, TImplementation> factory)
             where TService : class
             where TImplementation : class =>
-            container.Register(new SvcDescriptor(typeof(ISvcScope), factory));
+            container.Register(new SvcDescriptor(typeof(TService), factory));
 
         #endregion
 

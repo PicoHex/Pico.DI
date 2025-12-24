@@ -6,7 +6,7 @@ public class SvcContainer : ISvcContainer
 
     public ISvcContainer Register(SvcDescriptor descriptor) => this;
 
-    public ISvcScope CreateScope(ISvcContainer container) => new SvcScope(_descriptorCache);
+    public ISvcScope CreateScope() => new SvcScope(_descriptorCache);
 
     public void Dispose()
     {
@@ -24,15 +24,16 @@ public class SvcContainer : ISvcContainer
 
     public async ValueTask DisposeAsync()
     {
-        Dispose();
-        foreach (var keyValuePair in _descriptorCache)
+        foreach (var svc in _descriptorCache.SelectMany(p => p.Value).Select(p => p.Instance))
         {
-            foreach (var svc in keyValuePair.Value)
+            switch (svc)
             {
-                if (svc.Instance is IAsyncDisposable disposable)
-                {
-                    await disposable.DisposeAsync();
-                }
+                case IAsyncDisposable asyncDisposable:
+                    await asyncDisposable.DisposeAsync();
+                    break;
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
             }
         }
     }
