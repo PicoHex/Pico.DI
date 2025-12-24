@@ -3,7 +3,7 @@
 public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptorCache) : ISvcScope
 {
     private readonly ConcurrentDictionary<Type, object> _scopedInstances = new();
-    private static readonly Lock SingletonLock = new();
+    private readonly Lock _singletonLock = new();
 
     public ISvcScope CreateScope() => new SvcScope(descriptorCache);
 
@@ -28,7 +28,7 @@ public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptor
             SvcLifetime.Scoped => GetOrAddScopedInstance(serviceType, resolver),
             _
                 => throw new ArgumentOutOfRangeException(
-                    nameof(resolver.Lifetime),
+                    nameof(resolver),
                     resolver.Lifetime,
                     $"Unknown service lifetime '{resolver.Lifetime}'."
                 )
@@ -40,7 +40,7 @@ public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptor
         if (resolver.Instance != null)
             return resolver.Instance;
 
-        lock (SingletonLock)
+        lock (_singletonLock)
         {
             if (resolver.Instance != null)
                 return resolver.Instance;

@@ -25,7 +25,12 @@ public class SvcContainer : ISvcContainer
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var svc in _descriptorCache.SelectMany(p => p.Value).Select(p => p.Instance))
+        foreach (
+            var svc in _descriptorCache
+                .SelectMany(p => p.Value)
+                .Select(p => p.Instance)
+                .Where(p => p is not null)
+        )
         {
             switch (svc)
             {
