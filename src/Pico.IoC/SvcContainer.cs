@@ -3,6 +3,7 @@
 public class SvcContainer : ISvcContainer
 {
     private readonly ConcurrentDictionary<Type, List<SvcDescriptor>> _descriptorCache = new();
+    private bool _disposed;
 
     public ISvcContainer Register(SvcDescriptor descriptor) => this;
 
@@ -10,25 +11,39 @@ public class SvcContainer : ISvcContainer
 
     public void Dispose()
     {
-        foreach (var keyValuePair in _descriptorCache)
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+            return;
+        if (disposing)
         {
-            foreach (var svc in keyValuePair.Value)
+            foreach (var keyValuePair in _descriptorCache)
             {
-                if (svc.Instance is IDisposable disposable)
+                foreach (var svc in keyValuePair.Value)
                 {
-                    disposable.Dispose();
+                    if (svc.SingleInstance is IDisposable disposable)
+                    {
+                        disposable.Dispose();
+                    }
                 }
             }
+            _descriptorCache.Clear();
         }
-        _descriptorCache.Clear();
+        _disposed = true;
     }
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed)
+            return;
         foreach (
             var svc in _descriptorCache
                 .SelectMany(p => p.Value)
-                .Select(p => p.Instance)
+                .Select(p => p.SingleInstance)
                 .Where(p => p is not null)
         )
         {
@@ -43,5 +58,7 @@ public class SvcContainer : ISvcContainer
             }
         }
         _descriptorCache.Clear();
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 }

@@ -1,11 +1,17 @@
 ﻿namespace Pico.IoC;
 
-public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptorCache) : ISvcScope
+public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptorCache)
+    : ISvcScope
 {
-    private readonly ConcurrentDictionary<Type, object> _scopedInstances = new();
-    private readonly Lock _singletonLock = new();
+    private readonly ConcurrentDictionary<SvcDescriptor, object> _scopedInstances = new();
+    private readonly ConcurrentDictionary<SvcDescriptor, Lock> _singletonLocks = new();
+    private bool _disposed;
 
-    public ISvcScope CreateScope() => new SvcScope(descriptorCache);
+    public ISvcScope CreateScope()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return new SvcScope(descriptorCache);
+    }
 
     public object GetService(Type serviceType)
     {
@@ -25,10 +31,10 @@ public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptor
                         $"No factory registered for transient service '{serviceType.FullName}'."
                     ),
             SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-            SvcLifetime.Scoped => GetOrAddScopedInstance(serviceType, resolver),
+            SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
             _
                 => throw new ArgumentOutOfRangeException(
-                    nameof(resolver),
+                    nameof(resolver.Lifetime),
                     resolver.Lifetime,
                     $"Unknown service lifetime '{resolver.Lifetime}'."
                 )
@@ -37,22 +43,23 @@ public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptor
 
     private object GetOrCreateSingleton(Type serviceType, SvcDescriptor resolver)
     {
-        if (resolver.Instance != null)
-            return resolver.Instance;
+        if (resolver.SingleInstance != null)
+            return resolver.SingleInstance;
 
-        lock (_singletonLock)
+        var singletonLock = _singletonLocks.GetOrAdd(resolver, _ => new Lock());
+        lock (singletonLock)
         {
-            if (resolver.Instance != null)
-                return resolver.Instance;
+            if (resolver.SingleInstance != null)
+                return resolver.SingleInstance;
 
-            resolver.Instance =
+            resolver.SingleInstance =
                 resolver.Factory != null
                     ? resolver.Factory(this)
                     : throw new PicoIocException(
                         $"No factory or instance registered for singleton service '{serviceType.FullName}'."
                     );
 
-            return resolver.Instance;
+            return resolver.SingleInstance;
         }
     }
 
@@ -71,7 +78,7 @@ public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptor
                             $"No factory registered for transient service '{serviceType.FullName}'."
                         ),
                 SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-                SvcLifetime.Scoped => GetOrAddScopedInstance(serviceType, resolver),
+                SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
                 _
                     => throw new ArgumentOutOfRangeException(
                         nameof(resolver.Lifetime),
@@ -82,29 +89,43 @@ public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptor
         );
     }
 
-    private object GetOrAddScopedInstance(Type serviceType, SvcDescriptor resolver) =>
+    private object GetOrAddScopedInstance(SvcDescriptor resolver) =>
         _scopedInstances.GetOrAdd(
-            serviceType,
-            _ =>
-                resolver.Factory != null
-                    ? resolver.Factory(this)
+            resolver,
+            desc =>
+                desc.Factory != null
+                    ? desc.Factory(this)
                     : throw new PicoIocException(
-                        $"No factory registered for scoped service '{serviceType.FullName}'."
+                        $"No factory registered for scoped service '{desc.ServiceType.FullName}'."
                     )
         );
 
     public void Dispose()
     {
-        foreach (var svc in _scopedInstances.Values)
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    private void Dispose(bool disposing)
+    {
+        if (_disposed)
+            return;
+        if (disposing)
         {
-            if (svc is IDisposable disposable)
-                disposable.Dispose();
+            foreach (var svc in _scopedInstances.Values)
+            {
+                if (svc is IDisposable disposable)
+                    disposable.Dispose();
+            }
+            _scopedInstances.Clear();
         }
-        _scopedInstances.Clear();
+        _disposed = true;
     }
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed)
+            return;
         foreach (var svc in _scopedInstances.Values)
         {
             switch (svc)
@@ -118,5 +139,7 @@ public class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptor
             }
         }
         _scopedInstances.Clear();
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 }

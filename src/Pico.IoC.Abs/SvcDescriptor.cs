@@ -11,7 +11,7 @@ public class SvcDescriptor(
 
     public Type ImplementationType { get; } = implementationType ?? serviceType;
 
-    public object? Instance { get; set; }
+    public object? SingleInstance { get; set; }
 
     public Func<ISvcScope, object>? Factory { get; }
 
@@ -19,7 +19,7 @@ public class SvcDescriptor(
 
     public SvcDescriptor(Type serviceType, object instance)
         : this(serviceType, serviceType) =>
-        Instance = instance ?? throw new ArgumentNullException(nameof(instance));
+        SingleInstance = instance ?? throw new ArgumentNullException(nameof(instance));
 
     public SvcDescriptor(
         Type serviceType,
