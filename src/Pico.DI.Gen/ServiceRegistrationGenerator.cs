@@ -20,7 +20,21 @@ internal record OpenGenericRegistration(
     string OpenServiceTypeFullName, // e.g., "IRepository<>"
     string OpenImplementationTypeFullName, // e.g., "Repository<>"
     string Lifetime,
-    int TypeParameterCount
+    int TypeParameterCount,
+    ImmutableArray<string> TypeParameterNames, // e.g., ["T", "TKey"]
+    ImmutableArray<OpenGenericConstructorParameter> ConstructorParameters // 开放泛型的构造函数参数
+);
+
+/// <summary>
+/// Represents a constructor parameter in an open generic type.
+/// The TypeFullName may contain type parameters (e.g., "T" or "ILogger&lt;T&gt;").
+/// </summary>
+internal record OpenGenericConstructorParameter(
+    string TypeFullName,
+    string TypeName,
+    string ParameterName,
+    bool IsTypeParameter, // 是否是类型参数本身 (如 T)
+    bool ContainsTypeParameter // 是否包含类型参数 (如 ILogger<T>)
 );
 
 /// <summary>
@@ -409,12 +423,74 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         )
             return null;
 
+        // 获取开放泛型实现类型的原始定义以提取构造函数参数
+        var openImplType = namedImplType.OriginalDefinition;
+        var typeParamNames = openImplType.TypeParameters.Select(tp => tp.Name).ToImmutableArray();
+
+        // 提取构造函数参数，标记哪些涉及类型参数
+        var ctorParams = GetOpenGenericConstructorParameters(openImplType, typeParamNames);
+
         return new OpenGenericRegistration(
             namedServiceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             namedImplType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             lifetime,
-            namedServiceType.TypeParameters.Length
+            namedServiceType.TypeParameters.Length,
+            typeParamNames,
+            ctorParams
         );
+    }
+
+    /// <summary>
+    /// 获取开放泛型类型的构造函数参数，标记类型参数的使用。
+    /// </summary>
+    private static ImmutableArray<OpenGenericConstructorParameter> GetOpenGenericConstructorParameters(
+        INamedTypeSymbol openGenericType,
+        ImmutableArray<string> typeParameterNames
+    )
+    {
+        var constructors = openGenericType
+            .Constructors.Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
+            .OrderByDescending(c => c.Parameters.Length)
+            .ToList();
+
+        var constructor = constructors.FirstOrDefault();
+        if (constructor is null)
+            return ImmutableArray<OpenGenericConstructorParameter>.Empty;
+
+        return
+        [
+            .. constructor.Parameters.Select(p =>
+            {
+                var typeFullName = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                var isTypeParam = p.Type is ITypeParameterSymbol;
+                var containsTypeParam = ContainsTypeParameter(p.Type, typeParameterNames);
+
+                return new OpenGenericConstructorParameter(
+                    typeFullName,
+                    p.Type.Name,
+                    p.Name,
+                    isTypeParam,
+                    containsTypeParam
+                );
+            })
+        ];
+    }
+
+    /// <summary>
+    /// 检查类型是否包含指定的类型参数。
+    /// </summary>
+    private static bool ContainsTypeParameter(
+        ITypeSymbol type,
+        ImmutableArray<string> typeParameterNames
+    )
+    {
+        if (type is ITypeParameterSymbol tp)
+            return typeParameterNames.Contains(tp.Name);
+
+        if (type is INamedTypeSymbol namedType && namedType.IsGenericType)
+            return namedType.TypeArguments.Any(ta => ContainsTypeParameter(ta, typeParameterNames));
+
+        return false;
     }
 
     /// <summary>
@@ -465,12 +541,26 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 usage.TypeArgumentsFullNames
             );
 
-            // Try to get the actual closed implementation type symbol
-            var closedImplType = GetTypeByMetadataName(compilation, closedImplTypeFullName);
+            // 构建类型参数映射: T -> User, TKey -> int, etc.
+            var typeParamMap = new Dictionary<string, string>();
+            for (
+                var i = 0;
+                i < openGeneric.TypeParameterNames.Length
+                    && i < usage.TypeArgumentsFullNames.Length;
+                i++
+            )
+            {
+                typeParamMap[openGeneric.TypeParameterNames[i]] = usage.TypeArgumentsFullNames[i];
+            }
 
-            var constructorParams = closedImplType is not null
-                ? GetConstructorParameters(closedImplType)
-                : ImmutableArray<ConstructorParameter>.Empty;
+            // 基于开放泛型的构造函数参数生成闭合类型的构造函数参数
+            var constructorParams = openGeneric
+                .ConstructorParameters.Select(p => new ConstructorParameter(
+                    SubstituteTypeParameters(p.TypeFullName, typeParamMap),
+                    p.TypeName,
+                    p.ParameterName
+                ))
+                .ToImmutableArray();
 
             result.Add(
                 new ServiceRegistration(
@@ -483,6 +573,66 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                     constructorParams
                 )
             );
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 将类型全名中的类型参数替换为实际类型。
+    /// 例如: "T" -> "global::MyApp.User"
+    ///       "global::Microsoft.Extensions.Logging.ILogger&lt;T&gt;" -> "global::Microsoft.Extensions.Logging.ILogger&lt;global::MyApp.User&gt;"
+    /// </summary>
+    private static string SubstituteTypeParameters(
+        string typeFullName,
+        Dictionary<string, string> typeParamMap
+    )
+    {
+        var result = typeFullName;
+
+        foreach (var kvp in typeParamMap)
+        {
+            var paramName = kvp.Key;
+            var actualType = kvp.Value;
+
+            // 替换独立的类型参数 (如 "T" 作为完整类型)
+            if (result == paramName)
+            {
+                result = actualType;
+                continue;
+            }
+
+            // 替换泛型参数中的类型参数 (如 "ILogger<T>" 中的 T)
+            // 处理格式: <T> 或 <T, U> 或 <SomeType, T>
+            result = SubstituteTypeParameterInGeneric(result, paramName, actualType);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 在泛型类型名中替换类型参数。
+    /// </summary>
+    private static string SubstituteTypeParameterInGeneric(
+        string typeFullName,
+        string paramName,
+        string actualType
+    )
+    {
+        // 简单情况：类型参数作为泛型参数出现
+        // 匹配: <T> 或 <T, 或 , T> 或 , T,
+        var patterns = new[]
+        {
+            ($"<{paramName}>", $"<{actualType}>"),
+            ($"<{paramName},", $"<{actualType},"),
+            ($", {paramName}>", $", {actualType}>"),
+            ($", {paramName},", $", {actualType},")
+        };
+
+        var result = typeFullName;
+        foreach (var (pattern, replacement) in patterns)
+        {
+            result = result.Replace(pattern, replacement);
         }
 
         return result;
