@@ -1,6 +1,6 @@
-# Pico.IoC
+# Pico.DI
 
-A lightweight, AOT-compatible IoC (Inversion of Control) container for .NET, powered by Source Generators.
+A lightweight, AOT-compatible DI (Dependency Injection) container for .NET, powered by Source Generators.
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 [![C#](https://img.shields.io/badge/C%23-14-239120)](https://docs.microsoft.com/en-us/dotnet/csharp/)
@@ -21,7 +21,7 @@ A lightweight, AOT-compatible IoC (Inversion of Control) container for .NET, pow
 
 ```bash
 # Coming soon to NuGet
-dotnet add package Pico.IoC
+dotnet add package Pico.DI
 ```
 
 ## 🚀 Quick Start
@@ -62,9 +62,9 @@ public class GreetingService(IGreeter greeter, ILogger logger)
 ### 2. Register Services
 
 ```csharp
-using Pico.IoC;
-using Pico.IoC.Abs;
-using Pico.IoC.Gen;
+using Pico.DI;
+using Pico.DI.Abs;
+using Pico.DI.Gen;
 
 public static class ServiceConfig
 {
@@ -150,7 +150,7 @@ container.RegisterSingle<ILogger>(logger);
 
 ## 🔄 Circular Dependency Detection
 
-Pico.IoC automatically detects circular dependencies and throws a `PicoIocException` with a clear message:
+Pico.DI automatically detects circular dependencies and throws a `PicoDiException` with a clear message:
 
 ```csharp
 // This will throw: "Circular dependency detected: ServiceA -> ServiceB -> ServiceA"
@@ -178,11 +178,11 @@ var allNotifiers = scope.GetServices<INotifier>(); // [EmailNotifier, SmsNotifie
 ## 🏗️ Architecture
 
 ```
-Pico.IoC/
+Pico.DI/
 ├── src/
-│   ├── Pico.IoC.Abs/     # Abstractions (interfaces, descriptors)
-│   ├── Pico.IoC/         # Core implementation
-│   └── Pico.IoC.Gen/     # Source Generator
+│   ├── Pico.DI.Abs/     # Abstractions (interfaces, descriptors)
+│   ├── Pico.DI/         # Core implementation
+│   └── Pico.DI.Gen/     # Source Generator
 ├── samples/              # Sample projects
 └── tests/                # Unit tests
 ```
