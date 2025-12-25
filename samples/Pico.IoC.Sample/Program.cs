@@ -1,38 +1,4 @@
-﻿using Pico.IoC;
-using Pico.IoC.Abs;
-using Pico.IoC.Gen;
-
-namespace Pico.IoC.Sample;
-
-// Example services
-public interface IGreeter
-{
-    string Greet(string name);
-}
-
-public class Greeter : IGreeter
-{
-    public string Greet(string name) => $"Hello, {name}!";
-}
-
-public interface ILogger
-{
-    void Log(string message);
-}
-
-public class ConsoleLogger : ILogger
-{
-    public void Log(string message) => Console.WriteLine($"[LOG] {message}");
-}
-
-public class GreetingService(IGreeter greeter, ILogger logger)
-{
-    public void SayHello(string name)
-    {
-        logger.Log($"Greeting {name}");
-        Console.WriteLine(greeter.Greet(name));
-    }
-}
+﻿namespace Pico.IoC.Sample;
 
 /// <summary>
 /// Service registration configuration.

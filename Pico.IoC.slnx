@@ -1,6 +1,7 @@
 ﻿<Solution>
   <Folder Name="/samples/">
     <Project Path="samples\Pico.IoC.Sample\Pico.IoC.Sample.csproj" Type="Classic C#" />
+    <Project Path="samples\Pico.IoC.Sample.Services\Pico.IoC.Sample.Services.csproj" Type="Classic C#" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src\Pico.IoC.Abs\Pico.IoC.Abs.csproj" Type="Classic C#" />
