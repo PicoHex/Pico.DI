@@ -114,4 +114,194 @@ public class SvcContainerRegisterByTypeTests : SvcContainerTestBase
         // Assert
         Assert.Same(container, result);
     }
+
+    #region Additional Type-based Registration Coverage Tests
+
+    [Fact]
+    public void Register_ServiceAndImplementationType_WithLifetime_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.Register(
+            typeof(IGreeter),
+            typeof(ConsoleGreeter),
+            SvcLifetime.Transient
+        );
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterGeneric_WithImplementationType_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.Register<IGreeter>(typeof(ConsoleGreeter), SvcLifetime.Singleton);
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterTransient_NonGeneric_ServiceType_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterTransient(typeof(ConsoleGreeter));
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterTransient_NonGeneric_ServiceAndImplementationType_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterTransient(typeof(IGreeter), typeof(ConsoleGreeter));
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterTransient_Generic_WithImplementationType_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterTransient<IGreeter>(typeof(ConsoleGreeter));
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterTransient_Generic_ServiceAndImplementation_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterTransient<IGreeter, ConsoleGreeter>();
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterScoped_NonGeneric_ServiceType_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterScoped(typeof(ConsoleGreeter));
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterScoped_NonGeneric_ServiceAndImplementationType_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterScoped(typeof(IGreeter), typeof(ConsoleGreeter));
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterScoped_Generic_WithImplementationType_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterScoped<IGreeter>(typeof(ConsoleGreeter));
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterScoped_Generic_ServiceAndImplementation_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterScoped<IGreeter, ConsoleGreeter>();
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterSingleton_NonGeneric_ServiceType_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterSingleton(typeof(ConsoleGreeter));
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterSingleton_NonGeneric_ServiceAndImplementationType_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterSingleton(typeof(IGreeter), typeof(ConsoleGreeter));
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterSingleton_Generic_WithImplementationType_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterSingleton<IGreeter>(typeof(ConsoleGreeter));
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void RegisterSingleton_Generic_ServiceAndImplementation_ReturnsContainer()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act
+        var result = container.RegisterSingleton<IGreeter, ConsoleGreeter>();
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    #endregion
 }
