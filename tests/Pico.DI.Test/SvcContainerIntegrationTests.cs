@@ -60,36 +60,39 @@ public class SvcContainerIntegrationTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void TypeBasedRegistration_IsPlaceholder_NoActualRegistration()
+    public void TypeBasedRegistration_WithAotSafeActivator_Works()
     {
-        // Arrange - Using type-based registration (placeholder for Source Generator)
+        // Arrange - Type-based registration uses AOT-safe Activator.CreateInstance<T>()
+        // which is compatible with Native AOT (type parameter is compile-time known)
         var container = new SvcContainer()
-            .RegisterSingleton<IGreeter, ConsoleGreeter>() // This is a placeholder
-            .RegisterSingleton<ILogger, ConsoleLogger>(); // This is a placeholder
+            .RegisterSingleton<IGreeter, ConsoleGreeter>()
+            .RegisterSingleton<ILogger, ConsoleLogger>();
 
-        // Assert - Services are not actually registered
+        // Assert - Services are registered with AOT-safe factory
         using var scope = container.CreateScope();
 
-        // These should throw because type-based registration doesn't register
-        Assert.Throws<PicoDiException>(() => scope.GetService<IGreeter>());
-        Assert.Throws<PicoDiException>(() => scope.GetService<ILogger>());
+        var greeter = scope.GetService<IGreeter>();
+        var logger = scope.GetService<ILogger>();
+
+        Assert.NotNull(greeter);
+        Assert.NotNull(logger);
     }
 
     [Fact]
-    public void MixedRegistration_FactoryWorks_TypeIsPlaceholder()
+    public void MixedRegistration_TypeAndFactory_BothWork()
     {
         // Arrange
         var container = new SvcContainer()
-            .RegisterSingleton<IGreeter, ConsoleGreeter>() // Placeholder (no registration)
-            .RegisterSingleton<ILogger>(_ => new ConsoleLogger()); // Factory (actual registration)
+            .RegisterSingleton<IGreeter, ConsoleGreeter>() // Type-based with AOT-safe CreateInstance<T>()
+            .RegisterSingleton<ILogger>(_ => new ConsoleLogger()); // Factory-based
 
         // Assert
         using var scope = container.CreateScope();
 
-        // Type-based registration is placeholder - throws
-        Assert.Throws<PicoDiException>(() => scope.GetService<IGreeter>());
+        var greeter = scope.GetService<IGreeter>();
+        Assert.NotNull(greeter);
+        Assert.IsType<ConsoleGreeter>(greeter);
 
-        // Factory-based registration works
         var logger = scope.GetService<ILogger>();
         Assert.NotNull(logger);
         Assert.IsType<ConsoleLogger>(logger);
