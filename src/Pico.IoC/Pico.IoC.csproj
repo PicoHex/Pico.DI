@@ -3,14 +3,14 @@
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
 
-        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-        <IsRoslynComponent>true</IsRoslynComponent>
-
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
 
         <OutputType>Library</OutputType>
+
+        <IsTrimmable>true</IsTrimmable>
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>

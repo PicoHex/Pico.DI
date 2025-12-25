@@ -12,6 +12,10 @@
         <OutputType>Library</OutputType>
 
         <ImplicitUsings>enable</ImplicitUsings>
+
+        <!-- Disable trimming for source generator -->
+        <PublishTrimmed>false</PublishTrimmed>
+        <IsTrimmable>false</IsTrimmable>
     </PropertyGroup>
 
     <ItemGroup>
