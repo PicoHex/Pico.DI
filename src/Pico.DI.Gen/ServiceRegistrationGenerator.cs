@@ -1,4 +1,4 @@
-namespace Pico.IoC.Gen;
+namespace Pico.DI.Gen;
 
 /// <summary>
 /// Represents a service registration found in the source code.
