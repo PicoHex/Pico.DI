@@ -78,7 +78,7 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
                 SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
                 _
                     => throw new ArgumentOutOfRangeException(
-                        nameof(resolver.Lifetime),
+                        nameof(SvcLifetime),
                         resolver.Lifetime,
                         $"Unknown service lifetime '{resolver.Lifetime}'."
                     )
@@ -132,7 +132,7 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
                 SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
                 _
                     => throw new ArgumentOutOfRangeException(
-                        nameof(resolver.Lifetime),
+                        nameof(SvcLifetime),
                         resolver.Lifetime,
                         $"Unknown service lifetime '{resolver.Lifetime}'."
                     )
