@@ -1,34 +1,91 @@
+<div align="center">
+
 # Pico.DI
 
-A lightweight, AOT-compatible DI (Dependency Injection) container for .NET, powered by Source Generators.
+### Next-Generation Dependency Injection for Modern .NET Applications
 
-[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
-[![C#](https://img.shields.io/badge/C%23-14-239120)](https://docs.microsoft.com/en-us/dotnet/csharp/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+**Compile-Time Code Generation | Zero Runtime Reflection | Native AOT Ready**
 
-## ✨ Features
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
+[![C# 14](https://img.shields.io/badge/C%23-14-239120?style=flat-square&logo=csharp)](https://docs.microsoft.com/en-us/dotnet/csharp/)
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![AOT Compatible](https://img.shields.io/badge/AOT-Compatible-success?style=flat-square)]()
 
-- **AOT Compatible** - Uses Source Generators to create factory methods at compile time, no runtime reflection
-- **Lightweight** - Minimal dependencies, simple API
-- **Constructor Injection** - Automatic dependency resolution via constructor parameters
-- **Circular Dependency Detection** - Detects and reports circular dependencies with clear error messages
-- **Multiple Lifetimes** - Supports Transient, Scoped, and Singleton lifetimes
-- **Multiple Implementations** - Register multiple implementations for the same service type
-- **Fluent API** - Chain registrations for clean, readable code
-- **Async Disposal** - Full support for `IAsyncDisposable`
+---
+
+[Getting Started](#-getting-started) • [Documentation](#-documentation) • [Architecture](#-architecture) • [Contributing](#-contributing)
+
+</div>
+
+---
+
+## Overview
+
+**Pico.DI** is an enterprise-grade, lightweight dependency injection container designed for high-performance .NET applications. By leveraging Roslyn Source Generators, Pico.DI eliminates runtime reflection overhead, making it the ideal choice for Native AOT deployments, microservices, and performance-critical systems.
+
+### Why Pico.DI?
+
+| Challenge | Traditional DI | Pico.DI Solution |
+|-----------|---------------|------------------|
+| **AOT Compatibility** | Runtime reflection fails in AOT | Compile-time factory generation |
+| **Cold Start Performance** | Reflection-based scanning | Zero startup overhead |
+| **Trimming Safety** | Broken by IL trimmer | Fully trim-compatible |
+| **Compile-Time Validation** | Runtime exceptions | Roslyn Analyzer diagnostics |
+
+---
+
+## Key Features
+
+<table>
+<tr>
+<td width="50%">
+
+### Performance & Compatibility
+- **Native AOT Support** — No runtime reflection
+- **Compile-Time Factories** — Source Generator powered
+- **Minimal Footprint** — Zero external dependencies
+- **Trim-Safe** — Compatible with IL trimming
+
+</td>
+<td width="50%">
+
+### Developer Experience
+- **Fluent API** — Clean, chainable registration
+- **Compile-Time Diagnostics** — Catch errors before runtime
+- **Circular Dependency Detection** — Clear error messages
+- **Async Disposal** — Full `IAsyncDisposable` support
+
+</td>
+</tr>
+</table>
+
+---
 
 ## 📦 Installation
 
 ```bash
-# Coming soon to NuGet
 dotnet add package Pico.DI
 ```
 
-## 🚀 Quick Start
+> **Note**: Package coming soon to NuGet.org
 
-### 1. Define Your Services
+---
+
+## 🚀 Getting Started
+
+### Step 1: Define Services
 
 ```csharp
+public interface ILogger
+{
+    void Log(string message);
+}
+
+public class ConsoleLogger : ILogger
+{
+    public void Log(string message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {message}");
+}
+
 public interface IGreeter
 {
     string Greet(string name);
@@ -39,182 +96,229 @@ public class Greeter : IGreeter
     public string Greet(string name) => $"Hello, {name}!";
 }
 
-public interface ILogger
-{
-    void Log(string message);
-}
-
-public class ConsoleLogger : ILogger
-{
-    public void Log(string message) => Console.WriteLine($"[LOG] {message}");
-}
-
 public class GreetingService(IGreeter greeter, ILogger logger)
 {
     public void SayHello(string name)
     {
-        logger.Log($"Greeting {name}");
+        logger.Log($"Generating greeting for: {name}");
         Console.WriteLine(greeter.Greet(name));
     }
 }
 ```
 
-### 2. Register Services
+### Step 2: Configure Container
 
 ```csharp
 using Pico.DI;
 using Pico.DI.Abs;
 using Pico.DI.Gen;
 
-public static class ServiceConfig
+public static class Startup
 {
-    public static void ConfigureServices(ISvcContainer container)
+    public static ISvcContainer ConfigureServices()
     {
-        // Type-based registration (scanned by Source Generator)
+        var container = new SvcContainer();
+        
         container
             .RegisterSingleton<ILogger, ConsoleLogger>()
             .RegisterTransient<IGreeter, Greeter>()
-            .RegisterScoped<GreetingService>();
-
-        // Apply auto-generated factory registrations
-        container.ConfigureGeneratedServices();
+            .RegisterScoped<GreetingService>()
+            .ConfigureGeneratedServices();  // Apply compile-time generated factories
+            
+        return container;
     }
 }
 ```
 
-### 3. Resolve and Use Services
+### Step 3: Resolve & Execute
 
 ```csharp
-using var container = new SvcContainer();
-ServiceConfig.ConfigureServices(container);
-
+using var container = Startup.ConfigureServices();
 using var scope = container.CreateScope();
-var greetingService = scope.GetService<GreetingService>();
-greetingService.SayHello("World");
+
+var service = scope.GetService<GreetingService>();
+service.SayHello("Enterprise");
 ```
 
-## 📖 Service Lifetimes
+---
 
-| Lifetime | Description |
-|----------|-------------|
-| **Transient** | A new instance is created every time the service is requested |
-| **Scoped** | A single instance is created per scope |
-| **Singleton** | A single instance is shared across all scopes |
+## 📖 Documentation
 
-### Examples
+### Service Lifetimes
+
+| Lifetime | Behavior | Use Case |
+|----------|----------|----------|
+| `Transient` | New instance per request | Stateless services, lightweight operations |
+| `Scoped` | Single instance per scope | Request-scoped data, Unit of Work pattern |
+| `Singleton` | Single instance application-wide | Configuration, caching, shared state |
 
 ```csharp
-// Transient - new instance each time
-container.RegisterTransient<IGreeter, Greeter>();
-
-// Scoped - one instance per scope
-container.RegisterScoped<DbContext>();
-
-// Singleton - one instance globally
-container.RegisterSingleton<ILogger, ConsoleLogger>();
+container
+    .RegisterTransient<IEmailService, EmailService>()     // New instance each time
+    .RegisterScoped<IUnitOfWork, UnitOfWork>()            // Per-scope instance
+    .RegisterSingleton<IConfiguration, AppConfiguration>(); // Global singleton
 ```
 
-## 🔧 Registration Methods
+### Registration Patterns
 
-### Type-Based Registration (AOT-Compatible)
-
-These methods are placeholders scanned by the Source Generator. The actual registration with factory methods is generated at compile time.
+#### Type-Based Registration (AOT-Compatible)
 
 ```csharp
-container.RegisterTransient<TService, TImplementation>();
-container.RegisterScoped<TService, TImplementation>();
-container.RegisterSingleton<TService, TImplementation>();
+// Service → Implementation mapping
+container.RegisterTransient<IService, ServiceImpl>();
+container.RegisterScoped<IRepository, Repository>();
+container.RegisterSingleton<ICache, MemoryCache>();
 
 // Self-registration
-container.RegisterTransient<TService>();
+container.RegisterScoped<MyService>();
 ```
 
-### Factory-Based Registration
-
-For manual control or complex instantiation logic:
+#### Factory-Based Registration
 
 ```csharp
-container.RegisterTransient<IGreeter>(scope => new Greeter());
-container.RegisterScoped<IDbContext>(scope => new DbContext(connectionString));
-container.RegisterSingleton<ILogger>(scope => new ConsoleLogger());
+// Custom instantiation logic
+container.RegisterScoped<IDbContext>(scope => 
+    new AppDbContext(Configuration.ConnectionString));
+
+// Conditional registration
+container.RegisterSingleton<ILogger>(scope => 
+    Environment.IsDevelopment() 
+        ? new ConsoleLogger() 
+        : new FileLogger());
 ```
 
-### Instance Registration
-
-Register a pre-created singleton instance:
+#### Instance Registration
 
 ```csharp
-var logger = new ConsoleLogger();
-container.RegisterSingle<ILogger>(logger);
+// Pre-configured singleton
+var config = new AppConfiguration { Environment = "Production" };
+container.RegisterSingle<IConfiguration>(config);
 ```
 
-## 🔄 Circular Dependency Detection
-
-Pico.DI automatically detects circular dependencies and throws a `PicoDiException` with a clear message:
+#### Open Generic Registration
 
 ```csharp
-// This will throw: "Circular dependency detected: ServiceA -> ServiceB -> ServiceA"
-public class ServiceA(ServiceB b) { }
-public class ServiceB(ServiceA a) { }
+// Register open generic types
+container.RegisterOpenGenericScoped(typeof(IRepository<>), typeof(Repository<>));
+
+// Resolve closed generic types
+var userRepo = scope.GetService<IRepository<User>>();
+var orderRepo = scope.GetService<IRepository<Order>>();
 ```
 
-## 📚 Multiple Implementations
-
-Register and resolve multiple implementations of the same interface:
+### Multiple Implementations
 
 ```csharp
-container.RegisterSingleton<INotifier>(scope => new EmailNotifier());
-container.RegisterSingleton<INotifier>(scope => new SmsNotifier());
+// Register multiple handlers
+container
+    .RegisterSingleton<INotificationHandler>(s => new EmailHandler())
+    .RegisterSingleton<INotificationHandler>(s => new SmsHandler())
+    .RegisterSingleton<INotificationHandler>(s => new PushHandler());
 
-using var scope = container.CreateScope();
-
-// Get the last registered implementation
-var notifier = scope.GetService<INotifier>(); // SmsNotifier
-
-// Get all implementations
-var allNotifiers = scope.GetServices<INotifier>(); // [EmailNotifier, SmsNotifier]
+// Resolve all implementations
+var handlers = scope.GetServices<INotificationHandler>();
+foreach (var handler in handlers)
+{
+    await handler.SendAsync(notification);
+}
 ```
 
-## 🏗️ Architecture
+### Compile-Time Diagnostics
+
+Pico.DI includes a Roslyn Analyzer that detects issues at compile time:
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| `PICO001` | Warning | Unregistered dependency detected |
+| `PICO002` | Warning | Potential circular dependency |
+| `PICO003` | Error | Cannot register abstract type as implementation |
+| `PICO004` | Error | Implementation type has no public constructor |
+
+---
+
+## 🏗 Architecture
 
 ```
-Pico.DI/
-├── src/
-│   ├── Pico.DI.Abs/     # Abstractions (interfaces, descriptors)
-│   ├── Pico.DI/         # Core implementation
-│   └── Pico.DI.Gen/     # Source Generator
-├── samples/              # Sample projects
-└── tests/                # Unit tests
+┌─────────────────────────────────────────────────────────────────┐
+│                         Pico.DI                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  Pico.DI.Gen          │ Source Generator & Roslyn Analyzer      │
+│  (Compile-Time)       │ • Scans Register<T>() calls             │
+│                       │ • Generates AOT-compatible factories    │
+│                       │ • Emits compile-time diagnostics        │
+├─────────────────────────────────────────────────────────────────┤
+│  Pico.DI              │ Runtime Container Implementation        │
+│  (Runtime)            │ • Service resolution & lifetime mgmt    │
+│                       │ • Scope management & disposal           │
+│                       │ • Circular dependency detection         │
+├─────────────────────────────────────────────────────────────────┤
+│  Pico.DI.Abs          │ Abstractions & Contracts                │
+│  (Contracts)          │ • ISvcContainer, ISvcScope interfaces   │
+│                       │ • SvcDescriptor, SvcLifetime types      │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### How It Works
 
-1. **Compile Time**: The Source Generator scans `Register*<T>()` method calls
-2. **Code Generation**: Factory methods are generated with explicit `new` expressions
-3. **Runtime**: Services are resolved using the pre-compiled factories (no reflection)
+<table>
+<tr>
+<td width="50%">
 
+**Your Code**
 ```csharp
-// What you write:
 container.RegisterSingleton<ILogger, ConsoleLogger>();
+container.ConfigureGeneratedServices();
+```
 
-// What gets generated:
+</td>
+<td width="50%">
+
+**Generated Code**
+```csharp
 container.Register(new SvcDescriptor(
     typeof(ILogger),
     static _ => new ConsoleLogger(),
     SvcLifetime.Singleton));
 ```
 
-## ⚠️ Limitations
+</td>
+</tr>
+</table>
 
-- **No Property Injection** - Only constructor injection is supported
-- **No Optional Dependencies** - All constructor parameters must be registered
-- **No Lazy Resolution** - Services are resolved immediately when requested
-- **Source Generator Required** - Type-based registration requires the Source Generator to work
+---
+
+## ⚠️ Considerations
+
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Constructor Injection | ✅ Supported | Primary injection method |
+| Property Injection | ❌ Not Supported | Use constructor injection |
+| Optional Dependencies | ❌ Not Supported | All parameters must be registered |
+| Lazy Resolution | ❌ Not Supported | Services resolved immediately |
+| IServiceProvider Adapter | ✅ Supported | For framework integration |
+
+---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions from the community. Please read our contributing guidelines before submitting a pull request.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+**Built with performance in mind for the modern .NET ecosystem**
+
+</div>
