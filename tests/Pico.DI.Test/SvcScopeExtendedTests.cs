@@ -231,7 +231,8 @@ public class SvcScopeExtendedTests : SvcContainerTestBase
         // Arrange
         var container = new SvcContainer();
         // Register open generic without factory (simulates source gen scenario)
-        container.RegisterOpenGenericScoped(typeof(IOpenGeneric<>), typeof(OpenGenericImpl<>));
+        // Using the unified Register API - open generics are auto-detected
+        container.RegisterScoped(typeof(IOpenGeneric<>), typeof(OpenGenericImpl<>));
 
         using var scope = container.CreateScope();
 

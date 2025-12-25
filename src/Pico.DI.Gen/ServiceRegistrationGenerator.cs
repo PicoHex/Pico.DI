@@ -64,14 +64,6 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         "RegisterSingleton"
     ];
 
-    private static readonly string[] OpenGenericRegisterMethodNames =
-    [
-        "RegisterOpenGeneric",
-        "RegisterOpenGenericTransient",
-        "RegisterOpenGenericScoped",
-        "RegisterOpenGenericSingleton"
-    ];
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Find all invocations that look like Register* method calls (regular registrations)
@@ -82,7 +74,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             )
             .Where(static x => x is not null);
 
-        // Find all open generic registrations (RegisterOpenGeneric*)
+        // Find all open generic registrations (from both regular Register* and legacy RegisterOpenGeneric* methods)
         var openGenericRegistrations = context
             .SyntaxProvider.CreateSyntaxProvider(
                 predicate: static (node, _) => IsOpenGenericRegisterInvocation(node),
@@ -135,7 +127,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Check if this is a RegisterOpenGeneric* invocation.
+    /// Check if this is an open generic registration invocation.
+    /// Detects Register* methods with typeof(T&lt;&gt;) arguments.
     /// </summary>
     private static bool IsOpenGenericRegisterInvocation(SyntaxNode node)
     {
@@ -149,12 +142,28 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             _ => null
         };
 
-        return methodName is not null
-            && OpenGenericRegisterMethodNames.Any(m => methodName.StartsWith(m));
+        // Check for Register* methods with typeof() arguments that might be open generics
+        if (methodName is not null && RegisterMethodNames.Any(m => methodName.StartsWith(m)))
+        {
+            // Look for typeof(T<>) patterns in arguments
+            foreach (var arg in invocation.ArgumentList.Arguments)
+            {
+                if (arg.Expression is TypeOfExpressionSyntax typeOfExpr)
+                {
+                    // Check if it looks like an open generic (has <> in the text)
+                    var typeText = typeOfExpr.Type.ToString();
+                    if (typeText.Contains("<>") || typeText.Contains("<,"))
+                        return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
     /// Fast syntax-only check to filter potential Register* method calls.
+    /// Excludes open generic registrations which are handled separately.
     /// </summary>
     private static bool IsRegisterMethodInvocation(SyntaxNode node)
     {
@@ -168,14 +177,22 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             _ => null
         };
 
-        // Exclude open generic methods - they're handled separately
-        if (
-            methodName is not null
-            && OpenGenericRegisterMethodNames.Any(m => methodName.StartsWith(m))
-        )
+        // Check if it's a regular Register* method
+        if (methodName is null || !RegisterMethodNames.Any(m => methodName.StartsWith(m)))
             return false;
 
-        return methodName is not null && RegisterMethodNames.Any(m => methodName.StartsWith(m));
+        // Exclude invocations with typeof(T<>) which are open generic registrations
+        foreach (var arg in invocation.ArgumentList.Arguments)
+        {
+            if (arg.Expression is TypeOfExpressionSyntax typeOfExpr)
+            {
+                var typeText = typeOfExpr.Type.ToString();
+                if (typeText.Contains("<>") || typeText.Contains("<,"))
+                    return false;
+            }
+        }
+
+        return true;
     }
 
     private static string? GetMethodNameFromMemberAccess(MemberAccessExpressionSyntax memberAccess)
@@ -240,7 +257,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     );
 
     /// <summary>
-    /// Extract open generic registration info.
+    /// Extract open generic registration info from Register* methods with open generic type arguments.
     /// </summary>
     private static OpenGenericInvocationInfo? GetOpenGenericInvocationInfo(
         GeneratorSyntaxContext context
@@ -270,10 +287,23 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             return null;
 
         var methodName = methodSymbol.Name;
-        if (!OpenGenericRegisterMethodNames.Contains(methodName))
-            return null;
 
-        return new OpenGenericInvocationInfo(invocation, semanticModel);
+        // Check if it's a Register* method with open generic arguments
+        if (RegisterMethodNames.Contains(methodName))
+        {
+            // Verify it has open generic type arguments
+            foreach (var arg in invocation.ArgumentList.Arguments)
+            {
+                if (arg.Expression is TypeOfExpressionSyntax typeOfExpr)
+                {
+                    var typeSymbol = semanticModel.GetTypeInfo(typeOfExpr.Type).Type;
+                    if (typeSymbol is INamedTypeSymbol { IsUnboundGenericType: true })
+                        return new OpenGenericInvocationInfo(invocation, semanticModel);
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -368,7 +398,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Analyze an open generic registration call.
+    /// Analyze an open generic registration call from Register* methods with open generic arguments.
     /// </summary>
     private static OpenGenericRegistration? AnalyzeOpenGenericInvocation(
         InvocationExpressionSyntax invocation,
@@ -381,12 +411,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             _ => null
         };
 
-        if (methodName is null || !OpenGenericRegisterMethodNames.Contains(methodName))
+        // Accept Register* methods
+        if (methodName is null || !RegisterMethodNames.Contains(methodName))
             return null;
 
         // Parse arguments: typically (typeof(IRepository<>), typeof(Repository<>), SvcLifetime.X)
         var args = invocation.ArgumentList.Arguments;
-        if (args.Count < 2)
+        if (args.Count < 1)
             return null;
 
         ITypeSymbol? serviceType = null;
@@ -422,7 +453,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         }
 
         // Infer lifetime from method name if not explicit
-        if (methodName.Contains("Transient"))
+        if (methodName!.Contains("Transient"))
             lifetime = "Transient";
         else if (methodName.Contains("Scoped"))
             lifetime = "Scoped";

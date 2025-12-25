@@ -22,15 +22,36 @@ public interface ISvcContainer : IDisposable, IAsyncDisposable
 
 public static class SvcContainerExtensions
 {
-    // Add by type - these are placeholder methods scanned by Source Generator
-    // They don't actually register; the generated code with factories does the real registration
+    // Add by type - these methods handle both regular types and open generics
+    // For non-open generics, the Source Generator generates factory-based registration
+    // For open generics, they are registered directly with the descriptor
     extension(ISvcContainer container)
     {
-        public ISvcContainer Register(Type serviceType, Type implementType, SvcLifetime lifetime) =>
-            container; // Source Generator will generate factory-based registration
+        public ISvcContainer Register(Type serviceType, Type implementType, SvcLifetime lifetime)
+        {
+            // Automatically detect and handle open generic types
+            if (serviceType.IsGenericTypeDefinition && implementType.IsGenericTypeDefinition)
+            {
+                return container.Register(new SvcDescriptor(
+                    serviceType,
+                    implementType,
+                    lifetime));
+            }
+            return container; // Source Generator will generate factory-based registration
+        }
 
-        public ISvcContainer Register(Type serviceType, SvcLifetime lifetime) =>
-            container; // Source Generator will generate factory-based registration
+        public ISvcContainer Register(Type serviceType, SvcLifetime lifetime)
+        {
+            // Automatically detect and handle open generic types
+            if (serviceType.IsGenericTypeDefinition)
+            {
+                return container.Register(new SvcDescriptor(
+                    serviceType,
+                    serviceType,
+                    lifetime));
+            }
+            return container; // Source Generator will generate factory-based registration
+        }
 
         public ISvcContainer Register<TService, TImplementation>(SvcLifetime lifetime)
             where TImplementation : TService =>
@@ -65,13 +86,33 @@ public static class SvcContainerExtensions
     // Transient
     extension(ISvcContainer container)
     {
-        #region Add by type - placeholder methods scanned by Source Generator
+        #region Add by type - handles both regular and open generic types
 
-        public ISvcContainer RegisterTransient(Type serviceType, Type implementType) =>
-            container; // Source Generator will generate factory-based registration
+        public ISvcContainer RegisterTransient(Type serviceType, Type implementType)
+        {
+            // Automatically detect and handle open generic types
+            if (serviceType.IsGenericTypeDefinition && implementType.IsGenericTypeDefinition)
+            {
+                return container.Register(new SvcDescriptor(
+                    serviceType,
+                    implementType,
+                    SvcLifetime.Transient));
+            }
+            return container; // Source Generator will generate factory-based registration
+        }
 
-        public ISvcContainer RegisterTransient(Type serviceType) =>
-            container; // Source Generator will generate factory-based registration
+        public ISvcContainer RegisterTransient(Type serviceType)
+        {
+            // Automatically detect and handle open generic types
+            if (serviceType.IsGenericTypeDefinition)
+            {
+                return container.Register(new SvcDescriptor(
+                    serviceType,
+                    serviceType,
+                    SvcLifetime.Transient));
+            }
+            return container; // Source Generator will generate factory-based registration
+        }
 
         public ISvcContainer RegisterTransient<TService, TImplementation>()
             where TImplementation : TService =>
@@ -108,13 +149,33 @@ public static class SvcContainerExtensions
     // Scoped
     extension(ISvcContainer container)
     {
-        #region Add by type - placeholder methods scanned by Source Generator
+        #region Add by type - handles both regular and open generic types
 
-        public ISvcContainer RegisterScoped(Type serviceType, Type implementType) =>
-            container; // Source Generator will generate factory-based registration
+        public ISvcContainer RegisterScoped(Type serviceType, Type implementType)
+        {
+            // Automatically detect and handle open generic types
+            if (serviceType.IsGenericTypeDefinition && implementType.IsGenericTypeDefinition)
+            {
+                return container.Register(new SvcDescriptor(
+                    serviceType,
+                    implementType,
+                    SvcLifetime.Scoped));
+            }
+            return container; // Source Generator will generate factory-based registration
+        }
 
-        public ISvcContainer RegisterScoped(Type serviceType) =>
-            container; // Source Generator will generate factory-based registration
+        public ISvcContainer RegisterScoped(Type serviceType)
+        {
+            // Automatically detect and handle open generic types
+            if (serviceType.IsGenericTypeDefinition)
+            {
+                return container.Register(new SvcDescriptor(
+                    serviceType,
+                    serviceType,
+                    SvcLifetime.Scoped));
+            }
+            return container; // Source Generator will generate factory-based registration
+        }
 
         public ISvcContainer RegisterScoped<TService, TImplementation>()
             where TImplementation : TService =>
@@ -151,13 +212,33 @@ public static class SvcContainerExtensions
     // Singleton
     extension(ISvcContainer container)
     {
-        #region Add by type - placeholder methods scanned by Source Generator
+        #region Add by type - handles both regular and open generic types
 
-        public ISvcContainer RegisterSingleton(Type serviceType, Type implementType) =>
-            container; // Source Generator will generate factory-based registration
+        public ISvcContainer RegisterSingleton(Type serviceType, Type implementType)
+        {
+            // Automatically detect and handle open generic types
+            if (serviceType.IsGenericTypeDefinition && implementType.IsGenericTypeDefinition)
+            {
+                return container.Register(new SvcDescriptor(
+                    serviceType,
+                    implementType,
+                    SvcLifetime.Singleton));
+            }
+            return container; // Source Generator will generate factory-based registration
+        }
 
-        public ISvcContainer RegisterSingleton(Type serviceType) =>
-            container; // Source Generator will generate factory-based registration
+        public ISvcContainer RegisterSingleton(Type serviceType)
+        {
+            // Automatically detect and handle open generic types
+            if (serviceType.IsGenericTypeDefinition)
+            {
+                return container.Register(new SvcDescriptor(
+                    serviceType,
+                    serviceType,
+                    SvcLifetime.Singleton));
+            }
+            return container; // Source Generator will generate factory-based registration
+        }
 
         public ISvcContainer RegisterSingleton<TService, TImplementation>()
             where TImplementation : TService =>
@@ -219,58 +300,5 @@ public static class SvcContainerExtensions
             }
             return container;
         }
-    }
-
-    // Open Generic registration
-    extension(ISvcContainer container)
-    {
-        /// <summary>
-        /// Registers an open generic type.
-        /// Example: RegisterOpenGeneric(typeof(IRepository&lt;&gt;), typeof(Repository&lt;&gt;), SvcLifetime.Scoped)
-        /// </summary>
-        public ISvcContainer RegisterOpenGeneric(
-            Type openGenericServiceType,
-            Type openGenericImplementationType,
-            SvcLifetime lifetime)
-        {
-            if (!openGenericServiceType.IsGenericTypeDefinition)
-                throw new ArgumentException(
-                    $"Type '{openGenericServiceType}' must be an open generic type definition.",
-                    nameof(openGenericServiceType));
-
-            if (!openGenericImplementationType.IsGenericTypeDefinition)
-                throw new ArgumentException(
-                    $"Type '{openGenericImplementationType}' must be an open generic type definition.",
-                    nameof(openGenericImplementationType));
-
-            return container.Register(new SvcDescriptor(
-                openGenericServiceType,
-                openGenericImplementationType,
-                lifetime));
-        }
-
-        /// <summary>
-        /// Registers an open generic type as transient.
-        /// </summary>
-        public ISvcContainer RegisterOpenGenericTransient(
-            Type openGenericServiceType,
-            Type openGenericImplementationType) =>
-            container.RegisterOpenGeneric(openGenericServiceType, openGenericImplementationType, SvcLifetime.Transient);
-
-        /// <summary>
-        /// Registers an open generic type as scoped.
-        /// </summary>
-        public ISvcContainer RegisterOpenGenericScoped(
-            Type openGenericServiceType,
-            Type openGenericImplementationType) =>
-            container.RegisterOpenGeneric(openGenericServiceType, openGenericImplementationType, SvcLifetime.Scoped);
-
-        /// <summary>
-        /// Registers an open generic type as singleton.
-        /// </summary>
-        public ISvcContainer RegisterOpenGenericSingleton(
-            Type openGenericServiceType,
-            Type openGenericImplementationType) =>
-            container.RegisterOpenGeneric(openGenericServiceType, openGenericImplementationType, SvcLifetime.Singleton);
     }
 }

@@ -200,8 +200,13 @@ container.RegisterSingle<IConfiguration>(config);
 #### Open Generic Registration
 
 ```csharp
-// Register open generic types
-container.RegisterOpenGenericScoped(typeof(IRepository<>), typeof(Repository<>));
+// Register open generic types - automatically detected!
+container.RegisterScoped(typeof(IRepository<>), typeof(Repository<>));
+container.RegisterTransient(typeof(ICache<,>), typeof(MemoryCache<,>));
+container.RegisterSingleton(typeof(ILogger<>), typeof(Logger<>));
+
+// Or use the unified Register method with explicit lifetime
+container.Register(typeof(IRepository<>), typeof(Repository<>), SvcLifetime.Scoped);
 
 // Resolve closed generic types
 var userRepo = scope.GetService<IRepository<User>>();

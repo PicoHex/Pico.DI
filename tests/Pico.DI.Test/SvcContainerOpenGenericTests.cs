@@ -207,41 +207,25 @@ public class SvcContainerOpenGenericTests : SvcContainerTestBase
     #region Open Generic API Validation Tests
 
     [Fact]
-    public void RegisterOpenGeneric_ThrowsForNonOpenGenericServiceType()
+    public void Register_OpenGeneric_NonOpenGenericServiceType_IsNoOp()
     {
         // Arrange
         using var container = new SvcContainer();
 
-        // Act & Assert
-        Assert.Throws<ArgumentException>(
-            () =>
-                container.RegisterOpenGeneric(
-                    typeof(IRepository<User>), // Not open generic
-                    typeof(Repository<>),
-                    SvcLifetime.Transient
-                )
+        // Act - When using non-open generic types with Register, it just returns
+        // the container as a no-op (source generator handles closed types)
+        var result = container.Register(
+            typeof(IRepository<User>), // Not open generic - handled by source generator
+            typeof(Repository<User>),
+            SvcLifetime.Transient
         );
+
+        // Assert - Returns container for chaining (no-op for non-open generics)
+        Assert.Same(container, result);
     }
 
     [Fact]
-    public void RegisterOpenGeneric_ThrowsForNonOpenGenericImplementationType()
-    {
-        // Arrange
-        using var container = new SvcContainer();
-
-        // Act & Assert
-        Assert.Throws<ArgumentException>(
-            () =>
-                container.RegisterOpenGeneric(
-                    typeof(IRepository<>),
-                    typeof(Repository<User>), // Not open generic
-                    SvcLifetime.Transient
-                )
-        );
-    }
-
-    [Fact]
-    public void RegisterOpenGeneric_ClosedTypeOverridesOpenGeneric()
+    public void Register_ClosedTypeOverridesOpenGeneric()
     {
         // Arrange - For AOT, manually register both types
         using var container = new SvcContainer();
@@ -266,24 +250,35 @@ public class SvcContainerOpenGenericTests : SvcContainerTestBase
     #region Open Generic Registration Stores Descriptor (for Source Generator to Use)
 
     [Fact]
-    public void RegisterOpenGeneric_StoresDescriptorForSourceGenerator()
+    public void Register_OpenGeneric_StoresDescriptorForSourceGenerator()
     {
-        // This test verifies that RegisterOpenGeneric stores the descriptor
+        // This test verifies that Register with open generic types stores the descriptor
         // The source generator will use this to generate closed type factories
         using var container = new SvcContainer();
 
-        // Act - This stores the open generic descriptor
-        container.RegisterOpenGeneric(
-            typeof(IRepository<>),
-            typeof(Repository<>),
-            SvcLifetime.Scoped
-        );
+        // Act - This stores the open generic descriptor using the unified Register API
+        container.RegisterScoped(typeof(IRepository<>), typeof(Repository<>));
 
         // The container now has the open generic descriptor stored
         // In a real AOT scenario, the source generator would detect GetService<IRepository<User>>()
         // calls and generate the closed type registrations at compile time
 
         // For now, verify that requesting an unregistered closed type gives a helpful error
+        using var scope = container.CreateScope();
+        var ex = Assert.Throws<PicoDiException>(() => scope.GetService<IRepository<User>>());
+        Assert.Contains("was not detected at compile time", ex.Message);
+    }
+
+    [Fact]
+    public void Register_OpenGeneric_WithLifetime_StoresDescriptor()
+    {
+        // Test the generic Register method with lifetime parameter
+        using var container = new SvcContainer();
+
+        // Act - Use the unified Register API with explicit lifetime
+        container.Register(typeof(IRepository<>), typeof(Repository<>), SvcLifetime.Transient);
+
+        // Verify the descriptor is stored
         using var scope = container.CreateScope();
         var ex = Assert.Throws<PicoDiException>(() => scope.GetService<IRepository<User>>());
         Assert.Contains("was not detected at compile time", ex.Message);
