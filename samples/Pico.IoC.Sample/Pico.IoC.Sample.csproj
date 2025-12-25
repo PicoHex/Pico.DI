@@ -27,6 +27,14 @@
     <!-- When trimming/publishing, reference the pre-built analyzer DLL -->
     <ItemGroup Condition="'$(PublishTrimmed)' == 'true'">
       <Analyzer Include="..\..\src\Pico.IoC.Gen\bin\Debug\netstandard2.0\Pico.IoC.Gen.dll" />
+ator: use ProjectReference only when NOT trimming/publishing -->
+    <ItemGroup Condition="'$(PublishTrimmed)' != 'true'">
+      <ProjectReference Include="..\..\src\Pico.IoC.Gen\Pico.IoC.Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+    <!-- When trimming/publishing, reference the pre-built analyzer DLL -->
+    <ItemGroup Condition="'$(PublishTrimmed)' == 'true'">
+      <Analyzer Include="..\..\src\Pico.IoC.Gen\bin\Debug\netstandard2.0\Pico.IoC.Gen.dll" />
     </ItemGroup>
 
 </Project>

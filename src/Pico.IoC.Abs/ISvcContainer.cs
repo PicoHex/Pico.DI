@@ -207,4 +207,57 @@ public static class SvcContainerExtensions
             return container;
         }
     }
+
+    // Open Generic registration
+    extension(ISvcContainer container)
+    {
+        /// <summary>
+        /// Registers an open generic type.
+        /// Example: RegisterOpenGeneric(typeof(IRepository&lt;&gt;), typeof(Repository&lt;&gt;), SvcLifetime.Scoped)
+        /// </summary>
+        public ISvcContainer RegisterOpenGeneric(
+            Type openGenericServiceType,
+            Type openGenericImplementationType,
+            SvcLifetime lifetime)
+        {
+            if (!openGenericServiceType.IsGenericTypeDefinition)
+                throw new ArgumentException(
+                    $"Type '{openGenericServiceType}' must be an open generic type definition.",
+                    nameof(openGenericServiceType));
+
+            if (!openGenericImplementationType.IsGenericTypeDefinition)
+                throw new ArgumentException(
+                    $"Type '{openGenericImplementationType}' must be an open generic type definition.",
+                    nameof(openGenericImplementationType));
+
+            return container.Register(new SvcDescriptor(
+                openGenericServiceType,
+                openGenericImplementationType,
+                lifetime));
+        }
+
+        /// <summary>
+        /// Registers an open generic type as transient.
+        /// </summary>
+        public ISvcContainer RegisterOpenGenericTransient(
+            Type openGenericServiceType,
+            Type openGenericImplementationType) =>
+            container.RegisterOpenGeneric(openGenericServiceType, openGenericImplementationType, SvcLifetime.Transient);
+
+        /// <summary>
+        /// Registers an open generic type as scoped.
+        /// </summary>
+        public ISvcContainer RegisterOpenGenericScoped(
+            Type openGenericServiceType,
+            Type openGenericImplementationType) =>
+            container.RegisterOpenGeneric(openGenericServiceType, openGenericImplementationType, SvcLifetime.Scoped);
+
+        /// <summary>
+        /// Registers an open generic type as singleton.
+        /// </summary>
+        public ISvcContainer RegisterOpenGenericSingleton(
+            Type openGenericServiceType,
+            Type openGenericImplementationType) =>
+            container.RegisterOpenGeneric(openGenericServiceType, openGenericImplementationType, SvcLifetime.Singleton);
+    }
 }

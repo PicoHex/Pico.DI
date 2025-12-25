@@ -14,9 +14,21 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
         return new SvcScope(descriptorCache);
     }
 
+    [RequiresDynamicCode("IEnumerable<T> and open generic resolution require dynamic code.")]
+    [RequiresUnreferencedCode("Open generic resolution requires reflection.")]
     public object GetService(Type serviceType)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // Handle IEnumerable<T> auto-injection
+        if (
+            serviceType.IsGenericType
+            && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>)
+        )
+        {
+            var elementType = serviceType.GetGenericArguments()[0];
+            return GetServicesAsTypedEnumerable(elementType);
+        }
 
         // Circular dependency detection
         var stack = _resolutionStack.Value ??= [];
@@ -28,6 +40,14 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
 
         try
         {
+            // Try open generic resolution first
+            if (serviceType.IsGenericType && !descriptorCache.ContainsKey(serviceType))
+            {
+                var openGenericResult = TryResolveOpenGeneric(serviceType);
+                if (openGenericResult != null)
+                    return openGenericResult;
+            }
+
             if (!descriptorCache.TryGetValue(serviceType, out var resolvers))
                 throw new PicoIocException(
                     $"Service type '{serviceType.FullName}' is not registered."
@@ -59,6 +79,178 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
         {
             stack.Remove(serviceType);
         }
+    }
+
+    /// <summary>
+    /// Returns services as a properly typed IEnumerable&lt;T&gt; for injection.
+    /// Note: This method requires dynamic code and may not work in AOT scenarios.
+    /// </summary>
+    [RequiresDynamicCode("Creating typed arrays requires dynamic code generation.")]
+    private object GetServicesAsTypedEnumerable(Type elementType)
+    {
+        if (!descriptorCache.TryGetValue(elementType, out var resolvers))
+        {
+            // Return empty typed array if not registered
+            return Array.CreateInstance(elementType, 0);
+        }
+
+        var services = resolvers
+            .Select(resolver =>
+                resolver.Lifetime switch
+                {
+                    SvcLifetime.Transient
+                        => resolver.Factory != null
+                            ? resolver.Factory(this)
+                            : throw new PicoIocException(
+                                $"No factory registered for transient service '{elementType.FullName}'."
+                            ),
+                    SvcLifetime.Singleton => GetOrCreateSingleton(elementType, resolver),
+                    SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+                    _
+                        => throw new ArgumentOutOfRangeException(
+                            nameof(resolver.Lifetime),
+                            resolver.Lifetime,
+                            $"Unknown service lifetime '{resolver.Lifetime}'."
+                        )
+                }
+            )
+            .ToArray();
+
+        // Create typed array
+        var typedArray = Array.CreateInstance(elementType, services.Length);
+        for (var i = 0; i < services.Length; i++)
+        {
+            typedArray.SetValue(services[i], i);
+        }
+        return typedArray;
+    }
+
+    /// <summary>
+    /// Tries to resolve an open generic type (e.g., IRepository&lt;T&gt; -&gt; Repository&lt;T&gt;).
+    /// Note: This method requires dynamic code and may not work in AOT scenarios.
+    /// </summary>
+    [RequiresDynamicCode("Open generic resolution requires runtime type generation.")]
+    [UnconditionalSuppressMessage(
+        "AOT",
+        "IL2055",
+        Justification = "Open generics require MakeGenericType at runtime."
+    )]
+    private object? TryResolveOpenGeneric(Type closedGenericType)
+    {
+        var openGenericType = closedGenericType.GetGenericTypeDefinition();
+
+        if (!descriptorCache.TryGetValue(openGenericType, out var resolvers))
+            return null;
+
+        var resolver = resolvers.LastOrDefault();
+        if (resolver?.ImplementationType == null)
+            return null;
+
+        // Check if implementation type is also an open generic
+        if (!resolver.ImplementationType.IsGenericTypeDefinition)
+            return null;
+
+        // Build closed implementation type
+        var typeArguments = closedGenericType.GetGenericArguments();
+        var closedImplementationType = resolver.ImplementationType.MakeGenericType(typeArguments);
+
+        // Create instance using reflection
+        var instance = CreateInstanceWithInjection(
+            closedImplementationType,
+            resolver.Lifetime,
+            null
+        );
+
+        // Create descriptor with factory for future requests
+        Func<ISvcScope, object> factory = scope =>
+            ((SvcScope)scope).CreateInstanceWithInjection(
+                closedImplementationType,
+                resolver.Lifetime,
+                null
+            );
+
+        var closedDescriptor = new SvcDescriptor(closedGenericType, factory, resolver.Lifetime);
+
+        // Cache singleton instance if applicable
+        if (resolver.Lifetime == SvcLifetime.Singleton)
+        {
+            closedDescriptor.SingleInstance = instance;
+        }
+
+        // Register the closed type for future requests
+        descriptorCache.AddOrUpdate(
+            closedGenericType,
+            _ => [closedDescriptor],
+            (_, list) =>
+            {
+                list.Add(closedDescriptor);
+                return list;
+            }
+        );
+
+        // For scoped, cache in this scope
+        if (resolver.Lifetime == SvcLifetime.Scoped)
+        {
+            _scopedInstances.TryAdd(closedDescriptor, instance);
+        }
+
+        return instance;
+    }
+
+    /// <summary>
+    /// Creates an instance of the specified type, injecting constructor dependencies.
+    /// Used for open generic resolution where no factory is available.
+    /// Note: This method uses reflection and may not work in AOT scenarios.
+    /// </summary>
+    [RequiresUnreferencedCode("Reflection-based instantiation may not work with trimming.")]
+    [UnconditionalSuppressMessage(
+        "AOT",
+        "IL2070",
+        Justification = "Open generics require reflection for instantiation."
+    )]
+    private object CreateInstanceWithInjection(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+            Type implementationType,
+        SvcLifetime lifetime,
+        SvcDescriptor? descriptor
+    )
+    {
+        var constructors = implementationType
+            .GetConstructors()
+            .OrderByDescending(c => c.GetParameters().Length)
+            .ToArray();
+
+        if (constructors.Length == 0)
+            throw new PicoIocException(
+                $"No public constructor found for type '{implementationType.FullName}'."
+            );
+
+        var constructor = constructors[0];
+        var parameters = constructor.GetParameters();
+        var args = new object[parameters.Length];
+
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            args[i] = GetService(parameters[i].ParameterType);
+        }
+
+        var instance = constructor.Invoke(args);
+
+        // Handle lifetime caching only if descriptor is provided
+        if (descriptor != null)
+        {
+            switch (lifetime)
+            {
+                case SvcLifetime.Singleton:
+                    descriptor.SingleInstance = instance;
+                    break;
+                case SvcLifetime.Scoped:
+                    _scopedInstances.TryAdd(descriptor, instance);
+                    break;
+            }
+        }
+
+        return instance;
     }
 
     private object GetOrCreateSingleton(Type serviceType, SvcDescriptor resolver)

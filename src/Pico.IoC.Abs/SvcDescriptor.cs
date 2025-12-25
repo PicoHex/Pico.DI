@@ -2,13 +2,15 @@
 
 public class SvcDescriptor(
     Type serviceType,
-    Type? implementationType,
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+        Type? implementationType,
     SvcLifetime lifetime = SvcLifetime.Singleton
 )
 {
     public Type ServiceType { get; } =
         serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     public Type ImplementationType { get; } = implementationType ?? serviceType;
 
     public object? SingleInstance { get; set; }
