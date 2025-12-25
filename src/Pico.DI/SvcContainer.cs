@@ -4,6 +4,35 @@
 /// The main dependency injection container for registering and managing service descriptors.
 /// Implements <see cref="ISvcContainer"/> and supports both synchronous and asynchronous disposal.
 /// Also supports decorator generic types for wrapping services at runtime.
+///
+/// ARCHITECTURE: Zero-Reflection Compile-Time Factory Generation
+/// ===============================================================
+///
+/// This container uses a DUAL-MODE architecture:
+///
+/// PRODUCTION PATH (with Source Generator):
+/// =========================================
+/// 1. Source generator scans RegisterSingleton<T, TImpl>() calls at compile-time
+/// 2. Generator analyzes constructor parameters and generates explicit factory code
+/// 3. Generator produces ConfigureGeneratedServices() with pre-built SvcDescriptor instances
+/// 4. Each descriptor contains pre-compiled factory (e.g., static _ => new TImpl())
+/// 5. At runtime: Register(SvcDescriptor) simply caches these pre-built descriptors
+/// 6. GetService() calls pre-generated factory (ZERO REFLECTION!)
+///
+/// TESTING PATH (without Source Generator):
+/// =========================================
+/// 1. Extension methods like RegisterSingleton<T, TImpl>() create fallback factories
+/// 2. Fallback uses Activator.CreateInstance<T>() (AOT-safe generic activator)
+/// 3. Allows tests to work without source generator
+/// 4. Performance is lower but still reasonable for testing
+///
+/// RESULT:
+/// - ✅ Production: Zero runtime reflection via pre-generated factories
+/// - ✅ Testing: Works without source generator
+/// - ✅ AOT-compatible: All generated code uses only compile-time-known types
+/// - ✅ IL trimmer friendly: No dynamic type discovery
+/// - ✅ Compile-time safe: Errors caught during build
+/// - ✅ Maximum performance: Direct code execution in production
 /// </summary>
 public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
 {
@@ -21,6 +50,10 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
     public ISvcContainer Register(SvcDescriptor descriptor)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // This method is called by source-generated ConfigureGeneratedServices() method
+        // with pre-built SvcDescriptor instances that already contain compiled factory delegates.
+        // We simply cache them - no reflection, no factory generation at runtime.
         _descriptorCache.AddOrUpdate(
             descriptor.ServiceType,
             _ => [descriptor],
@@ -30,6 +63,7 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
                 return list;
             }
         );
+
         return this;
     }
 

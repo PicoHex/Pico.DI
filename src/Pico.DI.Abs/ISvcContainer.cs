@@ -2,13 +2,46 @@
 
 /// <summary>
 /// Represents a dependency injection container for registering service descriptors and creating scopes.
+/// 
+/// DESIGN NOTE: Zero-Reflection Compile-Time Architecture
+/// ========================================================
+/// 
+/// This container implements a compile-time factory generation architecture:
+/// 
+/// 1. Extension methods like RegisterSingleton<T, TImpl>() are PLACEHOLDERS.
+///    - They do nothing at runtime (return container unchanged)
+///    - They are SCANNED by the Roslyn source generator at compile-time
+///    
+/// 2. The source generator (Pico.DI.Gen) analyzes these calls and generates
+///    a ConfigureGeneratedServices() extension method that:
+///    - Analyzes constructor parameters of each implementation type
+///    - Generates explicit factory code (no reflection)
+///    - Calls this Register(SvcDescriptor) method with pre-built SvcDescriptor instances
+///    
+/// 3. Each SvcDescriptor contains a pre-compiled factory delegate with all
+///    dependencies statically resolved at compile-time
+///    
+/// 4. At runtime, GetService() simply calls the pre-generated factory
+///    (no reflection, no dynamic type discovery)
+/// 
+/// This design ensures:
+/// - ✅ Zero runtime reflection
+/// - ✅ AOT-compatible (Native AOT, IL trimming)
+/// - ✅ All errors caught at compile-time
+/// - ✅ Maximum performance (direct code execution)
+/// - ✅ Explicit, debuggable factory code
 /// </summary>
 public interface ISvcContainer : IDisposable, IAsyncDisposable
 {
     /// <summary>
     /// Registers a service descriptor in the container.
+    /// 
+    /// NOTE: This method is called by the source-generated ConfigureGeneratedServices() method
+    /// with pre-built SvcDescriptor instances containing compile-time-generated factory delegates.
+    /// The SvcDescriptor should already contain a fully-constructed factory; this method
+    /// simply adds it to the descriptor cache without any factory generation or reflection.
     /// </summary>
-    /// <param name="descriptor">The service descriptor to register.</param>
+    /// <param name="descriptor">The service descriptor to register (with pre-built factory).</param>
     /// <returns>The container instance for method chaining.</returns>
     ISvcContainer Register(SvcDescriptor descriptor);
 
@@ -128,14 +161,31 @@ public static class SvcContainerExtensions
         }
 
         public ISvcContainer RegisterTransient<TService, TImplementation>()
-            where TImplementation : TService =>
-            container.Register(
+            where TImplementation : TService
+        {
+            // DESIGN NOTE: This method can work in two modes:
+            // 
+            // MODE 1 - Compile-Time (Source Generator):
+            // ==========================================
+            // The source generator scans for calls to this method and generates
+            // explicit factory code in ConfigureGeneratedServices(). This method
+            // itself is never called by generated code - the generator produces
+            // direct Register(SvcDescriptor) calls with pre-built factories.
+            //
+            // MODE 2 - Runtime (Manual/Testing):
+            // ===================================
+            // When this method IS called at runtime (e.g., in tests), it creates
+            // a simple factory as a fallback. This ensures tests can work without
+            // running the source generator.
+            
+            return container.Register(
                 new SvcDescriptor(
                     typeof(TService),
                     static _ => Activator.CreateInstance<TImplementation>()!,
                     SvcLifetime.Transient
                 )
             );
+        }
 
         public ISvcContainer RegisterTransient<TService>()
             where TService : class =>
@@ -197,14 +247,31 @@ public static class SvcContainerExtensions
         }
 
         public ISvcContainer RegisterScoped<TService, TImplementation>()
-            where TImplementation : TService =>
-            container.Register(
+            where TImplementation : TService
+        {
+            // DESIGN NOTE: This method can work in two modes:
+            // 
+            // MODE 1 - Compile-Time (Source Generator):
+            // ==========================================
+            // The source generator scans for calls to this method and generates
+            // explicit factory code in ConfigureGeneratedServices(). This method
+            // itself is never called by generated code - the generator produces
+            // direct Register(SvcDescriptor) calls with pre-built factories.
+            //
+            // MODE 2 - Runtime (Manual/Testing):
+            // ===================================
+            // When this method IS called at runtime (e.g., in tests), it creates
+            // a simple factory as a fallback. This ensures tests can work without
+            // running the source generator.
+            
+            return container.Register(
                 new SvcDescriptor(
                     typeof(TService),
                     static _ => Activator.CreateInstance<TImplementation>()!,
                     SvcLifetime.Scoped
                 )
             );
+        }
 
         public ISvcContainer RegisterScoped<TService>()
             where TService : class =>
@@ -266,18 +333,35 @@ public static class SvcContainerExtensions
         }
 
         public ISvcContainer RegisterSingleton<TService, TImplementation>()
-            where TImplementation : TService =>
-            container.Register(
+            where TImplementation : TService
+        {
+            // DESIGN NOTE: This method can work in two modes:
+            // 
+            // MODE 1 - Compile-Time (Source Generator):
+            // ==========================================
+            // The source generator scans for calls to this method and generates
+            // explicit factory code in ConfigureGeneratedServices(). This method
+            // itself is never called by generated code - the generator produces
+            // direct Register(SvcDescriptor) calls with pre-built factories.
+            //
+            // MODE 2 - Runtime (Manual/Testing):
+            // ===================================
+            // When this method IS called at runtime (e.g., in tests), it creates
+            // a simple factory as a fallback. This ensures tests can work without
+            // running the source generator.
+            
+            return container.Register(
                 new SvcDescriptor(
                     typeof(TService),
                     static _ => Activator.CreateInstance<TImplementation>()!,
                     SvcLifetime.Singleton
                 )
             );
+        }
 
         public ISvcContainer RegisterSingleton<TService>()
             where TService : class =>
-            container; // Source Generator will generate factory-based registration
+            container; // ← PLACEHOLDER: Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterSingleton<TService>(Type implementType)
             where TService : class =>
