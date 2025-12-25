@@ -30,6 +30,7 @@
     <ItemGroup>
       <ProjectReference Include="..\..\src\Pico.IoC.Abs\Pico.IoC.Abs.csproj" />
       <ProjectReference Include="..\..\src\Pico.IoC\Pico.IoC.csproj" />
+      <ProjectReference Include="..\..\src\Pico.IoC.Gen\Pico.IoC.Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
 </Project>

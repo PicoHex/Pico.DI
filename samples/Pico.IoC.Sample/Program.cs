@@ -36,22 +36,21 @@ public class GreetingService(IGreeter greeter, ILogger logger)
 
 /// <summary>
 /// Service registration configuration.
-/// The Source Generator will scan this class and generate factory methods.
 /// </summary>
-[GenerateServiceRegistrations]
-public static partial class ServiceConfig
+public static class ServiceConfig
 {
     public static void ConfigureServices(ISvcContainer container)
     {
-        // These registrations will be scanned by the Source Generator
-        // and factory methods will be generated automatically
+        // Register services - the Source Generator will scan these calls
+        // and generate factory methods automatically
         container
             .RegisterSingleton<ILogger, ConsoleLogger>()
             .RegisterTransient<IGreeter, Greeter>()
             .RegisterScoped<GreetingService>();
 
         // Register the generated descriptors with pre-compiled factories
-        container.RegisterRange(GetGeneratedDescriptors());
+        // This replaces the type-based registrations above with AOT-compatible factories
+        container.RegisterRange(GeneratedServiceRegistrations.GetDescriptors());
     }
 }
 
