@@ -5,6 +5,7 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
 {
     private readonly ConcurrentDictionary<SvcDescriptor, object> _scopedInstances = new();
     private readonly ConcurrentDictionary<SvcDescriptor, Lock> _singletonLocks = new();
+    private readonly AsyncLocal<HashSet<Type>> _resolutionStack = new();
     private bool _disposed;
 
     public ISvcScope CreateScope()
@@ -16,30 +17,48 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
     public object GetService(Type serviceType)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!descriptorCache.TryGetValue(serviceType, out var resolvers))
-            throw new PicoIocException($"Service type '{serviceType.FullName}' is not registered.");
-        var resolver =
-            resolvers.LastOrDefault()
-            ?? throw new PicoIocException(
-                $"No service descriptor found for type '{serviceType.FullName}'."
-            );
-        return resolver.Lifetime switch
+
+        // Circular dependency detection
+        var stack = _resolutionStack.Value ??= [];
+        if (!stack.Add(serviceType))
         {
-            SvcLifetime.Transient
-                => resolver.Factory != null
-                    ? resolver.Factory(this)
-                    : throw new PicoIocException(
-                        $"No factory registered for transient service '{serviceType.FullName}'."
-                    ),
-            SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-            SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-            _
-                => throw new ArgumentOutOfRangeException(
-                    nameof(resolver.Lifetime),
-                    resolver.Lifetime,
-                    $"Unknown service lifetime '{resolver.Lifetime}'."
-                )
-        };
+            var chain = string.Join(" -> ", stack.Select(t => t.Name)) + " -> " + serviceType.Name;
+            throw new PicoIocException($"Circular dependency detected: {chain}");
+        }
+
+        try
+        {
+            if (!descriptorCache.TryGetValue(serviceType, out var resolvers))
+                throw new PicoIocException(
+                    $"Service type '{serviceType.FullName}' is not registered."
+                );
+            var resolver =
+                resolvers.LastOrDefault()
+                ?? throw new PicoIocException(
+                    $"No service descriptor found for type '{serviceType.FullName}'."
+                );
+            return resolver.Lifetime switch
+            {
+                SvcLifetime.Transient
+                    => resolver.Factory != null
+                        ? resolver.Factory(this)
+                        : throw new PicoIocException(
+                            $"No factory registered for transient service '{serviceType.FullName}'."
+                        ),
+                SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
+                SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+                _
+                    => throw new ArgumentOutOfRangeException(
+                        nameof(resolver.Lifetime),
+                        resolver.Lifetime,
+                        $"Unknown service lifetime '{resolver.Lifetime}'."
+                    )
+            };
+        }
+        finally
+        {
+            stack.Remove(serviceType);
+        }
     }
 
     private object GetOrCreateSingleton(Type serviceType, SvcDescriptor resolver)
