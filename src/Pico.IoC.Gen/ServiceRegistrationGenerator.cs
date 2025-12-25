@@ -48,7 +48,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         // Generate source
         context.RegisterSourceOutput(
             compilationAndInvocations,
-            static (spc, source) => Execute(source.Left, source.Right!, spc)
+            static (spc, source) => Execute(source.Left, source.Right, spc)
         );
     }
 
