@@ -203,11 +203,17 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             return null;
 
         // Verify this is a Pico.DI registration method
-        var containingType = methodSymbol.ContainingType?.ToDisplayString();
-        if (
-            containingType is null
-            || (!containingType.StartsWith("Pico.DI") && !containingType.Contains("SvcContainer"))
-        )
+        // C# 14 extension types may have containing types like "__extension__ISvcContainer" or similar
+        var containingType = methodSymbol.ContainingType?.ToDisplayString() ?? "";
+        var containingNs = methodSymbol.ContainingNamespace?.ToDisplayString() ?? "";
+
+        var isPicoDiMethod =
+            containingType.StartsWith("Pico.DI")
+            || containingType.Contains("SvcContainer")
+            || containingType.Contains("ISvcContainer")
+            || containingNs.StartsWith("Pico.DI");
+
+        if (!isPicoDiMethod)
             return null;
 
         var methodName = methodSymbol.Name;
@@ -250,11 +256,17 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             return null;
 
         // Verify this is a Pico.DI registration method
-        var containingType = methodSymbol.ContainingType?.ToDisplayString();
-        if (
-            containingType is null
-            || (!containingType.StartsWith("Pico.DI") && !containingType.Contains("SvcContainer"))
-        )
+        // C# 14 extension types may have containing types like "__extension__ISvcContainer" or similar
+        var containingType = methodSymbol.ContainingType?.ToDisplayString() ?? "";
+        var containingNs = methodSymbol.ContainingNamespace?.ToDisplayString() ?? "";
+
+        var isPicoDiMethod =
+            containingType.StartsWith("Pico.DI")
+            || containingType.Contains("SvcContainer")
+            || containingType.Contains("ISvcContainer")
+            || containingNs.StartsWith("Pico.DI");
+
+        if (!isPicoDiMethod)
             return null;
 
         var methodName = methodSymbol.Name;
@@ -774,11 +786,18 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         if (symbolInfo.Symbol is not IMethodSymbol methodSymbol)
             return null;
 
-        var containingType = methodSymbol.ContainingType?.ToDisplayString();
-        if (
-            containingType is null
-            || (!containingType.StartsWith("Pico.DI") && !containingType.Contains("SvcContainer"))
-        )
+        // Verify this is a Pico.DI registration method
+        // C# 14 extension types may have containing types like "__extension__ISvcContainer" or similar
+        var containingType = methodSymbol.ContainingType?.ToDisplayString() ?? "";
+        var containingNs = methodSymbol.ContainingNamespace?.ToDisplayString() ?? "";
+
+        var isPicoDiMethod =
+            containingType.StartsWith("Pico.DI")
+            || containingType.Contains("SvcContainer")
+            || containingType.Contains("ISvcContainer")
+            || containingNs.StartsWith("Pico.DI");
+
+        if (!isPicoDiMethod)
             return null;
 
         // Extract type arguments

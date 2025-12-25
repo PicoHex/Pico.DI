@@ -4,6 +4,8 @@ namespace Pico.DI;
 /// Adapter that wraps SvcScope to implement IServiceProvider.
 /// Enables seamless integration with ASP.NET Core and other frameworks
 /// that depend on IServiceProvider.
+/// For AOT compatibility, IEnumerable&lt;T&gt; should be explicitly registered
+/// using the source generator or manual factory registration.
 /// </summary>
 public sealed class SvcProviderAdapter(ISvcScope scope) : ISvcProviderAdapter
 {
@@ -17,23 +19,6 @@ public sealed class SvcProviderAdapter(ISvcScope scope) : ISvcProviderAdapter
     public object? GetService(Type serviceType)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-
-        // Handle IEnumerable<T> requests - delegate to scope's GetService which handles this
-        if (serviceType.IsGenericType &&
-            serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-        {
-            try
-            {
-                // Use GetService which handles IEnumerable<T> and returns typed array
-                return _scope.GetService(serviceType);
-            }
-            catch (PicoDiException)
-            {
-                // Return empty typed array if not registered - use scope.GetServices
-                // which returns empty collection for unregistered types
-                return Array.Empty<object>();
-            }
-        }
 
         try
         {

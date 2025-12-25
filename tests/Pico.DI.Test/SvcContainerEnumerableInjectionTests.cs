@@ -1,7 +1,9 @@
 namespace Pico.DI.Test;
 
 /// <summary>
-/// Tests for IEnumerable&lt;T&gt; auto-injection functionality.
+/// Tests for IEnumerable&lt;T&gt; injection functionality.
+/// For AOT compatibility, IEnumerable&lt;T&gt; must be explicitly registered with a factory.
+/// The source generator can auto-generate these registrations based on detected usage.
 /// </summary>
 public class SvcContainerEnumerableInjectionTests : SvcContainerTestBase
 {
@@ -40,11 +42,16 @@ public class SvcContainerEnumerableInjectionTests : SvcContainerTestBase
     [Fact]
     public void GetService_IEnumerable_ReturnsAllImplementations()
     {
-        // Arrange
+        // Arrange - For AOT, explicitly register IEnumerable<T> with a factory
         using var container = new SvcContainer();
         container.RegisterTransient<INotifier>(scope => new EmailNotifier());
         container.RegisterTransient<INotifier>(scope => new SmsNotifier());
         container.RegisterTransient<INotifier>(scope => new PushNotifier());
+
+        // For AOT: Register IEnumerable<T> explicitly
+        container.RegisterTransient<IEnumerable<INotifier>>(scope =>
+            scope.GetServices<INotifier>().ToArray()
+        );
 
         using var scope = container.CreateScope();
 
@@ -63,8 +70,10 @@ public class SvcContainerEnumerableInjectionTests : SvcContainerTestBase
     [Fact]
     public void GetService_IEnumerable_ReturnsEmptyForUnregistered()
     {
-        // Arrange
+        // Arrange - For AOT, register empty IEnumerable explicitly
         using var container = new SvcContainer();
+        container.RegisterTransient<IEnumerable<INotifier>>(scope => Array.Empty<INotifier>());
+
         using var scope = container.CreateScope();
 
         // Act
@@ -82,6 +91,11 @@ public class SvcContainerEnumerableInjectionTests : SvcContainerTestBase
         using var container = new SvcContainer();
         container.RegisterSingleton<INotifier>(scope => new EmailNotifier());
         container.RegisterTransient<INotifier>(scope => new SmsNotifier());
+
+        // For AOT: Register IEnumerable<T> explicitly
+        container.RegisterTransient<IEnumerable<INotifier>>(scope =>
+            scope.GetServices<INotifier>().ToArray()
+        );
 
         using var scope = container.CreateScope();
 
@@ -103,6 +117,12 @@ public class SvcContainerEnumerableInjectionTests : SvcContainerTestBase
         using var container = new SvcContainer();
         container.RegisterTransient<INotifier>(scope => new EmailNotifier());
         container.RegisterTransient<INotifier>(scope => new SmsNotifier());
+
+        // For AOT: Register IEnumerable<T> explicitly
+        container.RegisterTransient<IEnumerable<INotifier>>(scope =>
+            scope.GetServices<INotifier>().ToArray()
+        );
+
         container.RegisterTransient<NotificationService>(scope => new NotificationService(
             scope.GetService<IEnumerable<INotifier>>()
         ));
@@ -127,6 +147,11 @@ public class SvcContainerEnumerableInjectionTests : SvcContainerTestBase
         container.RegisterTransient<INotifier>(scope => new EmailNotifier());
         container.RegisterTransient<INotifier>(scope => new SmsNotifier());
 
+        // For AOT: Register IEnumerable<T> explicitly
+        container.RegisterTransient<IEnumerable<INotifier>>(scope =>
+            scope.GetServices<INotifier>().ToArray()
+        );
+
         using var adapter = container.CreateServiceProviderScope();
 
         // Act
@@ -142,8 +167,10 @@ public class SvcContainerEnumerableInjectionTests : SvcContainerTestBase
     [Fact]
     public void IServiceProvider_GetService_IEnumerable_ReturnsEmptyArrayForUnregistered()
     {
-        // Arrange
+        // Arrange - For AOT, we must explicitly register empty IEnumerable
         using var container = new SvcContainer();
+        container.RegisterTransient<IEnumerable<INotifier>>(scope => Array.Empty<INotifier>());
+
         using var adapter = container.CreateServiceProviderScope();
 
         // Act

@@ -4,7 +4,8 @@ namespace Pico.DI;
 /// Represents a service resolution scope that manages scoped service instances.
 /// Implements <see cref="ISvcScope"/> and supports circular dependency detection.
 /// When used with the Pico.DI.Gen source generator, all services are registered with
-/// pre-compiled factories at compile time, making this implementation AOT-compatible.
+/// pre-compiled factories at compile time, making this implementation fully AOT-compatible.
+/// No reflection is used - all factory delegates are generated at compile time via interceptors.
 /// </summary>
 public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptorCache)
     : ISvcScope
@@ -26,18 +27,6 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // Handle IEnumerable<T> auto-injection
-        // When using the source generator, IEnumerable<T> is pre-registered with a factory.
-        // This runtime fallback is provided for manual registration scenarios.
-        if (
-            serviceType.IsGenericType
-            && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>)
-        )
-        {
-            var elementType = serviceType.GetGenericArguments()[0];
-            return GetServicesAsTypedEnumerable(elementType);
-        }
-
         // Circular dependency detection
         var stack = _resolutionStack.Value ??= [];
         if (!stack.Add(serviceType))
@@ -48,13 +37,21 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
 
         try
         {
-            // Try open generic resolution first (runtime fallback for non-AOT scenarios)
-            // When using the source generator, closed generics are pre-registered.
+            // For open generics: the source generator generates closed generic factories
+            // based on GetService<T> calls found at compile time. If a closed generic
+            // is not pre-registered, it means it wasn't detected at compile time.
             if (serviceType.IsGenericType && !descriptorCache.ContainsKey(serviceType))
             {
-                var openGenericResult = TryResolveOpenGeneric(serviceType);
-                if (openGenericResult != null)
-                    return openGenericResult;
+                var openGenericType = serviceType.GetGenericTypeDefinition();
+                if (descriptorCache.ContainsKey(openGenericType))
+                {
+                    throw new PicoDiException(
+                        $"Open generic type '{openGenericType.FullName}' is registered, but closed type "
+                            + $"'{serviceType.FullName}' was not detected at compile time. "
+                            + "Ensure you call GetService<T> with this specific closed generic type in your code, "
+                            + "or register a factory manually."
+                    );
+                }
             }
 
             if (!descriptorCache.TryGetValue(serviceType, out var resolvers))
@@ -74,7 +71,8 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
                     => resolver.Factory != null
                         ? resolver.Factory(this)
                         : throw new PicoDiException(
-                            $"No factory registered for transient service '{serviceType.FullName}'."
+                            $"No factory registered for transient service '{serviceType.FullName}'. "
+                                + "Use Pico.DI.Gen source generator or register with a factory delegate."
                         ),
                 SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
                 SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
@@ -92,187 +90,6 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
         }
     }
 
-    /// <summary>
-    /// Returns services as a properly typed IEnumerable&lt;T&gt; for injection.
-    /// This is a runtime fallback - when using the source generator, IEnumerable&lt;T&gt;
-    /// is pre-registered with a typed factory at compile time.
-    /// </summary>
-    [UnconditionalSuppressMessage(
-        "AOT",
-        "IL3050",
-        Justification = "This is a runtime fallback. Use source generator for AOT compatibility."
-    )]
-    private object GetServicesAsTypedEnumerable(Type elementType)
-    {
-        if (!descriptorCache.TryGetValue(elementType, out var resolvers))
-        {
-            // Return empty typed array if not registered
-            return Array.CreateInstance(elementType, 0);
-        }
-
-        var services = resolvers
-            .Select(resolver =>
-                resolver.Lifetime switch
-                {
-                    SvcLifetime.Transient
-                        => resolver.Factory != null
-                            ? resolver.Factory(this)
-                            : throw new PicoDiException(
-                                $"No factory registered for transient service '{elementType.FullName}'."
-                            ),
-                    SvcLifetime.Singleton => GetOrCreateSingleton(elementType, resolver),
-                    SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-                    _
-                        => throw new ArgumentOutOfRangeException(
-                            nameof(resolver.Lifetime),
-                            resolver.Lifetime,
-                            $"Unknown service lifetime '{resolver.Lifetime}'."
-                        )
-                }
-            )
-            .ToArray();
-
-        // Create typed array
-        var typedArray = Array.CreateInstance(elementType, services.Length);
-        for (var i = 0; i < services.Length; i++)
-        {
-            typedArray.SetValue(services[i], i);
-        }
-        return typedArray;
-    }
-
-    /// <summary>
-    /// Tries to resolve an open generic type (e.g., IRepository&lt;T&gt; -&gt; Repository&lt;T&gt;).
-    /// This is a runtime fallback - when using the source generator, closed generics
-    /// are pre-registered at compile time based on detected GetService&lt;T&gt; calls.
-    /// </summary>
-    [UnconditionalSuppressMessage(
-        "AOT",
-        "IL3050",
-        Justification = "This is a runtime fallback. Use source generator for AOT compatibility."
-    )]
-    [UnconditionalSuppressMessage(
-        "AOT",
-        "IL2055",
-        Justification = "This is a runtime fallback. Use source generator for AOT compatibility."
-    )]
-    private object? TryResolveOpenGeneric(Type closedGenericType)
-    {
-        var openGenericType = closedGenericType.GetGenericTypeDefinition();
-
-        if (!descriptorCache.TryGetValue(openGenericType, out var resolvers))
-            return null;
-
-        var resolver = resolvers.LastOrDefault();
-        if (resolver?.ImplementationType == null)
-            return null;
-
-        // Check if implementation type is also an open generic
-        if (!resolver.ImplementationType.IsGenericTypeDefinition)
-            return null;
-
-        // Build closed implementation type
-        var typeArguments = closedGenericType.GetGenericArguments();
-        var closedImplementationType = resolver.ImplementationType.MakeGenericType(typeArguments);
-
-        // Create instance using reflection
-        var instance = CreateInstanceWithInjection(
-            closedImplementationType,
-            resolver.Lifetime,
-            null
-        );
-
-        // Create descriptor with factory for future requests
-        Func<ISvcScope, object> factory = scope =>
-            ((SvcScope)scope).CreateInstanceWithInjection(
-                closedImplementationType,
-                resolver.Lifetime,
-                null
-            );
-
-        var closedDescriptor = new SvcDescriptor(closedGenericType, factory, resolver.Lifetime);
-
-        // Cache singleton instance if applicable
-        if (resolver.Lifetime == SvcLifetime.Singleton)
-        {
-            closedDescriptor.SingleInstance = instance;
-        }
-
-        // Register the closed type for future requests
-        descriptorCache.AddOrUpdate(
-            closedGenericType,
-            _ => [closedDescriptor],
-            (_, list) =>
-            {
-                list.Add(closedDescriptor);
-                return list;
-            }
-        );
-
-        // For scoped, cache in this scope
-        if (resolver.Lifetime == SvcLifetime.Scoped)
-        {
-            _scopedInstances.TryAdd(closedDescriptor, instance);
-        }
-
-        return instance;
-    }
-
-    /// <summary>
-    /// Creates an instance of the specified type, injecting constructor dependencies.
-    /// Used for open generic resolution where no factory is available.
-    /// This is a runtime fallback - when using the source generator, factories are pre-compiled.
-    /// </summary>
-    [UnconditionalSuppressMessage(
-        "AOT",
-        "IL2070",
-        Justification = "This is a runtime fallback. Use source generator for AOT compatibility."
-    )]
-    private object CreateInstanceWithInjection(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-            Type implementationType,
-        SvcLifetime lifetime,
-        SvcDescriptor? descriptor
-    )
-    {
-        var constructors = implementationType
-            .GetConstructors()
-            .OrderByDescending(c => c.GetParameters().Length)
-            .ToArray();
-
-        if (constructors.Length == 0)
-            throw new PicoDiException(
-                $"No public constructor found for type '{implementationType.FullName}'."
-            );
-
-        var constructor = constructors[0];
-        var parameters = constructor.GetParameters();
-        var args = new object[parameters.Length];
-
-        for (var i = 0; i < parameters.Length; i++)
-        {
-            args[i] = GetService(parameters[i].ParameterType);
-        }
-
-        var instance = constructor.Invoke(args);
-
-        // Handle lifetime caching only if descriptor is provided
-        if (descriptor != null)
-        {
-            switch (lifetime)
-            {
-                case SvcLifetime.Singleton:
-                    descriptor.SingleInstance = instance;
-                    break;
-                case SvcLifetime.Scoped:
-                    _scopedInstances.TryAdd(descriptor, instance);
-                    break;
-            }
-        }
-
-        return instance;
-    }
-
     private object GetOrCreateSingleton(Type serviceType, SvcDescriptor resolver)
     {
         if (resolver.SingleInstance != null)
@@ -288,7 +105,8 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
                 resolver.Factory != null
                     ? resolver.Factory(this)
                     : throw new PicoDiException(
-                        $"No factory or instance registered for singleton service '{serviceType.FullName}'."
+                        $"No factory or instance registered for singleton service '{serviceType.FullName}'. "
+                            + "Use Pico.DI.Gen source generator or register with a factory delegate."
                     );
 
             return resolver.SingleInstance;
@@ -329,7 +147,8 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
                 desc.Factory != null
                     ? desc.Factory(this)
                     : throw new PicoDiException(
-                        $"No factory registered for scoped service '{desc.ServiceType.FullName}'."
+                        $"No factory registered for scoped service '{desc.ServiceType.FullName}'. "
+                            + "Use Pico.DI.Gen source generator or register with a factory delegate."
                     )
         );
 

@@ -1,15 +1,16 @@
 ﻿namespace Pico.DI.Abs;
 
 /// <summary>
-/// Describes a service registration including its service type, implementation type, lifetime, and optional factory.
+/// Describes a service registration including its service type, factory, and lifetime.
+/// For AOT compatibility, services should be registered with factory delegates
+/// generated at compile time by Pico.DI.Gen source generator.
 /// </summary>
 /// <param name="serviceType">The service type (interface or base class) being registered.</param>
-/// <param name="implementationType">The concrete implementation type.</param>
+/// <param name="implementationType">The concrete implementation type (optional, for open generics).</param>
 /// <param name="lifetime">The service lifetime (Transient, Scoped, or Singleton).</param>
 public class SvcDescriptor(
     Type serviceType,
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-        Type? implementationType,
+    Type? implementationType,
     SvcLifetime lifetime = SvcLifetime.Singleton
 )
 {
@@ -21,8 +22,8 @@ public class SvcDescriptor(
 
     /// <summary>
     /// Gets the concrete implementation type.
+    /// Used primarily for open generic registrations to track the implementation type.
     /// </summary>
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     public Type ImplementationType { get; } = implementationType ?? serviceType;
 
     /// <summary>
