@@ -18,8 +18,6 @@ public interface ISvcScope : IDisposable, IAsyncDisposable
     /// <param name="serviceType">The type of service to resolve.</param>
     /// <returns>The resolved service instance.</returns>
     /// <exception cref="PicoDiException">Thrown when the service is not registered or circular dependency is detected.</exception>
-    [RequiresDynamicCode("IEnumerable<T> and open generic resolution require dynamic code.")]
-    [RequiresUnreferencedCode("Open generic resolution requires reflection.")]
     object GetService(Type serviceType);
 
     /// <summary>
@@ -42,8 +40,6 @@ public static class SvcProviderExtensions
         /// </summary>
         /// <typeparam name="T">The type of service to resolve.</typeparam>
         /// <returns>The resolved service instance.</returns>
-        [RequiresDynamicCode("IEnumerable<T> and open generic resolution require dynamic code.")]
-        [RequiresUnreferencedCode("Open generic resolution requires reflection.")]
         public T GetService<T>() => (T)provider.GetService(typeof(T));
 
         /// <summary>

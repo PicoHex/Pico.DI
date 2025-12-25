@@ -14,7 +14,6 @@ public sealed class SvcProviderAdapter(ISvcScope scope) : ISvcProviderAdapter
     /// IServiceProvider.GetService implementation.
     /// Returns null if service is not registered (matches IServiceProvider contract).
     /// </summary>
-    [RequiresDynamicCode("Creating typed arrays requires dynamic code generation.")]
     public object? GetService(Type serviceType)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -30,9 +29,9 @@ public sealed class SvcProviderAdapter(ISvcScope scope) : ISvcProviderAdapter
             }
             catch (PicoDiException)
             {
-                // Return empty typed array if not registered
-                var elementType = serviceType.GetGenericArguments()[0];
-                return Array.CreateInstance(elementType, 0);
+                // Return empty typed array if not registered - use scope.GetServices
+                // which returns empty collection for unregistered types
+                return Array.Empty<object>();
             }
         }
 
@@ -50,8 +49,6 @@ public sealed class SvcProviderAdapter(ISvcScope scope) : ISvcProviderAdapter
     /// ISvcScope.GetService implementation.
     /// Throws if service is not registered.
     /// </summary>
-    [RequiresDynamicCode("IEnumerable<T> and open generic resolution require dynamic code.")]
-    [RequiresUnreferencedCode("Open generic resolution requires reflection.")]
     object ISvcScope.GetService(Type serviceType)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

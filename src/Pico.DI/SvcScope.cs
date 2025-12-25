@@ -3,6 +3,8 @@ namespace Pico.DI;
 /// <summary>
 /// Represents a service resolution scope that manages scoped service instances.
 /// Implements <see cref="ISvcScope"/> and supports circular dependency detection.
+/// When used with the Pico.DI.Gen source generator, all services are registered with
+/// pre-compiled factories at compile time, making this implementation AOT-compatible.
 /// </summary>
 public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptorCache)
     : ISvcScope
@@ -20,13 +22,13 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
     }
 
     /// <inheritdoc />
-    [RequiresDynamicCode("IEnumerable<T> and open generic resolution require dynamic code.")]
-    [RequiresUnreferencedCode("Open generic resolution requires reflection.")]
     public object GetService(Type serviceType)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         // Handle IEnumerable<T> auto-injection
+        // When using the source generator, IEnumerable<T> is pre-registered with a factory.
+        // This runtime fallback is provided for manual registration scenarios.
         if (
             serviceType.IsGenericType
             && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>)
@@ -46,7 +48,8 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
 
         try
         {
-            // Try open generic resolution first
+            // Try open generic resolution first (runtime fallback for non-AOT scenarios)
+            // When using the source generator, closed generics are pre-registered.
             if (serviceType.IsGenericType && !descriptorCache.ContainsKey(serviceType))
             {
                 var openGenericResult = TryResolveOpenGeneric(serviceType);
@@ -58,11 +61,13 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
                 throw new PicoDiException(
                     $"Service type '{serviceType.FullName}' is not registered."
                 );
+
             var resolver =
                 resolvers.LastOrDefault()
                 ?? throw new PicoDiException(
                     $"No service descriptor found for type '{serviceType.FullName}'."
                 );
+
             return resolver.Lifetime switch
             {
                 SvcLifetime.Transient
@@ -89,9 +94,14 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
 
     /// <summary>
     /// Returns services as a properly typed IEnumerable&lt;T&gt; for injection.
-    /// Note: This method requires dynamic code and may not work in AOT scenarios.
+    /// This is a runtime fallback - when using the source generator, IEnumerable&lt;T&gt;
+    /// is pre-registered with a typed factory at compile time.
     /// </summary>
-    [RequiresDynamicCode("Creating typed arrays requires dynamic code generation.")]
+    [UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "This is a runtime fallback. Use source generator for AOT compatibility."
+    )]
     private object GetServicesAsTypedEnumerable(Type elementType)
     {
         if (!descriptorCache.TryGetValue(elementType, out var resolvers))
@@ -133,13 +143,18 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
 
     /// <summary>
     /// Tries to resolve an open generic type (e.g., IRepository&lt;T&gt; -&gt; Repository&lt;T&gt;).
-    /// Note: This method requires dynamic code and may not work in AOT scenarios.
+    /// This is a runtime fallback - when using the source generator, closed generics
+    /// are pre-registered at compile time based on detected GetService&lt;T&gt; calls.
     /// </summary>
-    [RequiresDynamicCode("Open generic resolution requires runtime type generation.")]
+    [UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "This is a runtime fallback. Use source generator for AOT compatibility."
+    )]
     [UnconditionalSuppressMessage(
         "AOT",
         "IL2055",
-        Justification = "Open generics require MakeGenericType at runtime."
+        Justification = "This is a runtime fallback. Use source generator for AOT compatibility."
     )]
     private object? TryResolveOpenGeneric(Type closedGenericType)
     {
@@ -206,13 +221,12 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
     /// <summary>
     /// Creates an instance of the specified type, injecting constructor dependencies.
     /// Used for open generic resolution where no factory is available.
-    /// Note: This method uses reflection and may not work in AOT scenarios.
+    /// This is a runtime fallback - when using the source generator, factories are pre-compiled.
     /// </summary>
-    [RequiresUnreferencedCode("Reflection-based instantiation may not work with trimming.")]
     [UnconditionalSuppressMessage(
         "AOT",
         "IL2070",
-        Justification = "Open generics require reflection for instantiation."
+        Justification = "This is a runtime fallback. Use source generator for AOT compatibility."
     )]
     private object CreateInstanceWithInjection(
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]

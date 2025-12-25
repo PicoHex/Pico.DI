@@ -931,6 +931,11 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         );
         sb.AppendLine("    {");
 
+        // Group registrations by service type to generate IEnumerable<T> registrations
+        var groupedByServiceType = registrations
+            .GroupBy(r => r.ServiceTypeFullName)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         foreach (var reg in registrations)
         {
             var lifetimeEnum = $"global::Pico.DI.Abs.SvcLifetime.{reg.Lifetime}";
@@ -963,6 +968,49 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 sb.AppendLine($"            {lifetimeEnum}));");
             }
 
+            sb.AppendLine();
+        }
+
+        // Generate IEnumerable<T> registrations for AOT compatibility
+        sb.AppendLine("        // IEnumerable<T> registrations for AOT compatibility");
+        foreach (var group in groupedByServiceType)
+        {
+            var serviceTypeFullName = group.Key;
+            var regs = group.Value;
+
+            sb.AppendLine($"        container.Register(new global::Pico.DI.Abs.SvcDescriptor(");
+            sb.AppendLine(
+                $"            typeof(global::System.Collections.Generic.IEnumerable<{serviceTypeFullName}>),"
+            );
+            sb.AppendLine($"            static scope => new {serviceTypeFullName}[]");
+            sb.AppendLine($"            {{");
+
+            for (var i = 0; i < regs.Count; i++)
+            {
+                var reg = regs[i];
+                var comma = i < regs.Count - 1 ? "," : "";
+
+                if (reg.ConstructorParameters.IsEmpty)
+                {
+                    sb.AppendLine($"                new {reg.ImplementationTypeFullName}(){comma}");
+                }
+                else
+                {
+                    sb.AppendLine($"                new {reg.ImplementationTypeFullName}(");
+                    for (var j = 0; j < reg.ConstructorParameters.Length; j++)
+                    {
+                        var param = reg.ConstructorParameters[j];
+                        var paramComma = j < reg.ConstructorParameters.Length - 1 ? "," : "";
+                        sb.AppendLine(
+                            $"                    ({param.TypeFullName})scope.GetService(typeof({param.TypeFullName})){paramComma}"
+                        );
+                    }
+                    sb.AppendLine($"                ){comma}");
+                }
+            }
+
+            sb.AppendLine($"            }},");
+            sb.AppendLine($"            global::Pico.DI.Abs.SvcLifetime.Transient));");
             sb.AppendLine();
         }
 
