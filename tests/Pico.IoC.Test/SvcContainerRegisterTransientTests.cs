@@ -2,17 +2,19 @@ namespace Pico.IoC.Test;
 
 /// <summary>
 /// Tests for RegisterTransient methods.
+/// Note: Type-based registration methods are placeholder methods scanned by Source Generator.
+/// These tests use factory-based registration which actually registers services.
 /// </summary>
 public class SvcContainerRegisterTransientTests : SvcContainerTestBase
 {
     [Fact]
-    public void RegisterTransient_ByType_NonGeneric()
+    public void RegisterTransient_ByFactory_NonGeneric_CreatesNewInstanceEachTime()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterTransient(typeof(ConsoleGreeter));
+        container.RegisterTransient(typeof(ConsoleGreeter), _ => new ConsoleGreeter());
 
         // Assert
         using var scope = container.CreateScope();
@@ -23,13 +25,13 @@ public class SvcContainerRegisterTransientTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterTransient_ServiceAndImplementation_NonGeneric()
+    public void RegisterTransient_ByFactory_ServiceAndImplementation_NonGeneric()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterTransient(typeof(IGreeter), typeof(ConsoleGreeter));
+        container.RegisterTransient(typeof(IGreeter), _ => new ConsoleGreeter());
 
         // Assert
         using var scope = container.CreateScope();
@@ -41,13 +43,13 @@ public class SvcContainerRegisterTransientTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterTransient_Generic_Single()
+    public void RegisterTransient_ByFactory_Generic_Single()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterTransient<ConsoleGreeter>();
+        container.RegisterTransient<ConsoleGreeter>(_ => new ConsoleGreeter());
 
         // Assert
         using var scope = container.CreateScope();
@@ -58,13 +60,13 @@ public class SvcContainerRegisterTransientTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterTransient_Generic_ServiceAndImplementation()
+    public void RegisterTransient_ByFactory_Generic_ServiceAndImplementation()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterTransient<IGreeter, ConsoleGreeter>();
+        container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
 
         // Assert
         using var scope = container.CreateScope();
@@ -76,24 +78,7 @@ public class SvcContainerRegisterTransientTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterTransient_Generic_ServiceAndImplementationType()
-    {
-        // Arrange
-        var container = new SvcContainer();
-
-        // Act
-        container.RegisterTransient<IGreeter>(typeof(ConsoleGreeter));
-
-        // Assert
-        using var scope = container.CreateScope();
-        var greeter = scope.GetService<IGreeter>();
-
-        Assert.NotNull(greeter);
-        Assert.IsType<ConsoleGreeter>(greeter);
-    }
-
-    [Fact]
-    public void RegisterTransient_ByFactory_NonGeneric()
+    public void RegisterTransient_ByFactory_TracksCallCount()
     {
         // Arrange
         var container = new SvcContainer();
@@ -102,7 +87,7 @@ public class SvcContainerRegisterTransientTests : SvcContainerTestBase
         // Act
         container.RegisterTransient(
             typeof(IGreeter),
-            scope =>
+            _ =>
             {
                 callCount++;
                 return new ConsoleGreeter();
@@ -118,14 +103,14 @@ public class SvcContainerRegisterTransientTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterTransient_ByFactory_Generic()
+    public void RegisterTransient_ByFactory_Generic_TracksCallCount()
     {
         // Arrange
         var container = new SvcContainer();
         var callCount = 0;
 
         // Act
-        container.RegisterTransient<IGreeter>(scope =>
+        container.RegisterTransient<IGreeter>(_ =>
         {
             callCount++;
             return new ConsoleGreeter();
@@ -140,14 +125,14 @@ public class SvcContainerRegisterTransientTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterTransient_ByFactory_Generic_ServiceAndImplementation()
+    public void RegisterTransient_ByFactory_Generic_ServiceAndImplementation_TracksCallCount()
     {
         // Arrange
         var container = new SvcContainer();
         var callCount = 0;
 
         // Act
-        container.RegisterTransient<IGreeter, ConsoleGreeter>(scope =>
+        container.RegisterTransient<IGreeter, ConsoleGreeter>(_ =>
         {
             callCount++;
             return new ConsoleGreeter();

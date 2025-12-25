@@ -2,149 +2,116 @@ namespace Pico.IoC.Test;
 
 /// <summary>
 /// Tests for Register by Type with Lifetime methods.
+/// Note: Type-based registration methods are placeholder methods scanned by Source Generator.
+/// These tests verify the placeholder behavior (returning container without registering).
 /// </summary>
 public class SvcContainerRegisterByTypeTests : SvcContainerTestBase
 {
     [Fact]
-    public void Register_ByType_WithSingleton_Lifetime()
+    public void Register_ByType_ReturnsContainerForChaining()
     {
         // Arrange
         var container = new SvcContainer();
 
-        // Act
+        // Act - Type-based registration returns container for chaining
+        var result = container.Register(typeof(ConsoleGreeter), SvcLifetime.Singleton);
+
+        // Assert
+        Assert.Same(container, result);
+    }
+
+    [Fact]
+    public void Register_ByType_DoesNotActuallyRegister()
+    {
+        // Arrange
+        var container = new SvcContainer();
+
+        // Act - Type-based registration is a placeholder, doesn't register
         container.Register(typeof(ConsoleGreeter), SvcLifetime.Singleton);
 
-        // Assert
-        using var scope1 = container.CreateScope();
-        var greeter1 = (ConsoleGreeter)scope1.GetService(typeof(ConsoleGreeter));
-
-        using var scope2 = container.CreateScope();
-        var greeter2 = (ConsoleGreeter)scope2.GetService(typeof(ConsoleGreeter));
-
-        Assert.NotNull(greeter1);
-        Assert.Same(greeter1, greeter2);
-    }
-
-    [Fact]
-    public void Register_ByType_WithTransient_Lifetime()
-    {
-        // Arrange
-        var container = new SvcContainer();
-
-        // Act
-        container.Register(typeof(ConsoleGreeter), SvcLifetime.Transient);
-
-        // Assert
+        // Assert - Service should not be registered
         using var scope = container.CreateScope();
-        var greeter1 = (ConsoleGreeter)scope.GetService(typeof(ConsoleGreeter));
-        var greeter2 = (ConsoleGreeter)scope.GetService(typeof(ConsoleGreeter));
-
-        Assert.NotNull(greeter1);
-        Assert.NotSame(greeter1, greeter2);
+        Assert.Throws<PicoIocException>(() => scope.GetService(typeof(ConsoleGreeter)));
     }
 
     [Fact]
-    public void Register_ServiceAndImplementation_WithLifetime()
+    public void RegisterGeneric_ByType_ReturnsContainerForChaining()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.Register(typeof(IGreeter), typeof(ConsoleGreeter), SvcLifetime.Singleton);
+        var result = container.Register<ConsoleGreeter>(SvcLifetime.Singleton);
 
         // Assert
-        using var scope = container.CreateScope();
-        var greeter = (IGreeter)scope.GetService(typeof(IGreeter));
-
-        Assert.NotNull(greeter);
-        Assert.IsType<ConsoleGreeter>(greeter);
+        Assert.Same(container, result);
     }
 
     [Fact]
-    public void Register_SameTypeAsBoth_WithLifetime()
+    public void RegisterGeneric_ServiceAndImplementation_ReturnsContainerForChaining()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.Register(typeof(ConsoleGreeter), SvcLifetime.Singleton);
+        var result = container.Register<IGreeter, ConsoleGreeter>(SvcLifetime.Singleton);
 
         // Assert
-        using var scope = container.CreateScope();
-        var greeter = (ConsoleGreeter)scope.GetService(typeof(ConsoleGreeter));
-
-        Assert.NotNull(greeter);
+        Assert.Same(container, result);
     }
 
     [Fact]
-    public void RegisterGeneric_Single_WithSingletonLifetime()
+    public void RegisterTransient_ByType_ReturnsContainerForChaining()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.Register<ConsoleGreeter>(SvcLifetime.Singleton);
+        var result = container.RegisterTransient<ConsoleGreeter>();
 
         // Assert
-        using var scope1 = container.CreateScope();
-        var greeter1 = scope1.GetService<ConsoleGreeter>();
-
-        using var scope2 = container.CreateScope();
-        var greeter2 = scope2.GetService<ConsoleGreeter>();
-
-        Assert.NotNull(greeter1);
-        Assert.Same(greeter1, greeter2);
+        Assert.Same(container, result);
     }
 
     [Fact]
-    public void RegisterGeneric_Single_WithTransientLifetime()
+    public void RegisterScoped_ByType_ReturnsContainerForChaining()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.Register<ConsoleGreeter>(SvcLifetime.Transient);
+        var result = container.RegisterScoped<ConsoleGreeter>();
 
         // Assert
-        using var scope = container.CreateScope();
-        var greeter1 = scope.GetService<ConsoleGreeter>();
-        var greeter2 = scope.GetService<ConsoleGreeter>();
-
-        Assert.NotNull(greeter1);
-        Assert.NotSame(greeter1, greeter2);
+        Assert.Same(container, result);
     }
 
     [Fact]
-    public void RegisterGeneric_ServiceAndImplementation_WithLifetime()
+    public void RegisterSingleton_ByType_ReturnsContainerForChaining()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.Register<IGreeter, ConsoleGreeter>(SvcLifetime.Singleton);
+        var result = container.RegisterSingleton<ConsoleGreeter>();
 
         // Assert
-        using var scope = container.CreateScope();
-        var greeter = scope.GetService<IGreeter>();
-
-        Assert.NotNull(greeter);
-        Assert.IsType<ConsoleGreeter>(greeter);
+        Assert.Same(container, result);
     }
 
     [Fact]
-    public void RegisterGeneric_ServiceAndImplementationType_WithLifetime()
+    public void ChainedTypeRegistrations_AllReturnContainer()
     {
         // Arrange
         var container = new SvcContainer();
 
-        // Act
-        container.Register<IGreeter>(typeof(ConsoleGreeter), SvcLifetime.Singleton);
+        // Act - Chain multiple type-based registrations (all placeholders)
+        var result = container
+            .RegisterSingleton<ConsoleGreeter>()
+            .RegisterTransient<AlternativeGreeter>()
+            .RegisterScoped<ConsoleLogger>();
 
         // Assert
-        using var scope = container.CreateScope();
-        var greeter = scope.GetService<IGreeter>();
-
-        Assert.NotNull(greeter);
-        Assert.IsType<ConsoleGreeter>(greeter);
+        Assert.Same(container, result);
     }
 }

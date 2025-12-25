@@ -2,17 +2,19 @@ namespace Pico.IoC.Test;
 
 /// <summary>
 /// Tests for RegisterScoped methods.
+/// Note: Type-based registration methods are placeholder methods scanned by Source Generator.
+/// These tests use factory-based registration which actually registers services.
 /// </summary>
 public class SvcContainerRegisterScopedTests : SvcContainerTestBase
 {
     [Fact]
-    public void RegisterScoped_ByType_NonGeneric()
+    public void RegisterScoped_ByFactory_NonGeneric_SameInstanceInSameScope()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterScoped(typeof(ConsoleGreeter));
+        container.RegisterScoped(typeof(ConsoleGreeter), _ => new ConsoleGreeter());
 
         // Assert
         using var scope = container.CreateScope();
@@ -23,13 +25,13 @@ public class SvcContainerRegisterScopedTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterScoped_ServiceAndImplementation_NonGeneric()
+    public void RegisterScoped_ByFactory_ServiceAndImplementation_NonGeneric()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterScoped(typeof(IGreeter), typeof(ConsoleGreeter));
+        container.RegisterScoped(typeof(IGreeter), _ => new ConsoleGreeter());
 
         // Assert
         using var scope = container.CreateScope();
@@ -41,13 +43,13 @@ public class SvcContainerRegisterScopedTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterScoped_Generic_Single()
+    public void RegisterScoped_ByFactory_Generic_Single()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterScoped<ConsoleGreeter>();
+        container.RegisterScoped<ConsoleGreeter>(_ => new ConsoleGreeter());
 
         // Assert
         using var scope = container.CreateScope();
@@ -58,13 +60,13 @@ public class SvcContainerRegisterScopedTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterScoped_Generic_ServiceAndImplementation()
+    public void RegisterScoped_ByFactory_Generic_ServiceAndImplementation()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterScoped<IGreeter, ConsoleGreeter>();
+        container.RegisterScoped<IGreeter>(_ => new ConsoleGreeter());
 
         // Assert
         using var scope = container.CreateScope();
@@ -76,28 +78,11 @@ public class SvcContainerRegisterScopedTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterScoped_Generic_ServiceAndImplementationType()
+    public void RegisterScoped_ByFactory_DifferentScopesCreateDifferentInstances()
     {
         // Arrange
         var container = new SvcContainer();
-
-        // Act
-        container.RegisterScoped<IGreeter>(typeof(ConsoleGreeter));
-
-        // Assert
-        using var scope = container.CreateScope();
-        var greeter = scope.GetService<IGreeter>();
-
-        Assert.NotNull(greeter);
-        Assert.IsType<ConsoleGreeter>(greeter);
-    }
-
-    [Fact]
-    public void RegisterScoped_DifferentScopesCreateDifferentInstances()
-    {
-        // Arrange
-        var container = new SvcContainer();
-        container.RegisterScoped<IGreeter, ConsoleGreeter>();
+        container.RegisterScoped<IGreeter>(_ => new ConsoleGreeter());
 
         // Act & Assert
         using var scope1 = container.CreateScope();
@@ -110,7 +95,7 @@ public class SvcContainerRegisterScopedTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterScoped_ByFactory_NonGeneric()
+    public void RegisterScoped_ByFactory_NonGeneric_TracksCallCount()
     {
         // Arrange
         var container = new SvcContainer();
@@ -119,7 +104,7 @@ public class SvcContainerRegisterScopedTests : SvcContainerTestBase
         // Act
         container.RegisterScoped(
             typeof(IGreeter),
-            scope =>
+            _ =>
             {
                 callCount++;
                 return new ConsoleGreeter();
@@ -131,18 +116,18 @@ public class SvcContainerRegisterScopedTests : SvcContainerTestBase
         scope.GetService(typeof(IGreeter));
         scope.GetService(typeof(IGreeter));
 
-        Assert.Equal(1, callCount);
+        Assert.Equal(1, callCount); // Only called once per scope
     }
 
     [Fact]
-    public void RegisterScoped_ByFactory_Generic()
+    public void RegisterScoped_ByFactory_Generic_TracksCallCount()
     {
         // Arrange
         var container = new SvcContainer();
         var callCount = 0;
 
         // Act
-        container.RegisterScoped<IGreeter>(scope =>
+        container.RegisterScoped<IGreeter>(_ =>
         {
             callCount++;
             return new ConsoleGreeter();
@@ -153,18 +138,18 @@ public class SvcContainerRegisterScopedTests : SvcContainerTestBase
         scope.GetService<IGreeter>();
         scope.GetService<IGreeter>();
 
-        Assert.Equal(1, callCount);
+        Assert.Equal(1, callCount); // Only called once per scope
     }
 
     [Fact]
-    public void RegisterScoped_ByFactory_Generic_ServiceAndImplementation()
+    public void RegisterScoped_ByFactory_Generic_ServiceAndImplementation_TracksCallCount()
     {
         // Arrange
         var container = new SvcContainer();
         var callCount = 0;
 
         // Act
-        container.RegisterScoped<IGreeter, ConsoleGreeter>(scope =>
+        container.RegisterScoped<IGreeter, ConsoleGreeter>(_ =>
         {
             callCount++;
             return new ConsoleGreeter();
@@ -175,6 +160,6 @@ public class SvcContainerRegisterScopedTests : SvcContainerTestBase
         scope.GetService<IGreeter>();
         scope.GetService<IGreeter>();
 
-        Assert.Equal(1, callCount);
+        Assert.Equal(1, callCount); // Only called once per scope
     }
 }

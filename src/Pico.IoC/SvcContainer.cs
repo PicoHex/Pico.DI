@@ -20,20 +20,6 @@ public partial class SvcContainer : ISvcContainer
         return this;
     }
 
-    /// <summary>
-    /// Registers multiple service descriptors at once.
-    /// Useful for registering generated descriptors.
-    /// </summary>
-    public ISvcContainer RegisterRange(IEnumerable<SvcDescriptor> descriptors)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        foreach (var descriptor in descriptors)
-        {
-            Register(descriptor);
-        }
-        return this;
-    }
-
     public ISvcScope CreateScope()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

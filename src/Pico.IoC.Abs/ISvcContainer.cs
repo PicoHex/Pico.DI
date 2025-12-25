@@ -9,26 +9,27 @@ public interface ISvcContainer : IDisposable, IAsyncDisposable
 
 public static class SvcContainerExtensions
 {
-    // Add by type
+    // Add by type - these are placeholder methods scanned by Source Generator
+    // They don't actually register; the generated code with factories does the real registration
     extension(ISvcContainer container)
     {
         public ISvcContainer Register(Type serviceType, Type implementType, SvcLifetime lifetime) =>
-            container.Register(new SvcDescriptor(serviceType, implementType, lifetime));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer Register(Type serviceType, SvcLifetime lifetime) =>
-            container.Register(new SvcDescriptor(serviceType, serviceType, lifetime));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer Register<TService, TImplementation>(SvcLifetime lifetime)
             where TImplementation : TService =>
-            container.Register(new SvcDescriptor(typeof(TService), typeof(TImplementation), lifetime));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer Register<TService>(SvcLifetime lifetime)
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(TService), typeof(TService), lifetime));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer Register<TService>(Type implementType, SvcLifetime lifetime)
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(TService), implementType, lifetime));
+            container; // Source Generator will generate factory-based registration
     }
 
     // Add by factory
@@ -51,25 +52,25 @@ public static class SvcContainerExtensions
     // Transient
     extension(ISvcContainer container)
     {
-        #region Add by type
+        #region Add by type - placeholder methods scanned by Source Generator
 
         public ISvcContainer RegisterTransient(Type serviceType, Type implementType) =>
-            container.Register(new SvcDescriptor(serviceType, implementType, SvcLifetime.Transient));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterTransient(Type serviceType) =>
-            container.Register(new SvcDescriptor(serviceType, serviceType, SvcLifetime.Transient));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterTransient<TService, TImplementation>()
             where TImplementation : TService =>
-            container.Register(new SvcDescriptor(typeof(TService), typeof(TImplementation), SvcLifetime.Transient));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterTransient<TService>()
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(TService), typeof(TService), SvcLifetime.Transient));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterTransient<TService>(Type implementType)
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(TService), implementType, SvcLifetime.Transient));
+            container; // Source Generator will generate factory-based registration
 
         #endregion
 
@@ -94,25 +95,25 @@ public static class SvcContainerExtensions
     // Scoped
     extension(ISvcContainer container)
     {
-        #region Add by type
+        #region Add by type - placeholder methods scanned by Source Generator
 
         public ISvcContainer RegisterScoped(Type serviceType, Type implementType) =>
-            container.Register(new SvcDescriptor(serviceType, implementType, SvcLifetime.Scoped));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterScoped(Type serviceType) =>
-            container.Register(new SvcDescriptor(serviceType, serviceType, SvcLifetime.Scoped));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterScoped<TService, TImplementation>()
             where TImplementation : TService =>
-            container.Register(new SvcDescriptor(typeof(TService), typeof(TImplementation), SvcLifetime.Scoped));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterScoped<TService>()
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(TService), typeof(TService), SvcLifetime.Scoped));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterScoped<TService>(Type implementType)
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(TService), implementType, SvcLifetime.Scoped));
+            container; // Source Generator will generate factory-based registration
 
         #endregion
 
@@ -137,25 +138,25 @@ public static class SvcContainerExtensions
     // Singleton
     extension(ISvcContainer container)
     {
-        #region Add by type
+        #region Add by type - placeholder methods scanned by Source Generator
 
         public ISvcContainer RegisterSingleton(Type serviceType, Type implementType) =>
-            container.Register(new SvcDescriptor(serviceType, implementType));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterSingleton(Type serviceType) =>
-            container.Register(new SvcDescriptor(serviceType, serviceType));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterSingleton<TService, TImplementation>()
             where TImplementation : TService =>
-            container.Register(new SvcDescriptor(typeof(TService), typeof(TImplementation)));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterSingleton<TService>()
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(TService), typeof(TService)));
+            container; // Source Generator will generate factory-based registration
 
         public ISvcContainer RegisterSingleton<TService>(Type implementType)
             where TService : class =>
-            container.Register(new SvcDescriptor(typeof(TService), implementType));
+            container; // Source Generator will generate factory-based registration
 
         #endregion
 

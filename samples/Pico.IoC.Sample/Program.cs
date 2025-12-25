@@ -41,16 +41,15 @@ public static class ServiceConfig
 {
     public static void ConfigureServices(ISvcContainer container)
     {
-        // Register services - the Source Generator will scan these calls
-        // and generate factory methods automatically
+        // These Register* calls are scanned by Source Generator at compile time.
+        // They don't actually register anything - the generated ConfigureGeneratedServices() does.
         container
             .RegisterSingleton<ILogger, ConsoleLogger>()
             .RegisterTransient<IGreeter, Greeter>()
             .RegisterScoped<GreetingService>();
 
-        // Register the generated descriptors with pre-compiled factories
-        // This replaces the type-based registrations above with AOT-compatible factories
-        container.RegisterRange(GeneratedServiceRegistrations.GetDescriptors());
+        // Apply the auto-generated factory-based registrations
+        container.ConfigureGeneratedServices();
     }
 }
 

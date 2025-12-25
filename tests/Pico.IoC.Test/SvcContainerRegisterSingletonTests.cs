@@ -2,17 +2,19 @@ namespace Pico.IoC.Test;
 
 /// <summary>
 /// Tests for RegisterSingleton methods.
+/// Note: Type-based registration methods are placeholder methods scanned by Source Generator.
+/// These tests use factory-based registration which actually registers services.
 /// </summary>
 public class SvcContainerRegisterSingletonTests : SvcContainerTestBase
 {
     [Fact]
-    public void RegisterSingleton_ByType_NonGeneric()
+    public void RegisterSingleton_ByFactory_NonGeneric_SameInstanceAcrossScopes()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterSingleton(typeof(ConsoleGreeter));
+        container.RegisterSingleton(typeof(ConsoleGreeter), _ => new ConsoleGreeter());
 
         // Assert
         using var scope1 = container.CreateScope();
@@ -25,13 +27,13 @@ public class SvcContainerRegisterSingletonTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterSingleton_ServiceAndImplementation_NonGeneric()
+    public void RegisterSingleton_ByFactory_ServiceAndImplementation_NonGeneric()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterSingleton(typeof(IGreeter), typeof(ConsoleGreeter));
+        container.RegisterSingleton(typeof(IGreeter), _ => new ConsoleGreeter());
 
         // Assert
         using var scope1 = container.CreateScope();
@@ -45,13 +47,13 @@ public class SvcContainerRegisterSingletonTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterSingleton_Generic_Single()
+    public void RegisterSingleton_ByFactory_Generic_Single()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterSingleton<ConsoleGreeter>();
+        container.RegisterSingleton<ConsoleGreeter>(_ => new ConsoleGreeter());
 
         // Assert
         using var scope1 = container.CreateScope();
@@ -64,13 +66,13 @@ public class SvcContainerRegisterSingletonTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterSingleton_Generic_ServiceAndImplementation()
+    public void RegisterSingleton_ByFactory_Generic_ServiceAndImplementation()
     {
         // Arrange
         var container = new SvcContainer();
 
         // Act
-        container.RegisterSingleton<IGreeter, ConsoleGreeter>();
+        container.RegisterSingleton<IGreeter>(_ => new ConsoleGreeter());
 
         // Assert
         using var scope1 = container.CreateScope();
@@ -84,24 +86,7 @@ public class SvcContainerRegisterSingletonTests : SvcContainerTestBase
     }
 
     [Fact]
-    public void RegisterSingleton_Generic_ServiceAndImplementationType()
-    {
-        // Arrange
-        var container = new SvcContainer();
-
-        // Act
-        container.RegisterSingleton<IGreeter>(typeof(ConsoleGreeter));
-
-        // Assert
-        using var scope = container.CreateScope();
-        var greeter = scope.GetService<IGreeter>();
-
-        Assert.NotNull(greeter);
-        Assert.IsType<ConsoleGreeter>(greeter);
-    }
-
-    [Fact]
-    public void RegisterSingleton_ByFactory_NonGeneric()
+    public void RegisterSingleton_ByFactory_NonGeneric_TracksCallCount()
     {
         // Arrange
         var container = new SvcContainer();
@@ -110,7 +95,7 @@ public class SvcContainerRegisterSingletonTests : SvcContainerTestBase
         // Act
         container.RegisterSingleton(
             typeof(IGreeter),
-            scope =>
+            _ =>
             {
                 callCount++;
                 return new ConsoleGreeter();
@@ -124,18 +109,18 @@ public class SvcContainerRegisterSingletonTests : SvcContainerTestBase
         using var scope2 = container.CreateScope();
         scope2.GetService(typeof(IGreeter));
 
-        Assert.Equal(1, callCount);
+        Assert.Equal(1, callCount); // Only called once globally
     }
 
     [Fact]
-    public void RegisterSingleton_ByFactory_Generic()
+    public void RegisterSingleton_ByFactory_Generic_TracksCallCount()
     {
         // Arrange
         var container = new SvcContainer();
         var callCount = 0;
 
         // Act
-        container.RegisterSingleton<IGreeter>(scope =>
+        container.RegisterSingleton<IGreeter>(_ =>
         {
             callCount++;
             return new ConsoleGreeter();
@@ -148,18 +133,18 @@ public class SvcContainerRegisterSingletonTests : SvcContainerTestBase
         using var scope2 = container.CreateScope();
         scope2.GetService<IGreeter>();
 
-        Assert.Equal(1, callCount);
+        Assert.Equal(1, callCount); // Only called once globally
     }
 
     [Fact]
-    public void RegisterSingleton_ByFactory_Generic_ServiceAndImplementation()
+    public void RegisterSingleton_ByFactory_Generic_ServiceAndImplementation_TracksCallCount()
     {
         // Arrange
         var container = new SvcContainer();
         var callCount = 0;
 
         // Act
-        container.RegisterSingleton<IGreeter, ConsoleGreeter>(scope =>
+        container.RegisterSingleton<IGreeter, ConsoleGreeter>(_ =>
         {
             callCount++;
             return new ConsoleGreeter();
@@ -172,6 +157,6 @@ public class SvcContainerRegisterSingletonTests : SvcContainerTestBase
         using var scope2 = container.CreateScope();
         scope2.GetService<IGreeter>();
 
-        Assert.Equal(1, callCount);
+        Assert.Equal(1, callCount); // Only called once globally
     }
 }
