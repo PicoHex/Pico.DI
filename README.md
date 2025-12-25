@@ -41,6 +41,7 @@
 <td width="50%">
 
 ### Performance & Compatibility
+
 - **Native AOT Support** — No runtime reflection
 - **Compile-Time Factories** — Source Generator powered
 - **Minimal Footprint** — Zero external dependencies
@@ -50,6 +51,7 @@
 <td width="50%">
 
 ### Developer Experience
+
 - **Fluent API** — Clean, chainable registration
 - **Compile-Time Diagnostics** — Catch errors before runtime
 - **Circular Dependency Detection** — Clear error messages
@@ -265,6 +267,7 @@ Pico.DI includes a Roslyn Analyzer that detects issues at compile time:
 <td width="50%">
 
 **Your Code**
+
 ```csharp
 container.RegisterSingleton<ILogger, ConsoleLogger>();
 container.ConfigureGeneratedServices();
@@ -274,6 +277,7 @@ container.ConfigureGeneratedServices();
 <td width="50%">
 
 **Generated Code**
+
 ```csharp
 container.Register(new SvcDescriptor(
     typeof(ILogger),

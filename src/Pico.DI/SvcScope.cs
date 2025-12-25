@@ -1,5 +1,9 @@
 namespace Pico.DI;
 
+/// <summary>
+/// Represents a service resolution scope that manages scoped service instances.
+/// Implements <see cref="ISvcScope"/> and supports circular dependency detection.
+/// </summary>
 public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> descriptorCache)
     : ISvcScope
 {
@@ -8,12 +12,14 @@ public sealed class SvcScope(ConcurrentDictionary<Type, List<SvcDescriptor>> des
     private readonly AsyncLocal<HashSet<Type>> _resolutionStack = new();
     private bool _disposed;
 
+    /// <inheritdoc />
     public ISvcScope CreateScope()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         return new SvcScope(descriptorCache);
     }
 
+    /// <inheritdoc />
     [RequiresDynamicCode("IEnumerable<T> and open generic resolution require dynamic code.")]
     [RequiresUnreferencedCode("Open generic resolution requires reflection.")]
     public object GetService(Type serviceType)

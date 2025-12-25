@@ -22,7 +22,7 @@ internal record OpenGenericRegistration(
     string Lifetime,
     int TypeParameterCount,
     ImmutableArray<string> TypeParameterNames, // e.g., ["T", "TKey"]
-    ImmutableArray<OpenGenericConstructorParameter> ConstructorParameters // 开放泛型的构造函数参数
+    ImmutableArray<OpenGenericConstructorParameter> ConstructorParameters // Constructor parameters of the open generic type
 );
 
 /// <summary>
@@ -33,8 +33,8 @@ internal record OpenGenericConstructorParameter(
     string TypeFullName,
     string TypeName,
     string ParameterName,
-    bool IsTypeParameter, // 是否是类型参数本身 (如 T)
-    bool ContainsTypeParameter // 是否包含类型参数 (如 ILogger<T>)
+    bool IsTypeParameter, // Whether it is a type parameter itself (e.g., T)
+    bool ContainsTypeParameter // Whether it contains a type parameter (e.g., ILogger<T>)
 );
 
 /// <summary>
@@ -423,11 +423,11 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         )
             return null;
 
-        // 获取开放泛型实现类型的原始定义以提取构造函数参数
+        // Get the original definition of the open generic implementation type to extract constructor parameters
         var openImplType = namedImplType.OriginalDefinition;
         var typeParamNames = openImplType.TypeParameters.Select(tp => tp.Name).ToImmutableArray();
 
-        // 提取构造函数参数，标记哪些涉及类型参数
+        // Extract constructor parameters, marking which ones involve type parameters
         var ctorParams = GetOpenGenericConstructorParameters(openImplType, typeParamNames);
 
         return new OpenGenericRegistration(
@@ -441,7 +441,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// 获取开放泛型类型的构造函数参数，标记类型参数的使用。
+    /// Gets the constructor parameters of an open generic type, marking type parameter usage.
     /// </summary>
     private static ImmutableArray<OpenGenericConstructorParameter> GetOpenGenericConstructorParameters(
         INamedTypeSymbol openGenericType,
@@ -477,7 +477,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// 检查类型是否包含指定的类型参数。
+    /// Checks whether a type contains any of the specified type parameters.
     /// </summary>
     private static bool ContainsTypeParameter(
         ITypeSymbol type,
@@ -541,7 +541,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 usage.TypeArgumentsFullNames
             );
 
-            // 构建类型参数映射: T -> User, TKey -> int, etc.
+            // Build type parameter mapping: T -> User, TKey -> int, etc.
             var typeParamMap = new Dictionary<string, string>();
             for (
                 var i = 0;
@@ -553,7 +553,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 typeParamMap[openGeneric.TypeParameterNames[i]] = usage.TypeArgumentsFullNames[i];
             }
 
-            // 基于开放泛型的构造函数参数生成闭合类型的构造函数参数
+            // Generate closed type constructor parameters based on open generic constructor parameters
             var constructorParams = openGeneric
                 .ConstructorParameters.Select(p => new ConstructorParameter(
                     SubstituteTypeParameters(p.TypeFullName, typeParamMap),
@@ -579,9 +579,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// 将类型全名中的类型参数替换为实际类型。
-    /// 例如: "T" -> "global::MyApp.User"
-    ///       "global::Microsoft.Extensions.Logging.ILogger&lt;T&gt;" -> "global::Microsoft.Extensions.Logging.ILogger&lt;global::MyApp.User&gt;"
+    /// Substitutes type parameters in the type full name with actual types.
+    /// Example: "T" -> "global::MyApp.User"
+    ///          "global::Microsoft.Extensions.Logging.ILogger&lt;T&gt;" -> "global::Microsoft.Extensions.Logging.ILogger&lt;global::MyApp.User&gt;"
     /// </summary>
     private static string SubstituteTypeParameters(
         string typeFullName,
@@ -595,15 +595,15 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             var paramName = kvp.Key;
             var actualType = kvp.Value;
 
-            // 替换独立的类型参数 (如 "T" 作为完整类型)
+            // Replace standalone type parameter (e.g., "T" as the complete type)
             if (result == paramName)
             {
                 result = actualType;
                 continue;
             }
 
-            // 替换泛型参数中的类型参数 (如 "ILogger<T>" 中的 T)
-            // 处理格式: <T> 或 <T, U> 或 <SomeType, T>
+            // Replace type parameter within generic arguments (e.g., T in "ILogger<T>")
+            // Handle formats: <T> or <T, U> or <SomeType, T>
             result = SubstituteTypeParameterInGeneric(result, paramName, actualType);
         }
 
@@ -611,7 +611,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// 在泛型类型名中替换类型参数。
+    /// Replaces type parameters within a generic type name.
     /// </summary>
     private static string SubstituteTypeParameterInGeneric(
         string typeFullName,
@@ -619,8 +619,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         string actualType
     )
     {
-        // 简单情况：类型参数作为泛型参数出现
-        // 匹配: <T> 或 <T, 或 , T> 或 , T,
+        // Simple case: type parameter appears as generic argument
+        // Match: <T> or <T, or , T> or , T,
         var patterns = new[]
         {
             ($"<{paramName}>", $"<{actualType}>"),

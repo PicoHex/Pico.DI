@@ -1,8 +1,21 @@
 ﻿namespace Pico.DI.Abs;
 
+/// <summary>
+/// Represents a dependency injection container for registering service descriptors and creating scopes.
+/// </summary>
 public interface ISvcContainer : IDisposable, IAsyncDisposable
 {
+    /// <summary>
+    /// Registers a service descriptor in the container.
+    /// </summary>
+    /// <param name="descriptor">The service descriptor to register.</param>
+    /// <returns>The container instance for method chaining.</returns>
     ISvcContainer Register(SvcDescriptor descriptor);
+
+    /// <summary>
+    /// Creates a new service resolution scope.
+    /// </summary>
+    /// <returns>A new <see cref="ISvcScope"/> instance.</returns>
     ISvcScope CreateScope();
 }
 

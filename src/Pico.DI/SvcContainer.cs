@@ -1,10 +1,15 @@
 ﻿namespace Pico.DI;
 
+/// <summary>
+/// The main dependency injection container for registering and managing service descriptors.
+/// Implements <see cref="ISvcContainer"/> and supports both synchronous and asynchronous disposal.
+/// </summary>
 public partial class SvcContainer : ISvcContainer
 {
     private readonly ConcurrentDictionary<Type, List<SvcDescriptor>> _descriptorCache = new();
     private bool _disposed;
 
+    /// <inheritdoc />
     public ISvcContainer Register(SvcDescriptor descriptor)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -20,12 +25,14 @@ public partial class SvcContainer : ISvcContainer
         return this;
     }
 
+    /// <inheritdoc />
     public ISvcScope CreateScope()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         return new SvcScope(_descriptorCache);
     }
 
+    /// <inheritdoc />
     public void Dispose()
     {
         Dispose(disposing: true);
@@ -53,6 +60,7 @@ public partial class SvcContainer : ISvcContainer
         _disposed = true;
     }
 
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         if (_disposed)

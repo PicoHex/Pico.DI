@@ -1,5 +1,18 @@
 ﻿namespace Pico.DI.Sample;
-vices();
+
+using Pico.DI.Abs;
+using Pico.DI.Gen;
+using Pico.DI.Sample.Services;
+
+public static class ServiceConfig
+{
+    public static void ConfigureServices(ISvcContainer container)
+    {
+        container
+            .RegisterSingleton<ILogger, ConsoleLogger>()
+            .RegisterTransient<IGreeter, Greeter>()
+            .RegisterScoped<GreetingService>()
+            .ConfigureGeneratedServices();
     }
 }
 
