@@ -26,6 +26,11 @@
 /// 3. Allows tests to work without source generator
 /// 4. Performance is lower but still reasonable for testing
 ///
+/// PERFORMANCE OPTIMIZATION:
+/// =========================
+/// Call Build() after all registrations to convert to FrozenDictionary for fastest lookups.
+/// Without Build(), ConcurrentDictionary is used (slightly slower but thread-safe for registration).
+///
 /// RESULT:
 /// - ✅ Production: Zero runtime reflection via pre-generated factories
 /// - ✅ Testing: Works without source generator
@@ -36,7 +41,7 @@
 /// </summary>
 public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
 {
-    private readonly ConcurrentDictionary<Type, List<SvcDescriptor>> _descriptorCache = new();
+    private readonly ConcurrentDictionary<Type, SvcDescriptor[]> _descriptorCache = new();
 
     /// <summary>
     /// Stores registered decorator generic types.
@@ -44,12 +49,24 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
     /// </summary>
     private readonly ConcurrentDictionary<Type, DecoratorMetadata> _decoratorMetadata = new();
 
+    /// <summary>
+    /// Frozen (optimized) descriptor cache after Build() is called.
+    /// </summary>
+    private FrozenDictionary<Type, SvcDescriptor[]>? _frozenCache;
+
     private bool _disposed;
+    private bool _isBuilt;
 
     /// <inheritdoc />
     public ISvcContainer Register(SvcDescriptor descriptor)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (_isBuilt)
+            throw new InvalidOperationException(
+                "Cannot register services after Build() has been called. "
+                    + "Register all services before calling Build()."
+            );
 
         // This method is called by source-generated ConfigureGeneratedServices() method
         // with pre-built SvcDescriptor instances that already contain compiled factory delegates.
@@ -57,13 +74,27 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
         _descriptorCache.AddOrUpdate(
             descriptor.ServiceType,
             _ => [descriptor],
-            (_, list) =>
-            {
-                list.Add(descriptor);
-                return list;
-            }
+            (_, existing) => [.. existing, descriptor]
         );
 
+        return this;
+    }
+
+    /// <summary>
+    /// Builds and optimizes the container for maximum performance.
+    /// Call this method after all services have been registered.
+    /// After calling Build(), no more services can be registered.
+    /// </summary>
+    /// <returns>The container instance for method chaining.</returns>
+    public SvcContainer Build()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (_isBuilt)
+            return this;
+
+        _frozenCache = _descriptorCache.ToFrozenDictionary();
+        _isBuilt = true;
         return this;
     }
 
@@ -71,6 +102,13 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
     public ISvcScope CreateScope()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // Use frozen cache if available for better performance
+        if (_frozenCache != null)
+        {
+            return new SvcScopeOptimized(_frozenCache, _decoratorMetadata.ToFrozenDictionary());
+        }
+
         return new SvcScope(_descriptorCache, _decoratorMetadata);
     }
 

@@ -27,9 +27,10 @@ public class SvcDescriptor(
     public Type ImplementationType { get; } = implementationType ?? serviceType;
 
     /// <summary>
-    /// Gets or sets the singleton instance for this service.
+    /// Stores the singleton instance for this service.
+    /// This field is accessed using Volatile.Read/Write for lock-free thread-safe access.
     /// </summary>
-    public object? SingleInstance { get; set; }
+    public object? SingleInstance;
 
     /// <summary>
     /// Gets the factory function used to create service instances.

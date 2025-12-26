@@ -390,11 +390,117 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         if (allRegistrations.Count == 0)
             return;
 
+        // Compile-time circular dependency detection
+        var circularDependencies = DetectCircularDependencies(allRegistrations);
+        foreach (var cycle in circularDependencies)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(CircularDependencyDiagnostic, Location.None, cycle)
+            );
+        }
+
         var source = GenerateSource(allRegistrations);
         context.AddSource(
             "PicoIoC.ServiceRegistrations.g.cs",
             SourceText.From(source, Encoding.UTF8)
         );
+    }
+
+    private static readonly DiagnosticDescriptor CircularDependencyDiagnostic =
+        new(
+            "PICO010",
+            "Circular dependency detected",
+            "Circular dependency detected at compile-time: {0}",
+            "Pico.DI",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true,
+            description: "A circular dependency chain was detected which will cause a runtime exception. Fix the dependency cycle."
+        );
+
+    /// <summary>
+    /// Detects circular dependencies at compile-time by analyzing the dependency graph.
+    /// </summary>
+    private static List<string> DetectCircularDependencies(List<ServiceRegistration> registrations)
+    {
+        var cycles = new List<string>();
+
+        // Build a dependency graph: ServiceType -> List of dependency types
+        var dependencyGraph = new Dictionary<string, HashSet<string>>();
+        var serviceTypes = new HashSet<string>();
+
+        foreach (var reg in registrations)
+        {
+            serviceTypes.Add(reg.ServiceTypeFullName);
+            if (!dependencyGraph.ContainsKey(reg.ServiceTypeFullName))
+            {
+                dependencyGraph[reg.ServiceTypeFullName] = [];
+            }
+
+            foreach (var param in reg.ConstructorParameters)
+            {
+                dependencyGraph[reg.ServiceTypeFullName].Add(param.TypeFullName);
+            }
+        }
+
+        // DFS to detect cycles
+        var visited = new HashSet<string>();
+        var recursionStack = new HashSet<string>();
+        var path = new List<string>();
+
+        foreach (var serviceType in serviceTypes)
+        {
+            if (DetectCycleDfs(serviceType, dependencyGraph, visited, recursionStack, path, cycles))
+            {
+                // Found a cycle, already added to cycles list
+            }
+        }
+
+        return cycles;
+    }
+
+    private static bool DetectCycleDfs(
+        string current,
+        Dictionary<string, HashSet<string>> graph,
+        HashSet<string> visited,
+        HashSet<string> recursionStack,
+        List<string> path,
+        List<string> cycles
+    )
+    {
+        if (recursionStack.Contains(current))
+        {
+            // Found a cycle - extract the cycle path
+            var cycleStart = path.IndexOf(current);
+            if (cycleStart >= 0)
+            {
+                var cyclePath = path.Skip(cycleStart).Append(current).ToList();
+                var cycleStr = string.Join(" -> ", cyclePath.Select(GetSimpleName));
+                if (!cycles.Contains(cycleStr))
+                {
+                    cycles.Add(cycleStr);
+                }
+            }
+            return true;
+        }
+
+        if (visited.Contains(current))
+            return false;
+
+        visited.Add(current);
+        recursionStack.Add(current);
+        path.Add(current);
+
+        if (graph.TryGetValue(current, out var dependencies))
+        {
+            foreach (var dep in dependencies)
+            {
+                DetectCycleDfs(dep, graph, visited, recursionStack, path, cycles);
+            }
+        }
+
+        path.RemoveAt(path.Count - 1);
+        recursionStack.Remove(current);
+        return false;
     }
 
     /// <summary>
@@ -967,6 +1073,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         sb.AppendLine(
             "/// Auto-generated service registrations with AOT-compatible factory methods."
         );
+        sb.AppendLine("/// Optimized with inlined resolution chains for Transient services.");
         sb.AppendLine("/// </summary>");
         sb.AppendLine("public static class GeneratedServiceRegistrations");
         sb.AppendLine("{");
@@ -981,10 +1088,10 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         );
         sb.AppendLine("    {");
 
-        // Group registrations by service type to generate IEnumerable<T> registrations
-        var groupedByServiceType = registrations
+        // Build lookup for registrations by service type for inlining
+        var registrationLookup = registrations
             .GroupBy(r => r.ServiceTypeFullName)
-            .ToDictionary(g => g.Key, g => g.ToList());
+            .ToDictionary(g => g.Key, g => g.Last()); // Use last registration (override pattern)
 
         foreach (var reg in registrations)
         {
@@ -1000,21 +1107,18 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             }
             else
             {
-                // Constructor with dependencies
+                // Constructor with dependencies - use inlined resolution for Transient deps
                 sb.AppendLine($"        container.Register(new global::Pico.DI.Abs.SvcDescriptor(");
                 sb.AppendLine($"            typeof({reg.ServiceTypeFullName}),");
-                sb.AppendLine($"            static scope => new {reg.ImplementationTypeFullName}(");
 
-                for (var i = 0; i < reg.ConstructorParameters.Length; i++)
-                {
-                    var param = reg.ConstructorParameters[i];
-                    var comma = i < reg.ConstructorParameters.Length - 1 ? "," : "";
-                    sb.AppendLine(
-                        $"                ({param.TypeFullName})scope.GetService(typeof({param.TypeFullName})){comma}"
-                    );
-                }
-
-                sb.AppendLine($"            ),");
+                // Generate inlined factory
+                var factoryCode = GenerateInlinedFactory(
+                    reg,
+                    registrationLookup,
+                    new HashSet<string>(),
+                    0
+                );
+                sb.AppendLine($"            static scope => {factoryCode},");
                 sb.AppendLine($"            {lifetimeEnum}));");
             }
 
@@ -1023,6 +1127,10 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Generate IEnumerable<T> registrations for AOT compatibility
         sb.AppendLine("        // IEnumerable<T> registrations for AOT compatibility");
+        var groupedByServiceType = registrations
+            .GroupBy(r => r.ServiceTypeFullName)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         foreach (var group in groupedByServiceType)
         {
             var serviceTypeFullName = group.Key;
@@ -1046,16 +1154,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 }
                 else
                 {
-                    sb.AppendLine($"                new {reg.ImplementationTypeFullName}(");
-                    for (var j = 0; j < reg.ConstructorParameters.Length; j++)
-                    {
-                        var param = reg.ConstructorParameters[j];
-                        var paramComma = j < reg.ConstructorParameters.Length - 1 ? "," : "";
-                        sb.AppendLine(
-                            $"                    ({param.TypeFullName})scope.GetService(typeof({param.TypeFullName})){paramComma}"
-                        );
-                    }
-                    sb.AppendLine($"                ){comma}");
+                    var factoryCode = GenerateInlinedFactory(
+                        reg,
+                        registrationLookup,
+                        new HashSet<string>(),
+                        4
+                    );
+                    sb.AppendLine($"                {factoryCode}{comma}");
                 }
             }
 
@@ -1069,5 +1174,97 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         sb.AppendLine("}");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Generates an inlined factory expression for the given registration.
+    /// For Transient dependencies, recursively inlines the construction.
+    /// For Singleton/Scoped dependencies, calls scope.GetService().
+    /// </summary>
+    private static string GenerateInlinedFactory(
+        ServiceRegistration reg,
+        Dictionary<string, ServiceRegistration> registrationLookup,
+        HashSet<string> visitedTypes,
+        int indentLevel
+    )
+    {
+        var indent = new string(' ', 16 + indentLevel * 4);
+
+        if (reg.ConstructorParameters.IsEmpty)
+        {
+            return $"new {reg.ImplementationTypeFullName}()";
+        }
+
+        var paramExpressions = new List<string>();
+
+        foreach (var param in reg.ConstructorParameters)
+        {
+            var paramExpr = GenerateParameterExpression(
+                param.TypeFullName,
+                registrationLookup,
+                visitedTypes,
+                indentLevel + 1
+            );
+            paramExpressions.Add(paramExpr);
+        }
+
+        if (paramExpressions.Count == 1)
+        {
+            return $"new {reg.ImplementationTypeFullName}({paramExpressions[0]})";
+        }
+
+        // Multi-line format for multiple parameters
+        var sb = new StringBuilder();
+        sb.Append($"new {reg.ImplementationTypeFullName}(");
+
+        for (var i = 0; i < paramExpressions.Count; i++)
+        {
+            var comma = i < paramExpressions.Count - 1 ? "," : "";
+            if (i == 0)
+            {
+                sb.Append(paramExpressions[i] + comma);
+            }
+            else
+            {
+                sb.Append(" " + paramExpressions[i] + comma);
+            }
+        }
+        sb.Append(")");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Generates the expression for a constructor parameter.
+    /// Inlines Transient dependencies, uses GetService for Singleton/Scoped.
+    /// </summary>
+    private static string GenerateParameterExpression(
+        string paramTypeFullName,
+        Dictionary<string, ServiceRegistration> registrationLookup,
+        HashSet<string> visitedTypes,
+        int indentLevel
+    )
+    {
+        // Check if we have a registration for this type
+        if (registrationLookup.TryGetValue(paramTypeFullName, out var depReg))
+        {
+            // Only inline Transient dependencies to avoid breaking singleton/scoped semantics
+            if (depReg.Lifetime == "Transient")
+            {
+                // Check for circular dependency
+                if (visitedTypes.Contains(paramTypeFullName))
+                {
+                    // Fall back to GetService for circular references
+                    return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+                }
+
+                // Mark as visited and recursively inline
+                var newVisited = new HashSet<string>(visitedTypes) { paramTypeFullName };
+                return GenerateInlinedFactory(depReg, registrationLookup, newVisited, indentLevel);
+            }
+        }
+
+        // For Singleton, Scoped, or unknown dependencies, use GetService
+        return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
     }
 }
