@@ -13,11 +13,26 @@
         <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
+    <!-- NuGet Package Metadata -->
+    <PropertyGroup>
+        <PackageId>Pico.DI</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Pico.DI Contributors</Authors>
+        <Description>A lightweight, zero-reflection, AOT-compatible dependency injection container for .NET</Description>
+        <PackageTags>DI;IoC;AOT;Dependency Injection;Container</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/pico-di/Pico.DI</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/pico-di/Pico.DI</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
     <ItemGroup>
-      <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj">
-          <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
-          <Private>false</Private>
-      </ProjectReference>
+        <None Include="../../README.md" Pack="true" PackagePath="/" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj" />
     </ItemGroup>
 
 </Project>

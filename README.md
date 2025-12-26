@@ -65,11 +65,42 @@
 
 ## 📦 Installation
 
+### Full Package (Recommended)
+
 ```bash
+# Install the container and source generator
 dotnet add package Pico.DI
+dotnet add package Pico.DI.Gen
 ```
 
-> **Note**: Package coming soon to NuGet.org
+Or add to your `.csproj`:
+
+```xml
+<ItemGroup>
+    <PackageReference Include="Pico.DI" Version="1.0.0" />
+    <PackageReference Include="Pico.DI.Gen" Version="1.0.0" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" />
+</ItemGroup>
+```
+
+### Package Structure
+
+| Package | Description | When to Use |
+|---------|-------------|-------------|
+| `Pico.DI` | Container implementation | Main package for applications |
+| `Pico.DI.Abs` | Abstractions only | Library development (no implementation dependency) |
+| `Pico.DI.Gen` | Source generator | Compile-time factory generation (AOT support) |
+
+### For Library Authors
+
+If you're building a library that depends on Pico.DI abstractions:
+
+```bash
+dotnet add package Pico.DI.Abs
+```
+
+This allows your library consumers to choose their own DI container implementation.
 
 ---
 
@@ -265,6 +296,19 @@ Pico.DI includes a Roslyn Analyzer that detects issues at compile time:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### NuGet Package Dependencies
+
+```
+Pico.DI.Gen (Source Generator)
+    └── No runtime dependencies (analyzer only)
+
+Pico.DI (Container)
+    └── Pico.DI.Abs (Abstractions)
+
+Pico.DI.Abs (Abstractions)
+    └── No dependencies
+```
+
 ### How It Works
 
 <table>
@@ -305,6 +349,29 @@ container.Register(new SvcDescriptor(
 | Optional Dependencies | ❌ Not Supported | All parameters must be registered |
 | Lazy Resolution | ❌ Not Supported | Services resolved immediately |
 | IServiceProvider Adapter | ✅ Supported | For framework integration |
+| Native AOT | ✅ Supported | Zero reflection, trim-safe |
+| .NET 10+ | ✅ Required | Uses C# 14 extension members |
+
+---
+
+## 🚀 Native AOT Deployment
+
+Pico.DI is fully compatible with Native AOT and IL trimming:
+
+```xml
+<PropertyGroup>
+    <PublishAot>true</PublishAot>
+    <!-- or -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+</PropertyGroup>
+```
+
+**Key Points:**
+- Source generator creates all factories at compile time
+- No `System.Reflection` usage at runtime
+- All types statically known to the trimmer
+- Tested with `TrimMode=full`
 
 ---
 
