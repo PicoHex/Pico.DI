@@ -13,7 +13,7 @@
 
 ---
 
-[Getting Started](#-getting-started) • [Documentation](#-documentation) • [Architecture](#-architecture) • [Contributing](#-contributing)
+[Features](#-key-features) • [Use Cases](#-use-cases) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Architecture](#-architecture)
 
 </div>
 
@@ -21,7 +21,7 @@
 
 ## Overview
 
-**Pico.DI** is an enterprise-grade, lightweight dependency injection container designed for high-performance .NET applications. By leveraging Roslyn Source Generators, Pico.DI eliminates runtime reflection overhead, making it the ideal choice for Native AOT deployments, microservices, and performance-critical systems.
+**Pico.DI** is an enterprise-grade, lightweight dependency injection container designed for high-performance .NET applications. By leveraging Roslyn Source Generators, Pico.DI eliminates runtime reflection overhead, making it the ideal choice for Native AOT deployments, microservices, edge computing, and performance-critical systems.
 
 ### Why Pico.DI?
 
@@ -31,10 +31,11 @@
 | **Cold Start Performance** | Reflection-based scanning | Zero startup overhead |
 | **Trimming Safety** | Broken by IL trimmer | Fully trim-compatible |
 | **Compile-Time Validation** | Runtime exceptions | Roslyn Analyzer diagnostics |
+| **Edge Deployment** | Large runtime footprint | ~150KB trimmed binary |
 
 ---
 
-## Key Features
+## ✨ Key Features
 
 <table>
 <tr>
@@ -45,7 +46,8 @@
 - **Native AOT Support** — No runtime reflection
 - **Compile-Time Factories** — Source Generator powered
 - **Minimal Footprint** — Zero external dependencies
-- **Trim-Safe** — Compatible with IL trimming
+- **Trim-Safe** — Compatible with `TrimMode=full`
+- **Edge Ready** — Optimized for ARM64/x64
 
 </td>
 <td width="50%">
@@ -60,6 +62,36 @@
 </td>
 </tr>
 </table>
+
+---
+
+## 🎯 Use Cases
+
+### Supported Scenarios
+
+| Scenario | Suitability | Notes |
+|----------|-------------|-------|
+| **Microservices** | ✅ Excellent | Fast cold start, minimal memory |
+| **Native AOT Apps** | ✅ Excellent | Zero reflection required |
+| **Raspberry Pi / Jetson** | ✅ Excellent | Linux ARM64 support |
+| **Industrial Gateways** | ✅ Excellent | Edge computing workloads |
+| **Docker Containers** | ✅ Excellent | Minimal image size |
+| **Serverless Functions** | ✅ Excellent | Fast startup time |
+| **Windows IoT** | ✅ Good | Windows ARM64/x64 |
+| **Arduino / ESP32** | ❌ Not supported | Use .NET NanoFramework |
+
+### Cross-Platform Publishing
+
+```bash
+# Raspberry Pi / Linux ARM64
+dotnet publish -c Release -r linux-arm64 --self-contained -p:PublishAot=true
+
+# Linux x64 (Servers / Edge)
+dotnet publish -c Release -r linux-x64 --self-contained -p:PublishAot=true
+
+# Windows IoT / Desktop
+dotnet publish -c Release -r win-arm64 --self-contained -p:PublishAot=true
+```
 
 ---
 
@@ -89,22 +121,23 @@ Or add to your `.csproj`:
 | Package | Description | When to Use |
 |---------|-------------|-------------|
 | `Pico.DI` | Container implementation | Main package for applications |
-| `Pico.DI.Abs` | Abstractions only | Library development (no implementation dependency) |
-| `Pico.DI.Gen` | Source generator | Compile-time factory generation (AOT support) |
+| `Pico.DI.Abs` | Abstractions only | Library development |
+| `Pico.DI.Gen` | Source generator | AOT support (compile-time factories) |
 
-### For Library Authors
+### For Native AOT / Edge Deployment
 
-If you're building a library that depends on Pico.DI abstractions:
-
-```bash
-dotnet add package Pico.DI.Abs
+```xml
+<PropertyGroup>
+    <PublishAot>true</PublishAot>
+    <!-- or for trimming only -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+</PropertyGroup>
 ```
-
-This allows your library consumers to choose their own DI container implementation.
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Step 1: Define Services
 
@@ -170,7 +203,7 @@ using var container = Startup.ConfigureServices();
 using var scope = container.CreateScope();
 
 var service = scope.GetService<GreetingService>();
-service.SayHello("Enterprise");
+service.SayHello("World");
 ```
 
 ---
@@ -236,9 +269,6 @@ container.RegisterScoped(typeof(IRepository<>), typeof(Repository<>));
 container.RegisterTransient(typeof(ICache<,>), typeof(MemoryCache<,>));
 container.RegisterSingleton(typeof(ILogger<>), typeof(Logger<>));
 
-// Or use the unified Register method with explicit lifetime
-container.Register(typeof(IRepository<>), typeof(Repository<>), SvcLifetime.Scoped);
-
 // Resolve closed generic types
 var userRepo = scope.GetService<IRepository<User>>();
 var orderRepo = scope.GetService<IRepository<Order>>();
@@ -296,19 +326,6 @@ Pico.DI includes a Roslyn Analyzer that detects issues at compile time:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### NuGet Package Dependencies
-
-```
-Pico.DI.Gen (Source Generator)
-    └── No runtime dependencies (analyzer only)
-
-Pico.DI (Container)
-    └── Pico.DI.Abs (Abstractions)
-
-Pico.DI.Abs (Abstractions)
-    └── No dependencies
-```
-
 ### How It Works
 
 <table>
@@ -340,7 +357,7 @@ container.Register(new SvcDescriptor(
 
 ---
 
-## ⚠️ Considerations
+## ⚠️ Limitations
 
 | Aspect | Status | Notes |
 |--------|--------|-------|
@@ -354,69 +371,9 @@ container.Register(new SvcDescriptor(
 
 ---
 
-## 🚀 Native AOT Deployment
-
-Pico.DI is fully compatible with Native AOT and IL trimming:
-
-```xml
-<PropertyGroup>
-    <PublishAot>true</PublishAot>
-    <!-- or -->
-    <PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>full</TrimMode>
-</PropertyGroup>
-```
-
-**Key Points:**
-- Source generator creates all factories at compile time
-- No `System.Reflection` usage at runtime
-- All types statically known to the trimmer
-- Tested with `TrimMode=full`
-
----
-
-## 🔌 Edge Computing & Embedded Systems
-
-Pico.DI's zero-reflection architecture makes it well-suited for edge computing scenarios running .NET.
-
-### Supported Platforms
-
-| Platform | Suitability | Notes |
-|----------|-------------|-------|
-| **Raspberry Pi** | ✅ Excellent | Linux ARM64, full .NET support |
-| **NVIDIA Jetson** | ✅ Excellent | AI edge inference workloads |
-| **Industrial Gateways** | ✅ Excellent | Linux ARM/x64 devices |
-| **Docker Edge Containers** | ✅ Excellent | Minimal container images |
-| **Windows IoT** | ✅ Good | Windows ARM64/x64 |
-| **Arduino / ESP32** | ❌ Not supported | Requires .NET NanoFramework |
-| **Bare-metal MCU** | ❌ Not supported | No .NET runtime available |
-
-### Benefits for Edge Deployment
-
-- **Fast Cold Start** — No reflection scanning at startup
-- **Small Binary Size** — ~150KB trimmed executable
-- **Predictable Performance** — No JIT compilation with AOT
-- **Single File Deployment** — Self-contained executables
-- **Reduced Attack Surface** — No external dependencies
-
-### Cross-Platform Publishing
-
-```bash
-# Raspberry Pi / Linux ARM64
-dotnet publish -c Release -r linux-arm64 --self-contained -p:PublishAot=true
-
-# Linux x64 (Edge Servers)
-dotnet publish -c Release -r linux-x64 --self-contained -p:PublishAot=true
-
-# Windows IoT
-dotnet publish -c Release -r win-arm64 --self-contained -p:PublishAot=true
-```
-
----
-
 ## 🤝 Contributing
 
-We welcome contributions from the community. Please read our contributing guidelines before submitting a pull request.
+We welcome contributions from the community!
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -435,5 +392,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 <div align="center">
 
 **Built with performance in mind for the modern .NET ecosystem**
+
+*Cloud • Edge • Embedded • Everywhere .NET runs*
 
 </div>
