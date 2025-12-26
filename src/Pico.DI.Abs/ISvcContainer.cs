@@ -160,7 +160,7 @@ public static class SvcContainerExtensions
             return container; // Source Generator will generate factory-based registration
         }
 
-        public ISvcContainer RegisterTransient<TService, TImplementation>()
+        public ISvcContainer RegisterTransient<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
             where TImplementation : TService
         {
             // DESIGN NOTE: This method can work in two modes:
@@ -246,7 +246,7 @@ public static class SvcContainerExtensions
             return container; // Source Generator will generate factory-based registration
         }
 
-        public ISvcContainer RegisterScoped<TService, TImplementation>()
+        public ISvcContainer RegisterScoped<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
             where TImplementation : TService
         {
             // DESIGN NOTE: This method can work in two modes:
@@ -332,7 +332,7 @@ public static class SvcContainerExtensions
             return container; // Source Generator will generate factory-based registration
         }
 
-        public ISvcContainer RegisterSingleton<TService, TImplementation>()
+        public ISvcContainer RegisterSingleton<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
             where TImplementation : TService
         {
             // DESIGN NOTE: This method can work in two modes:
