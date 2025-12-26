@@ -375,6 +375,45 @@ Pico.DI is fully compatible with Native AOT and IL trimming:
 
 ---
 
+## 🔌 Edge Computing & Embedded Systems
+
+Pico.DI's zero-reflection architecture makes it well-suited for edge computing scenarios running .NET.
+
+### Supported Platforms
+
+| Platform | Suitability | Notes |
+|----------|-------------|-------|
+| **Raspberry Pi** | ✅ Excellent | Linux ARM64, full .NET support |
+| **NVIDIA Jetson** | ✅ Excellent | AI edge inference workloads |
+| **Industrial Gateways** | ✅ Excellent | Linux ARM/x64 devices |
+| **Docker Edge Containers** | ✅ Excellent | Minimal container images |
+| **Windows IoT** | ✅ Good | Windows ARM64/x64 |
+| **Arduino / ESP32** | ❌ Not supported | Requires .NET NanoFramework |
+| **Bare-metal MCU** | ❌ Not supported | No .NET runtime available |
+
+### Benefits for Edge Deployment
+
+- **Fast Cold Start** — No reflection scanning at startup
+- **Small Binary Size** — ~150KB trimmed executable
+- **Predictable Performance** — No JIT compilation with AOT
+- **Single File Deployment** — Self-contained executables
+- **Reduced Attack Surface** — No external dependencies
+
+### Cross-Platform Publishing
+
+```bash
+# Raspberry Pi / Linux ARM64
+dotnet publish -c Release -r linux-arm64 --self-contained -p:PublishAot=true
+
+# Linux x64 (Edge Servers)
+dotnet publish -c Release -r linux-x64 --self-contained -p:PublishAot=true
+
+# Windows IoT
+dotnet publish -c Release -r win-arm64 --self-contained -p:PublishAot=true
+```
+
+---
+
 ## 🤝 Contributing
 
 We welcome contributions from the community. Please read our contributing guidelines before submitting a pull request.
