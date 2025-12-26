@@ -61,12 +61,35 @@ public interface ILevel4 { }
 
 public interface ILevel5 { }
 
-public class Level1 : ILevel1 { }
+public class Level1 : ILevel1
+{
+    public Level1() { }
+}
 
-public class Level2(ILevel1 l1) : ILevel2 { }
+public class Level2 : ILevel2
+{
+    public Level2() { }
 
-public class Level3(ILevel2 l2) : ILevel3 { }
+    public Level2(ILevel1 l1) { }
+}
 
-public class Level4(ILevel3 l3) : ILevel4 { }
+public class Level3 : ILevel3
+{
+    public Level3() { }
 
-public class Level5(ILevel4 l4) : ILevel5 { }
+    public Level3(ILevel2 l2) { }
+}
+
+public class Level4 : ILevel4
+{
+    public Level4() { }
+
+    public Level4(ILevel3 l3) { }
+}
+
+public class Level5 : ILevel5
+{
+    public Level5() { }
+
+    public Level5(ILevel4 l4) { }
+}

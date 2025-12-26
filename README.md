@@ -68,22 +68,33 @@ var svc = scope.GetService<IService>();  // Zero reflection. AOT safe.
 Native AOT Benchmark, Windows 11, 12th Gen Intel Core i7-1260P
 .NET 10.0.1, Native AOT compiled, 67M iterations
 
-╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-║                SERVICE RESOLUTION (Deep Dependency, 5 levels) — Lower is better (ns/op)                                                 ║
-╠════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣
-║ Method                        | Mean (ns) | Allocated | Notes                                                                            ║
-╠═══════════════════════════════╬═══════════╬═══════════╬================================================================================╣
-║ MS.DI - Deep (5 levels)       | 10.99     |   24 B    | Reference: Microsoft.Extensions.DependencyInjection                              ║
-║ Pico.DI - Inlined (5 levels)  | 11.15     |   24 B    | 🔥 Inlined chain, zero-reflection, matches MS.DI                                 ║
-║ Pico.DI - Deep (5 levels)     | 57.60     |  120 B    | (Old) Chained GetService, no inlining                                            ║
-╚═══════════════════════════════╩═══════════╩═══════════╩══════════════════════════════════════════════════════════════════════════════════╝
+| Method                       | Mean      | Error     | StdDev    | Median    | Rank | Gen0   | Allocated |
+|----------------------------- |----------:|----------:|----------:|----------:|-----:|-------:|----------:|
+| MS.DI - Singleton            |  6.57 ns  | 0.22 ns   | 0.62 ns   |  6.30 ns  |  1   |   -    |     -     |
+| Pico.DI - Singleton          | 10.49 ns  | 0.30 ns   | 0.89 ns   | 10.17 ns  |  2   |   -    |     -     |
+| MS.DI - Transient            | 10.56 ns  | 0.35 ns   | 1.04 ns   | 10.25 ns  |  2   | 0.0025 |   24 B    |
+| Pico.DI - Transient          | 12.88 ns  | 0.37 ns   | 1.08 ns   | 12.31 ns  |  3   | 0.0025 |   24 B    |
+| Pico.DI - Scoped             | 15.35 ns  | 0.35 ns   | 1.00 ns   | 15.02 ns  |  4   |   -    |     -     |
+| Pico.DI - Complex (3 deps)   | 16.94 ns  | 0.47 ns   | 1.39 ns   | 16.27 ns  |  5   |   -    |     -     |
+| MS.DI - Complex (3 deps)     | 27.20 ns  | 0.63 ns   | 1.83 ns   | 26.47 ns  |  6   |   -    |     -     |
+| MS.DI - Scoped               | 30.39 ns  | 0.77 ns   | 2.25 ns   | 29.79 ns  |  7   |   -    |     -     |
+
+| Method                      | Mean     | Error    | StdDev   | Median   | Rank | Gen0   | Allocated |
+|---------------------------- |---------:|---------:|---------:|---------:|-----:|-------:|----------:|
+| MS.DI - Deep (5 levels)     | 10.47 ns | 0.34 ns  | 0.99 ns  | 10.18 ns |  1   | 0.0025 |   24 B    |
+| Pico.DI - Deep (5 levels)   | 19.06 ns | 0.52 ns  | 1.52 ns  | 18.24 ns |  2   | 0.0025 |   24 B    |
 ```
 
 **📊 Analysis:**
 
-- **Pico.DI (inlined):** Now matches MS.DI in deep dependency resolution performance (5-level chain, ~11ns/op, 24B alloc)
-- **Old Pico.DI (chained):** ~5x slower due to repeated GetService calls
-- **Key Advantage:** Pico.DI provides **true zero-reflection**, **compile-time cycle detection**, and **AOT safety**
+- **Singleton:** MS.DI is faster (6.57ns) than Pico.DI (10.49ns).
+- **Transient:** MS.DI (10.56ns) is faster than Pico.DI (12.88ns).
+- **Scoped:** Pico.DI (15.35ns) is faster than MS.DI (30.39ns).
+- **Complex (3 deps):** Pico.DI (16.94ns) is much faster than MS.DI (27.20ns).
+- **Deep (5 levels):** MS.DI (10.47ns) is faster than Pico.DI (19.06ns).
+
+- **Conclusion:** Pico.DI achieves competitive performance with MS.DI, especially in scoped and complex scenarios, while providing zero-reflection, compile-time safety, and AOT compatibility.
+- **Key Advantage:** Pico.DI provides **zero reflection**, **compile-time cycle detection**, **AOT safety**.
 - **Binary Size:** ~2.1 MB AOT benchmark app (includes both DI frameworks + test harness)
 
 *Run AOT benchmark: `cd benchmarks/Pico.DI.AotBenchmark && dotnet publish -c Release -r win-x64 && bin\Release\net10.0\win-x64\publish\Pico.DI.AotBenchmark.exe`*
