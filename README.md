@@ -65,17 +65,38 @@ var svc = scope.GetService<IService>();  // Zero reflection. AOT safe.
 ### Benchmarks (Native AOT, .NET 10, Dec 2025)
 
 ```
-Native AOT Benchmark, Windows 11, 12th Gen Intel Core i7-1260P
-.NET 10.0.1, Native AOT compiled, 67M iterations
-
-| Scenario                | MS.DI (ns) | Pico.DI (ns) | Allocated |
-|-------------------------|------------|--------------|-----------|
-| Singleton               |   6.57     |   10.49      |    -      |
-| Transient               |  10.56     |   12.88      |   24 B    |
-| Scoped                  |  30.39     |   15.35      |    -      |
-| Complex (3 deps)        |  27.20     |   16.94      |    -      |
-| Deep (5 levels)         |  10.47     |   19.06      |   24 B    |
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.7462/25H2/2025Update/HudsonValley2)
+12th Gen Intel Core i7-1260P 2.10GHz, 1 CPU, 16 logical and 12 physical cores
+.NET SDK 10.0.101
+  [Host]     : .NET 10.0.1 (10.0.1, 10.0.125.57005), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.1 (10.0.1, 10.0.125.57005), X64 RyuJIT x86-64-v3
 ```
+
+| Method                      | Mean       | Error    | StdDev    | Median     | Rank | Gen0   | Gen1   | Allocated |
+|---------------------------- |-----------:|---------:|----------:|-----------:|-----:|-------:|-------:|----------:|
+| &#39;Pico.DI - Container Setup&#39; |   382.8 ns | 15.55 ns |  44.62 ns |   376.4 ns |    1 | 0.3295 | 0.0029 |   3.03 KB |
+| &#39;MS.DI - Container Setup&#39;   | 1,034.5 ns | 37.98 ns | 111.38 ns | 1,004.4 ns |    2 | 0.6618 | 0.0935 |   6.09 KB |
+
+| Method                      | Mean     | Error    | StdDev   | Median   | Rank | Gen0   | Allocated |
+|---------------------------- |---------:|---------:|---------:|---------:|-----:|-------:|----------:|
+| &#39;MS.DI - Deep (5 levels)&#39;   | 10.47 ns | 0.337 ns | 0.994 ns | 10.18 ns |    1 | 0.0025 |      24 B |
+| &#39;Pico.DI - Deep (5 levels)&#39; | 19.06 ns | 0.519 ns | 1.522 ns | 18.24 ns |    2 | 0.0025 |      24 B |
+
+| Method                   | Mean      | Error    | StdDev    | Median   | Rank | Gen0   | Gen1   | Allocated |
+|------------------------- |----------:|---------:|----------:|---------:|-----:|-------:|-------:|----------:|
+| &#39;MS.DI - Create Scope&#39;   |  17.60 ns | 0.687 ns |  2.016 ns | 16.65 ns |    1 | 0.0136 |      - |     128 B |
+| &#39;Pico.DI - Create Scope&#39; | 100.09 ns | 3.698 ns | 10.844 ns | 96.60 ns |    2 | 0.1130 | 0.0004 |    1064 B |
+
+| Method                       | Mean      | Error     | StdDev    | Median    | Rank | Gen0   | Allocated |
+|----------------------------- |----------:|----------:|----------:|----------:|-----:|-------:|----------:|
+| &#39;MS.DI - Singleton&#39;          |  6.574 ns | 0.2187 ns | 0.6204 ns |  6.295 ns |    1 |      - |         - |
+| &#39;Pico.DI - Singleton&#39;        | 10.492 ns | 0.3023 ns | 0.8867 ns | 10.166 ns |    2 |      - |         - |
+| &#39;MS.DI - Transient&#39;          | 10.564 ns | 0.3515 ns | 1.0364 ns | 10.249 ns |    2 | 0.0025 |      24 B |
+| &#39;Pico.DI - Transient&#39;        | 12.882 ns | 0.3698 ns | 1.0788 ns | 12.307 ns |    3 | 0.0025 |      24 B |
+| &#39;Pico.DI - Scoped&#39;           | 15.347 ns | 0.3541 ns | 1.0045 ns | 15.015 ns |    4 |      - |         - |
+| &#39;MS.DI - Scoped&#39;             | 30.385 ns | 0.7682 ns | 2.2531 ns | 29.792 ns |    7 |      - |         - |
+| &#39;Pico.DI - Complex (3 deps)&#39; | 16.938 ns | 0.4721 ns | 1.3919 ns | 16.270 ns |    5 |      - |         - |
+| &#39;MS.DI - Complex (3 deps)&#39;   | 27.197 ns | 0.6264 ns | 1.8273 ns | 26.471 ns |    6 |      - |         - |
 
 **📊 Analysis:**
 
