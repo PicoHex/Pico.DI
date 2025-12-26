@@ -1,8 +1,3 @@
-using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Order;
-using Microsoft.Extensions.DependencyInjection;
-using Pico.DI.Abs;
-
 namespace Pico.DI.Benchmarks;
 
 [MemoryDiagnoser]
