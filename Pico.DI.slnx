@@ -1,14 +1,17 @@
-﻿<Solution>
+<Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Pico.DI.Benchmarks/Pico.DI.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/samples/">
-    <Project Path="samples\Pico.DI.Sample\Pico.DI.Sample.csproj" Type="Classic C#" />
-    <Project Path="samples\Pico.DI.Sample.Services\Pico.DI.Sample.Services.csproj" Type="Classic C#" />
+    <Project Path="samples\Pico.DI.Sample\Pico.DI.Sample.csproj" Type="C#" />
+    <Project Path="samples\Pico.DI.Sample.Services\Pico.DI.Sample.Services.csproj" Type="C#" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src\Pico.DI.Abs\Pico.DI.Abs.csproj" Type="Classic C#" />
-    <Project Path="src\Pico.DI.Gen\Pico.DI.Gen.csproj" Type="Classic C#" />
-    <Project Path="src\Pico.DI\Pico.DI.csproj" Type="Classic C#" />
+    <Project Path="src\Pico.DI.Abs\Pico.DI.Abs.csproj" Type="C#" />
+    <Project Path="src\Pico.DI.Gen\Pico.DI.Gen.csproj" Type="C#" />
+    <Project Path="src\Pico.DI\Pico.DI.csproj" Type="C#" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests\Pico.DI.Test\Pico.DI.Test.csproj" Type="Classic C#" />
+    <Project Path="tests\Pico.DI.Test\Pico.DI.Test.csproj" Type="C#" />
   </Folder>
 </Solution>
