@@ -137,215 +137,143 @@ dotnet add package Pico.DI
 dotnet add package Pico.DI.Gen
 ```
 
-### Option B: csproj
-
-```xml
-<ItemGroup>
-  <PackageReference Include="Pico.DI" Version="1.0.0" />
-  <PackageReference Include="Pico.DI.Gen" Version="1.0.0" 
-                    OutputItemType="Analyzer" 
-                    ReferenceOutputAssembly="false" />
-</ItemGroup>
+```
+ ____  _             ____ ___ 
+|  _ \(_) ___ ___   |  _ \_ _|
+| |_) | |/ __/ _ \  | | | | | 
+|  __/| | (_| (_) |_| |_| | | 
+|_|   |_|\___\___/(_)____/___|
+                              
+Pico.DI — The Compile-Time DI for .NET 10+ | Native AOT | Cloud | Edge | Embedded
 ```
 
-### Option C: Just Abstractions (for library authors)
+> **No runtime reflection. No runtime surprises. Just pure, static, geek-approved dependency injection.**
+
+---
+
+## 🚀 Why Pico.DI?
+
+- **Zero Reflection:** All factories are generated at compile time. No `Activator`, no `Type.GetType`, no `MethodInfo.Invoke`. Ever.
+- **Compile-Time Cycle Detection:** Circular dependencies? Pico.DI’s source generator will catch them before you even hit F5.
+- **Open Generics:** Register and resolve `IRepository<T>`, `IService<T1, T2>`, etc. All closed generic factories are generated at build time.
+- **IEnumerable<T> Injection:** Register multiple implementations, inject them as `IEnumerable<T>`. All resolved statically.
+- **AOT & Trimming Safe:** Designed for .NET Native AOT, IL trimming, and minimal binary size.
+- **Cloud, Edge, Embedded Ready:** No runtime magic, no dynamic code, no surprises. Works everywhere .NET runs.
+
+---
+
+## 🦾 How It Works
+
+1. **You write this:**
+
+```csharp
+var container = new SvcContainer();
+container
+.RegisterSingleton<ILogger, ConsoleLogger>()
+.RegisterTransient<IGreeter, Greeter>()
+.RegisterScoped<GreetingService>()
+.ConfigureGeneratedServices(); // 🔮 Source generator magic
+```
+
+1. **Source generator scans your registrations at build time:**
+
+- Analyzes all constructors, dependencies, and open generics.
+- Emits explicit, static factory code for every service, every closed generic, every `IEnumerable<T>`.
+
+1. **At runtime:**
+
+- `GetService<T>()` is just a direct delegate call. No reflection, no runtime type discovery.
+- Cycles? Impossible. The generator already failed your build if you had any.
+
+---
+
+## 🧬 Example
+
+```csharp
+// Service registration
+container
+  .RegisterSingleton<ILogger, ConsoleLogger>()
+  .RegisterTransient<IGreeter, Greeter>()
+  .RegisterScoped<GreetingService>()
+  .ConfigureGeneratedServices();
+
+// Usage
+using var scope = container.CreateScope();
+var svc = scope.GetService<GreetingService>();
+svc.SayHello("World");
+```
+
+```csharp
+// Service implementation
+public class GreetingService(IGreeter greeter, ILogger logger)
+{
+  public void SayHello(string name)
+  {
+    logger.Log($"Greeting {name}");
+    Console.WriteLine(greeter.Greet(name));
+  }
+}
+```
+
+---
+
+## 🧩 Features
+
+- **Constructor injection only** (no property injection, no runtime hacks)
+- **Open generics**: Register and resolve `IService<T>`, `IRepository<TKey, TValue>`, etc.
+- **IEnumerable<T>**: Register multiple `IHandler`, inject as `IEnumerable<IHandler>`
+- **Compile-time diagnostics**:
+  - `PICO001`: Service not registered
+  - `PICO002`: Circular dependency detected
+  - `PICO003`: Abstract type as implementation
+  - `PICO004`: No public constructor
+- **AOT/Trimming**: 100% compatible, no dynamic code, no reflection roots needed
+- **Minimal runtime**: ~13KB core, ~25KB generator, zero dependencies
+
+---
+
+## 🌍 Where to Use
+
+- **Cloud microservices**: Fast cold start, no runtime surprises
+- **Edge computing**: Small, static, reliable
+- **Embedded/IoT**: No dynamic code, works on all .NET 10+ targets
+- **Anywhere you want DI without the bloat**
+
+---
+
+## 🛠️ Install
 
 ```bash
-dotnet add package Pico.DI.Abs
-```
-
-### Packages
-
-| Package | Size | Purpose |
-|---------|------|---------|
-| `Pico.DI` | ~13KB | Runtime container |
-| `Pico.DI.Abs` | ~12KB | Interfaces only |
-| `Pico.DI.Gen` | ~25KB | Source generator (compile-time) |
-
----
-
-## 🎯 Platforms
-
-```
-✅ Supported                          ❌ Not Supported
-─────────────────────────────────────────────────────
-☁️  Cloud / Microservices             🔌 Arduino
-🖥️  Desktop (Win/Mac/Linux)           📟 ESP32  
-🐳 Docker / Kubernetes               🎮 Bare-metal MCU
-🥧 Raspberry Pi (ARM64)              
-🤖 NVIDIA Jetson                     
-🏭 Industrial Gateways               
-📱 Windows IoT                       
-⚡ Serverless (Lambda, Functions)    
-```
-
-### Build for Your Target
-
-```bash
-# 🐧 Linux x64
-dotnet publish -r linux-x64 -c Release -p:PublishAot=true
-
-# 🥧 Raspberry Pi
-dotnet publish -r linux-arm64 -c Release -p:PublishAot=true
-
-# 🪟 Windows
-dotnet publish -r win-x64 -c Release -p:PublishAot=true
-
-# 🍎 macOS
-dotnet publish -r osx-arm64 -c Release -p:PublishAot=true
-```
-
-### AOT Config
-
-```xml
-<PropertyGroup>
-  <PublishAot>true</PublishAot>
-  <!-- OR trimming only: -->
-  <PublishTrimmed>true</PublishTrimmed>
-  <TrimMode>full</TrimMode>
-</PropertyGroup>
-```
-
-**Binary size:** ~150KB (trimmed, self-contained sample app)
-
----
-
-## 📚 Docs
-
-### Lifetimes
-
-```csharp
-container
-    .RegisterTransient<IFoo, Foo>()    // 🔄 New instance every time
-    .RegisterScoped<IBar, Bar>()       // 📦 One per scope
-    .RegisterSingleton<IBaz, Baz>();   // 🌍 One for app lifetime
-```
-
-### Registration Styles
-
-```csharp
-// 1️⃣ Type mapping (AOT-safe, source-generated)
-container.RegisterScoped<IService, ServiceImpl>();
-
-// 2️⃣ Factory delegate
-container.RegisterScoped<IDb>(s => new Db(connectionString));
-
-// 3️⃣ Instance
-container.RegisterSingle<IConfig>(new Config { Env = "prod" });
-
-// 4️⃣ Open generics
-container.RegisterScoped(typeof(IRepo<>), typeof(Repo<>));
-```
-
-### Multiple Implementations
-
-```csharp
-container
-    .RegisterSingleton<IHandler>(s => new EmailHandler())
-    .RegisterSingleton<IHandler>(s => new SmsHandler())
-    .RegisterSingleton<IHandler>(s => new PushHandler());
-
-// Get all
-var handlers = scope.GetServices<IHandler>();
-```
-
-### Compile-Time Diagnostics
-
-```
-⚠️ PICO001: Service 'IFoo' is not registered
-⚠️ PICO002: Circular dependency: A → B → A  
-❌ PICO003: Cannot use abstract 'Foo' as implementation
-❌ PICO004: 'Bar' has no public constructor
+dotnet add package Pico.DI
+dotnet add package Pico.DI.Gen
 ```
 
 ---
 
-## 🔧 Internals
+## 🧙 Internals
 
-### How It Works
-
-```
-┌──────────────────┐      ┌──────────────────┐
-│   Your Code      │      │  Generated Code  │
-├──────────────────┤  =>  ├──────────────────┤
-│ .RegisterScoped  │      │ new SvcDescriptor│
-│   <IFoo, Foo>()  │      │   (typeof(IFoo), │
-│                  │      │    _ => new Foo()│
-│                  │      │    Scoped)       │
-└──────────────────┘      └──────────────────┘
-       ↓ Roslyn Source Generator (compile-time)
-```
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│              Pico.DI.Gen                    │
-│  ┌────────────────────────────────────────┐ │
-│  │ Source Generator + Roslyn Analyzer     │ │
-│  │ • Scans Register<T>() calls            │ │
-│  │ • Emits factory code                   │ │
-│  │ • Zero runtime cost                    │ │
-│  └────────────────────────────────────────┘ │
-├─────────────────────────────────────────────┤
-│              Pico.DI                        │
-│  ┌────────────────────────────────────────┐ │
-│  │ SvcContainer + SvcScope                │ │
-│  │ • Lifetime management                  │ │
-│  │ • Service resolution                   │ │
-│  │ • Disposal handling                    │ │
-│  └────────────────────────────────────────┘ │
-├─────────────────────────────────────────────┤
-│              Pico.DI.Abs                    │
-│  ┌────────────────────────────────────────┐ │
-│  │ ISvcContainer, ISvcScope               │ │
-│  │ SvcDescriptor, SvcLifetime             │ │
-│  └────────────────────────────────────────┘ │
-└─────────────────────────────────────────────┘
-```
+- **Source generator**: Scans all `Register*` calls, emits static factories, detects cycles, generates `ConfigureGeneratedServices()`.
+- **No runtime registration**: All registrations are for the generator; at runtime, only prebuilt factories are used.
+- **No runtime reflection**: Not even a little bit.
 
 ---
 
 ## ⚠️ Limitations
 
-```
-✅ Constructor injection      ❌ Property injection
-✅ IServiceProvider adapter   ❌ Optional parameters  
-✅ Async disposal             ❌ Lazy<T> resolution
-✅ .NET 10+                   ❌ .NET 8/9 (needs C# 14)
-```
-
----
-
-## 🤝 Contributing
-
-```bash
-git clone https://github.com/pico-di/Pico.DI
-cd Pico.DI
-dotnet test
-```
-
-PRs welcome. Keep it minimal.
+- No property injection
+- No optional constructor parameters
+- .NET 10+ and C# 14+ only
 
 ---
 
 ## 📄 License
 
-MIT — Use it however you want.
+MIT — Use it, fork it, hack it.
 
 ---
 
-<div align="center">
+> “The best DI is the one you don’t notice at runtime.” — Ancient Geek Proverb
 
-```
-     _____
-    /     \     "The best DI is the one you 
-   | () () |     don't notice at runtime."
-    \  ^  /     
-     |||||              - Ancient Geek Proverb
-     |||||
-```
+---
 
 **Cloud • Edge • Embedded • Everywhere .NET runs**
-
-</div>
