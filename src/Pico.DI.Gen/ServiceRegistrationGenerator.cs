@@ -68,7 +68,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     {
         // Find all invocations that look like Register* method calls (regular registrations)
         var registerInvocations = context
-            .SyntaxProvider.CreateSyntaxProvider(
+            .SyntaxProvider
+            .CreateSyntaxProvider(
                 predicate: static (node, _) => IsRegisterMethodInvocation(node),
                 transform: static (ctx, _) => GetInvocationInfo(ctx)
             )
@@ -76,7 +77,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Find all open generic registrations (from both regular Register* and legacy RegisterOpenGeneric* methods)
         var openGenericRegistrations = context
-            .SyntaxProvider.CreateSyntaxProvider(
+            .SyntaxProvider
+            .CreateSyntaxProvider(
                 predicate: static (node, _) => IsOpenGenericRegisterInvocation(node),
                 transform: static (ctx, _) => GetOpenGenericInvocationInfo(ctx)
             )
@@ -84,7 +86,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Find all GetService<T> calls to detect closed generic usages
         var closedGenericUsages = context
-            .SyntaxProvider.CreateSyntaxProvider(
+            .SyntaxProvider
+            .CreateSyntaxProvider(
                 predicate: static (node, _) => IsGetServiceInvocation(node),
                 transform: static (ctx, _) => GetClosedGenericUsageInfo(ctx)
             )
@@ -92,7 +95,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Combine all sources with compilation
         var compilationAndInvocations = context
-            .CompilationProvider.Combine(registerInvocations.Collect())
+            .CompilationProvider
+            .Combine(registerInvocations.Collect())
             .Combine(openGenericRegistrations.Collect())
             .Combine(closedGenericUsages.Collect());
 
@@ -433,7 +437,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             serviceTypes.Add(reg.ServiceTypeFullName);
             if (!dependencyGraph.ContainsKey(reg.ServiceTypeFullName))
             {
-                dependencyGraph[reg.ServiceTypeFullName] = [];
+                dependencyGraph[reg.ServiceTypeFullName] =  [];
             }
 
             foreach (var param in reg.ConstructorParameters)
@@ -598,7 +602,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     )
     {
         var constructors = openGenericType
-            .Constructors.Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
+            .Constructors
+            .Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
             .OrderByDescending(c => c.Parameters.Length)
             .ToList();
 
@@ -652,7 +657,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         var openType = namedType.ConstructUnboundGenericType();
         var typeArgs = namedType
-            .TypeArguments.Select(t => t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+            .TypeArguments
+            .Select(t => t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
             .ToImmutableArray();
 
         return new ClosedGenericUsage(
@@ -677,8 +683,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         foreach (var usage in closedUsages)
         {
             // Find matching open generic registration
-            var openGeneric = openGenerics.FirstOrDefault(og =>
-                og.OpenServiceTypeFullName == usage.OpenServiceTypeFullName
+            var openGeneric = openGenerics.FirstOrDefault(
+                og => og.OpenServiceTypeFullName == usage.OpenServiceTypeFullName
             );
 
             if (openGeneric is null)
@@ -704,11 +710,15 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
             // Generate closed type constructor parameters based on open generic constructor parameters
             var constructorParams = openGeneric
-                .ConstructorParameters.Select(p => new ConstructorParameter(
-                    SubstituteTypeParameters(p.TypeFullName, typeParamMap),
-                    p.TypeName,
-                    p.ParameterName
-                ))
+                .ConstructorParameters
+                .Select(
+                    p =>
+                        new ConstructorParameter(
+                            SubstituteTypeParameters(p.TypeFullName, typeParamMap),
+                            p.TypeName,
+                            p.ParameterName
+                        )
+                )
                 .ToImmutableArray();
 
             result.Add(
@@ -1042,7 +1052,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Find the best constructor (prefer the one with most parameters, or [ActivatorUtilitiesConstructor] if present)
         var constructors = namedType
-            .Constructors.Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
+            .Constructors
+            .Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
             .OrderByDescending(c => c.Parameters.Length)
             .ToList();
 
@@ -1169,6 +1180,12 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             sb.AppendLine();
         }
 
+        sb.AppendLine(
+            "        // If the concrete container supports Build(), freeze registrations for optimal lookup."
+        );
+        sb.AppendLine(
+            "        if (container is global::Pico.DI.SvcContainer svcContainer) svcContainer.Build();"
+        );
         sb.AppendLine("        return container;");
         sb.AppendLine("    }");
         sb.AppendLine("}");

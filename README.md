@@ -45,6 +45,8 @@ var svc = scope.GetService<IService>();  // Zero reflection. AOT safe.
 
 **That's it.** Source generator handles the rest at compile time.
 
+Note: The generated `ConfigureGeneratedServices()` now attempts to call `Build()` on the concrete `SvcContainer` (when available) to freeze registrations and enable the optimized `SvcScope` lookup path.
+
 ---
 
 ## 🤔 Why Another DI?

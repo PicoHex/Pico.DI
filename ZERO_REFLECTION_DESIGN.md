@@ -109,6 +109,12 @@ public static class GeneratedServiceRegistrations
             ),
             SvcLifetime.Transient));
 
+        // The generated registration method now attempts to freeze the container
+        // for optimal runtime performance when possible. If the concrete
+        // implementation is `Pico.DI.SvcContainer`, the generated code will
+        // call `svcContainer.Build()` before returning to enable
+        // `SvcScope` lookups.
+        if (container is global::Pico.DI.SvcContainer svcContainer) svcContainer.Build();
         return container;
     }
 }

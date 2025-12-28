@@ -1,50 +1,59 @@
 namespace Pico.DI;
 
 /// <summary>
-/// Represents a service resolution scope that manages scoped service instances.
-/// Implements <see cref="ISvcScope"/> and is fully AOT-compatible.
+/// High-performance service resolution scope using FrozenDictionary.
+/// This implementation is used after Build() is called on the container.
 ///
-/// PERFORMANCE OPTIMIZATION:
-/// =========================
-/// - Circular dependency detection is performed at COMPILE-TIME by the source generator
-/// - No runtime overhead for cycle detection (AsyncLocal and HashSet removed)
-/// - Uses optimized dictionary lookups with minimal allocations
-/// - Singleton access uses lock-free pattern with volatile read for fast path
-///
-/// For maximum performance, use SvcContainer.Build() which creates SvcScopeOptimized
-/// with FrozenDictionary for even faster lookups.
-///
-/// When used with the Pico.DI.Gen source generator, all services are registered with
-/// pre-compiled factories at compile time, making this implementation fully AOT-compatible.
-/// No reflection is used - all factory delegates are generated at compile time.
+/// PERFORMANCE CHARACTERISTICS:
+/// ============================
+/// - FrozenDictionary provides O(1) lookup with minimal overhead
+/// - No concurrent dictionary overhead (read-only after build)
+/// - Optimized for hot-path resolution with aggressive inlining
+/// - Minimal allocations for scoped instance tracking
 /// </summary>
 public sealed class SvcScope : ISvcScope
 {
-    private readonly ConcurrentDictionary<Type, SvcDescriptor[]> _descriptorCache;
-    private readonly ConcurrentDictionary<Type, DecoratorMetadata>? _decoratorMetadata;
+    private readonly FrozenDictionary<Type, SvcDescriptor[]>? _descriptorCache;
+    private readonly FrozenDictionary<Type, DecoratorMetadata>? _decoratorMetadata;
+    private readonly ConcurrentDictionary<Type, SvcDescriptor[]>? _concurrentDescriptorCache;
+    private readonly ConcurrentDictionary<Type, DecoratorMetadata>? _concurrentDecoratorMetadata;
     private readonly ConcurrentDictionary<SvcDescriptor, object> _scopedInstances = new();
     private static readonly ConcurrentDictionary<SvcDescriptor, object> SingletonLocks = new();
     private bool _disposed;
 
     /// <summary>
-    /// Creates a new service resolution scope.
+    /// Creates a new optimized service resolution scope.
     /// </summary>
-    /// <param name="descriptorCache">The container's service descriptor cache, shared across all scopes.</param>
-    /// <param name="decoratorMetadata">Optional decorator metadata for source generator integration.</param>
+    public SvcScope(
+        FrozenDictionary<Type, SvcDescriptor[]> descriptorCache,
+        FrozenDictionary<Type, DecoratorMetadata>? decoratorMetadata = null
+    )
+    {
+        _descriptorCache = descriptorCache;
+        _decoratorMetadata = decoratorMetadata;
+        _concurrentDescriptorCache = null;
+        _concurrentDecoratorMetadata = null;
+    }
+
+    // Backwards-compatible constructor for non-built container path
     public SvcScope(
         ConcurrentDictionary<Type, SvcDescriptor[]> descriptorCache,
         ConcurrentDictionary<Type, DecoratorMetadata>? decoratorMetadata = null
     )
     {
-        _descriptorCache = descriptorCache;
-        _decoratorMetadata = decoratorMetadata;
+        _concurrentDescriptorCache = descriptorCache;
+        _concurrentDecoratorMetadata = decoratorMetadata;
+        _descriptorCache = null;
+        _decoratorMetadata = null;
     }
 
     /// <inheritdoc />
     public ISvcScope CreateScope()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return new SvcScope(_descriptorCache, _decoratorMetadata);
+        return _descriptorCache != null
+            ? new SvcScope(_descriptorCache, _decoratorMetadata)
+            : new SvcScope(_concurrentDescriptorCache!, _concurrentDecoratorMetadata);
     }
 
     /// <inheritdoc />
@@ -53,29 +62,33 @@ public sealed class SvcScope : ISvcScope
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // NOTE: Circular dependency detection is performed at COMPILE-TIME by the source generator.
-        // No runtime detection is needed, eliminating AsyncLocal and HashSet overhead.
-
-        // For open generics: the source generator generates closed generic factories
-        // based on GetService<T> calls found at compile time.
-        if (serviceType.IsGenericType && !_descriptorCache.ContainsKey(serviceType))
+        // Prefer frozen cache when available
+        if (!TryGetResolvers(serviceType, out var resolvers))
         {
-            var openGenericType = serviceType.GetGenericTypeDefinition();
-            if (_descriptorCache.ContainsKey(openGenericType))
+            // Check for open generic
+            if (serviceType.IsGenericType)
             {
-                throw new PicoDiException(
-                    $"Open generic type '{openGenericType.FullName}' is registered, but closed type "
-                        + $"'{serviceType.FullName}' was not detected at compile time. "
-                        + "Ensure you call GetService<T> with this specific closed generic type in your code, "
-                        + "or register a factory manually."
-                );
+                var openGenericType = serviceType.GetGenericTypeDefinition();
+                if (
+                    (_descriptorCache != null && _descriptorCache.ContainsKey(openGenericType))
+                    || (
+                        _concurrentDescriptorCache != null
+                        && _concurrentDescriptorCache.ContainsKey(openGenericType)
+                    )
+                )
+                {
+                    throw new PicoDiException(
+                        $"Open generic type '{openGenericType.FullName}' is registered, but closed type "
+                            + $"'{serviceType.FullName}' was not detected at compile time. "
+                            + "Ensure you call GetService<T> with this specific closed generic type in your code, "
+                            + "or register a factory manually."
+                    );
+                }
             }
+            throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
         }
 
-        if (!_descriptorCache.TryGetValue(serviceType, out var resolvers))
-            throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
-
-        // Get last registered descriptor (override pattern)
+        // Get last registered descriptor (override pattern) - array access is very fast
         var resolver = resolvers[^1];
 
         return resolver.Lifetime switch
@@ -136,28 +149,48 @@ public sealed class SvcScope : ISvcScope
     public IEnumerable<object> GetServices(Type serviceType)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!_descriptorCache.TryGetValue(serviceType, out var resolvers))
+        if (!TryGetResolvers(serviceType, out var resolvers))
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
-        return resolvers.Select(resolver =>
-            resolver.Lifetime switch
-            {
-                SvcLifetime.Transient
-                    => resolver.Factory != null
-                        ? resolver.Factory(this)
-                        : throw new PicoDiException(
-                            $"No factory registered for transient service '{serviceType.FullName}'."
-                        ),
-                SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-                SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-                _
-                    => throw new ArgumentOutOfRangeException(
-                        nameof(SvcLifetime),
-                        resolver.Lifetime,
-                        $"Unknown service lifetime '{resolver.Lifetime}'."
-                    )
-            }
+        return resolvers.Select(
+            resolver =>
+                resolver.Lifetime switch
+                {
+                    SvcLifetime.Transient
+                        => resolver.Factory != null
+                            ? resolver.Factory(this)
+                            : throw new PicoDiException(
+                                $"No factory registered for transient service '{serviceType.FullName}'."
+                            ),
+                    SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
+                    SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+                    _
+                        => throw new ArgumentOutOfRangeException(
+                            nameof(SvcLifetime),
+                            resolver.Lifetime,
+                            $"Unknown service lifetime '{resolver.Lifetime}'."
+                        )
+                }
         );
+    }
+
+    private bool TryGetResolvers(Type serviceType, out SvcDescriptor[]? resolvers)
+    {
+        if (_descriptorCache != null)
+        {
+            if (_descriptorCache.TryGetValue(serviceType, out resolvers))
+                return true;
+            resolvers = null;
+            return false;
+        }
+
+        if (_concurrentDescriptorCache != null)
+        {
+            return _concurrentDescriptorCache.TryGetValue(serviceType, out resolvers);
+        }
+
+        resolvers = null;
+        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -176,30 +209,24 @@ public sealed class SvcScope : ISvcScope
 
     public void Dispose()
     {
-        Dispose(disposing: true);
-        GC.SuppressFinalize(this);
-    }
-
-    private void Dispose(bool disposing)
-    {
         if (_disposed)
             return;
-        if (disposing)
+
+        foreach (var svc in _scopedInstances.Values)
         {
-            foreach (var svc in _scopedInstances.Values)
-            {
-                if (svc is IDisposable disposable)
-                    disposable.Dispose();
-            }
-            _scopedInstances.Clear();
+            if (svc is IDisposable disposable)
+                disposable.Dispose();
         }
+        _scopedInstances.Clear();
         _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
             return;
+
         foreach (var svc in _scopedInstances.Values)
         {
             switch (svc)

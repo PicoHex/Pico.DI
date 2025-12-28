@@ -46,7 +46,7 @@ private readonly ConcurrentDictionary<Type, List<SvcDescriptor>> _services;
 **之后**: 调用 `Build()` 后切换到只读的 `FrozenDictionary`
 ```csharp
 container.Build(); // 冻结容器，使用 FrozenDictionary
-var scope = container.CreateScope(); // 返回 SvcScopeOptimized
+var scope = container.CreateScope(); // 返回 SvcScope
 ```
 
 ### 3. 解析链内联（Source Generator）

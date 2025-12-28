@@ -106,7 +106,7 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
         // Use frozen cache if available for better performance
         if (_frozenCache != null)
         {
-            return new SvcScopeOptimized(_frozenCache, _decoratorMetadata.ToFrozenDictionary());
+            return new SvcScope(_frozenCache, _decoratorMetadata.ToFrozenDictionary());
         }
 
         return new SvcScope(_descriptorCache, _decoratorMetadata);
