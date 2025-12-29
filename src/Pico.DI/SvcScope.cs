@@ -152,25 +152,28 @@ public sealed class SvcScope : ISvcScope
         if (!TryGetResolvers(serviceType, out var resolvers))
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
-        return resolvers.Select(resolver =>
-            resolver.Lifetime switch
-            {
-                SvcLifetime.Transient
-                    => resolver.Factory != null
-                        ? resolver.Factory(this)
-                        : throw new PicoDiException(
-                            $"No factory registered for transient service '{serviceType.FullName}'."
-                        ),
-                SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-                SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-                _
-                    => throw new ArgumentOutOfRangeException(
-                        nameof(SvcLifetime),
-                        resolver.Lifetime,
-                        $"Unknown service lifetime '{resolver.Lifetime}'."
-                    )
-            }
-        );
+        return resolvers
+            .Select(
+                resolver =>
+                    resolver.Lifetime switch
+                    {
+                        SvcLifetime.Transient
+                            => resolver.Factory != null
+                                ? resolver.Factory(this)
+                                : throw new PicoDiException(
+                                    $"No factory registered for transient service '{serviceType.FullName}'."
+                                ),
+                        SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
+                        SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+                        _
+                            => throw new ArgumentOutOfRangeException(
+                                nameof(SvcLifetime),
+                                resolver.Lifetime,
+                                $"Unknown service lifetime '{resolver.Lifetime}'."
+                            )
+                    }
+            )
+            .ToArray();
     }
 
     private bool TryGetResolvers(Type serviceType, out SvcDescriptor[]? resolvers)
