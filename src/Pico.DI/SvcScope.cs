@@ -19,7 +19,7 @@ public sealed class SvcScope : ISvcScope
     private readonly ConcurrentDictionary<Type, DecoratorMetadata>? _concurrentDecoratorMetadata;
     private readonly ConcurrentDictionary<SvcDescriptor, object> _scopedInstances = new();
     private static readonly ConcurrentDictionary<SvcDescriptor, object> SingletonLocks = new();
-    private bool _disposed;
+    private bool _disposing;
 
     /// <summary>
     /// Creates a new optimized service resolution scope.
@@ -50,7 +50,7 @@ public sealed class SvcScope : ISvcScope
     /// <inheritdoc />
     public ISvcScope CreateScope()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposing, this);
         return _descriptorCache != null
             ? new SvcScope(_descriptorCache, _decoratorMetadata)
             : new SvcScope(_concurrentDescriptorCache!, _concurrentDecoratorMetadata);
@@ -60,7 +60,7 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object GetService(Type serviceType)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposing, this);
 
         // Prefer frozen cache when available
         if (!TryGetResolvers(serviceType, out var resolvers))
@@ -148,29 +148,28 @@ public sealed class SvcScope : ISvcScope
 
     public IEnumerable<object> GetServices(Type serviceType)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposing, this);
         if (!TryGetResolvers(serviceType, out var resolvers))
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
-        return resolvers.Select(
-            resolver =>
-                resolver.Lifetime switch
-                {
-                    SvcLifetime.Transient
-                        => resolver.Factory != null
-                            ? resolver.Factory(this)
-                            : throw new PicoDiException(
-                                $"No factory registered for transient service '{serviceType.FullName}'."
-                            ),
-                    SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-                    SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-                    _
-                        => throw new ArgumentOutOfRangeException(
-                            nameof(SvcLifetime),
-                            resolver.Lifetime,
-                            $"Unknown service lifetime '{resolver.Lifetime}'."
-                        )
-                }
+        return resolvers.Select(resolver =>
+            resolver.Lifetime switch
+            {
+                SvcLifetime.Transient
+                    => resolver.Factory != null
+                        ? resolver.Factory(this)
+                        : throw new PicoDiException(
+                            $"No factory registered for transient service '{serviceType.FullName}'."
+                        ),
+                SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
+                SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+                _
+                    => throw new ArgumentOutOfRangeException(
+                        nameof(SvcLifetime),
+                        resolver.Lifetime,
+                        $"Unknown service lifetime '{resolver.Lifetime}'."
+                    )
+            }
         );
     }
 
@@ -209,8 +208,9 @@ public sealed class SvcScope : ISvcScope
 
     public void Dispose()
     {
-        if (_disposed)
+        if (_disposing)
             return;
+        _disposing = true;
 
         foreach (var svc in _scopedInstances.Values)
         {
@@ -218,14 +218,14 @@ public sealed class SvcScope : ISvcScope
                 disposable.Dispose();
         }
         _scopedInstances.Clear();
-        _disposed = true;
         GC.SuppressFinalize(this);
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        if (_disposing)
             return;
+        _disposing = true;
 
         foreach (var svc in _scopedInstances.Values)
         {
@@ -240,7 +240,6 @@ public sealed class SvcScope : ISvcScope
             }
         }
         _scopedInstances.Clear();
-        _disposed = true;
         GC.SuppressFinalize(this);
     }
 }

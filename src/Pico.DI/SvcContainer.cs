@@ -54,13 +54,13 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
     /// </summary>
     private FrozenDictionary<Type, SvcDescriptor[]>? _frozenCache;
 
-    private bool _disposed;
+    private bool _disposing;
     private bool _isBuilt;
 
     /// <inheritdoc />
     public ISvcContainer Register(SvcDescriptor descriptor)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposing, this);
 
         if (_isBuilt)
             throw new InvalidOperationException(
@@ -88,7 +88,7 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
     /// <returns>The container instance for method chaining.</returns>
     public SvcContainer Build()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposing, this);
 
         if (_isBuilt)
             return this;
@@ -101,7 +101,7 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
     /// <inheritdoc />
     public ISvcScope CreateScope()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposing, this);
 
         // Use frozen cache if available for better performance
         if (_frozenCache != null)
@@ -121,7 +121,7 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
     /// <returns>The container for method chaining.</returns>
     public ISvcContainer RegisterDecorator(Type decoratorType, DecoratorMetadata? metadata = null)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposing, this);
 
         if (!decoratorType.IsGenericTypeDefinition)
             throw new ArgumentException(
@@ -161,30 +161,30 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
 
     private void Dispose(bool disposing)
     {
-        if (_disposed)
+        if (_disposing)
             return;
-        if (disposing)
+        _disposing = true;
+
+        foreach (var keyValuePair in _descriptorCache)
         {
-            foreach (var keyValuePair in _descriptorCache)
+            foreach (var svc in keyValuePair.Value)
             {
-                foreach (var svc in keyValuePair.Value)
+                if (svc.SingleInstance is IDisposable disposable)
                 {
-                    if (svc.SingleInstance is IDisposable disposable)
-                    {
-                        disposable.Dispose();
-                    }
+                    disposable.Dispose();
                 }
             }
-            _descriptorCache.Clear();
         }
-        _disposed = true;
+        _descriptorCache.Clear();
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        if (_disposing)
             return;
+        _disposing = true;
+
         foreach (
             var svc in _descriptorCache
                 .SelectMany(p => p.Value)
@@ -203,7 +203,6 @@ public partial class SvcContainer : ISvcContainer, ISvcContainerDecorator
             }
         }
         _descriptorCache.Clear();
-        _disposed = true;
         GC.SuppressFinalize(this);
     }
 }
