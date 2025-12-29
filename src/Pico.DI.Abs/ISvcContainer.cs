@@ -83,7 +83,9 @@ public static class SvcContainerExtensions
                     implementType,
                     lifetime));
             }
-            return container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
         }
 
         public ISvcContainer Register(Type serviceType, SvcLifetime lifetime)
@@ -96,20 +98,28 @@ public static class SvcContainerExtensions
                     serviceType,
                     lifetime));
             }
-            return container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
         }
 
         public ISvcContainer Register<TService, TImplementation>(SvcLifetime lifetime)
             where TImplementation : TService =>
-            container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
 
         public ISvcContainer Register<TService>(SvcLifetime lifetime)
             where TService : class =>
-            container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
 
         public ISvcContainer Register<TService>(Type implementType, SvcLifetime lifetime)
             where TService : class =>
-            container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
     }
 
     // Add by factory
@@ -144,7 +154,9 @@ public static class SvcContainerExtensions
                     implementType,
                     SvcLifetime.Transient));
             }
-            return container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
         }
 
         public ISvcContainer RegisterTransient(Type serviceType)
@@ -157,43 +169,30 @@ public static class SvcContainerExtensions
                     serviceType,
                     SvcLifetime.Transient));
             }
-            return container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
         }
 
         public ISvcContainer RegisterTransient<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
             where TImplementation : TService
         {
-            // DESIGN NOTE: This method can work in two modes:
-            // 
-            // MODE 1 - Compile-Time (Source Generator):
-            // ==========================================
-            // The source generator scans for calls to this method and generates
-            // explicit factory code in ConfigureGeneratedServices(). This method
-            // itself is never called by generated code - the generator produces
-            // direct Register(SvcDescriptor) calls with pre-built factories.
-            //
-            // MODE 2 - Runtime (Manual/Testing):
-            // ===================================
-            // When this method IS called at runtime (e.g., in tests), it creates
-            // a simple factory as a fallback. This ensures tests can work without
-            // running the source generator.
-            
-            return container.Register(
-                new SvcDescriptor(
-                    typeof(TService),
-                    static _ => Activator.CreateInstance<TImplementation>()!,
-                    SvcLifetime.Transient
-                )
+            throw new SourceGeneratorRequiredException(
+                "Runtime fallback registrations are disabled. Enable and run Pico.DI.Gen to generate compile-time factories, then call ConfigureGeneratedServices()."
             );
         }
 
         public ISvcContainer RegisterTransient<TService>()
             where TService : class =>
-            container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
 
         public ISvcContainer RegisterTransient<TService>(Type implementType)
             where TService : class =>
-            container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
 
         #endregion
 
@@ -230,7 +229,9 @@ public static class SvcContainerExtensions
                     implementType,
                     SvcLifetime.Scoped));
             }
-            return container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
         }
 
         public ISvcContainer RegisterScoped(Type serviceType)
@@ -243,43 +244,30 @@ public static class SvcContainerExtensions
                     serviceType,
                     SvcLifetime.Scoped));
             }
-            return container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
         }
 
         public ISvcContainer RegisterScoped<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
             where TImplementation : TService
         {
-            // DESIGN NOTE: This method can work in two modes:
-            // 
-            // MODE 1 - Compile-Time (Source Generator):
-            // ==========================================
-            // The source generator scans for calls to this method and generates
-            // explicit factory code in ConfigureGeneratedServices(). This method
-            // itself is never called by generated code - the generator produces
-            // direct Register(SvcDescriptor) calls with pre-built factories.
-            //
-            // MODE 2 - Runtime (Manual/Testing):
-            // ===================================
-            // When this method IS called at runtime (e.g., in tests), it creates
-            // a simple factory as a fallback. This ensures tests can work without
-            // running the source generator.
-            
-            return container.Register(
-                new SvcDescriptor(
-                    typeof(TService),
-                    static _ => Activator.CreateInstance<TImplementation>()!,
-                    SvcLifetime.Scoped
-                )
+            throw new SourceGeneratorRequiredException(
+                "Runtime fallback registrations are disabled. Enable and run Pico.DI.Gen to generate compile-time factories, then call ConfigureGeneratedServices()."
             );
         }
 
         public ISvcContainer RegisterScoped<TService>()
             where TService : class =>
-            container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
 
         public ISvcContainer RegisterScoped<TService>(Type implementType)
             where TService : class =>
-            container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
 
         #endregion
 
@@ -316,7 +304,9 @@ public static class SvcContainerExtensions
                     implementType,
                     SvcLifetime.Singleton));
             }
-            return container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
         }
 
         public ISvcContainer RegisterSingleton(Type serviceType)
@@ -329,43 +319,30 @@ public static class SvcContainerExtensions
                     serviceType,
                     SvcLifetime.Singleton));
             }
-            return container; // Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
         }
 
         public ISvcContainer RegisterSingleton<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
             where TImplementation : TService
         {
-            // DESIGN NOTE: This method can work in two modes:
-            // 
-            // MODE 1 - Compile-Time (Source Generator):
-            // ==========================================
-            // The source generator scans for calls to this method and generates
-            // explicit factory code in ConfigureGeneratedServices(). This method
-            // itself is never called by generated code - the generator produces
-            // direct Register(SvcDescriptor) calls with pre-built factories.
-            //
-            // MODE 2 - Runtime (Manual/Testing):
-            // ===================================
-            // When this method IS called at runtime (e.g., in tests), it creates
-            // a simple factory as a fallback. This ensures tests can work without
-            // running the source generator.
-            
-            return container.Register(
-                new SvcDescriptor(
-                    typeof(TService),
-                    static _ => Activator.CreateInstance<TImplementation>()!,
-                    SvcLifetime.Singleton
-                )
+            throw new SourceGeneratorRequiredException(
+                "Runtime fallback registrations are disabled. Enable and run Pico.DI.Gen to generate compile-time factories, then call ConfigureGeneratedServices()."
             );
         }
 
         public ISvcContainer RegisterSingleton<TService>()
             where TService : class =>
-            container; // ← PLACEHOLDER: Source Generator will generate factory-based registration
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
 
         public ISvcContainer RegisterSingleton<TService>(Type implementType)
             where TService : class =>
-            container; // Source Generator will generate factory-based registration
+            throw new InvalidOperationException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
 
         #endregion
 

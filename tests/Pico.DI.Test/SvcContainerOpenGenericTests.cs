@@ -212,16 +212,15 @@ public class SvcContainerOpenGenericTests : SvcContainerTestBase
         // Arrange
         using var container = new SvcContainer();
 
-        // Act - When using non-open generic types with Register, it just returns
-        // the container as a no-op (source generator handles closed types)
-        var result = container.Register(
-            typeof(IRepository<User>), // Not open generic - handled by source generator
-            typeof(Repository<User>),
-            SvcLifetime.Transient
+        // Act & Assert - Non-open-generic registration now requires generated registrations
+        Assert.Throws<Pico.DI.Abs.SourceGeneratorRequiredException>(
+            () =>
+                container.Register(
+                    typeof(IRepository<User>), // Not open generic - handled by source generator
+                    typeof(Repository<User>),
+                    SvcLifetime.Transient
+                )
         );
-
-        // Assert - Returns container for chaining (no-op for non-open generics)
-        Assert.Same(container, result);
     }
 
     [Fact]

@@ -21,13 +21,13 @@ public class SvcContainerDecoratorGenericTests : SvcContainerTestBase
         using var container = new SvcContainer();
 
         // Register the service
-        container.RegisterSingleton<IUser, User>();
+        container.RegisterSingleton<IUser>(_ => new User());
 
         // For AOT compatibility, manually register the decorator factory
         // In a real scenario with source generator, this would be auto-generated
-        container.RegisterTransient<Logger<IUser>>(
-            scope => new Logger<IUser>(scope.GetService<IUser>())
-        );
+        container.RegisterTransient<Logger<IUser>>(scope => new Logger<IUser>(
+            scope.GetService<IUser>()
+        ));
 
         using var scope = container.CreateScope();
 
@@ -46,10 +46,10 @@ public class SvcContainerDecoratorGenericTests : SvcContainerTestBase
     {
         // Arrange
         using var container = new SvcContainer();
-        container.RegisterSingleton<IUser, User>();
-        container.RegisterTransient<Logger<IUser>>(
-            scope => new Logger<IUser>(scope.GetService<IUser>())
-        );
+        container.RegisterSingleton<IUser>(_ => new User());
+        container.RegisterTransient<Logger<IUser>>(scope => new Logger<IUser>(
+            scope.GetService<IUser>()
+        ));
 
         using var scope = container.CreateScope();
 
@@ -67,16 +67,16 @@ public class SvcContainerDecoratorGenericTests : SvcContainerTestBase
     {
         // Arrange
         using var container = new SvcContainer();
-        container.RegisterSingleton<IUser, User>();
-        container.RegisterSingleton<IEmailService, EmailService>();
+        container.RegisterSingleton<IUser>(_ => new User());
+        container.RegisterSingleton<IEmailService>(_ => new EmailService());
 
         // Register decorators for each type
-        container.RegisterTransient<Logger<IUser>>(
-            scope => new Logger<IUser>(scope.GetService<IUser>())
-        );
-        container.RegisterTransient<Logger<IEmailService>>(
-            scope => new Logger<IEmailService>(scope.GetService<IEmailService>())
-        );
+        container.RegisterTransient<Logger<IUser>>(scope => new Logger<IUser>(
+            scope.GetService<IUser>()
+        ));
+        container.RegisterTransient<Logger<IEmailService>>(scope => new Logger<IEmailService>(
+            scope.GetService<IEmailService>()
+        ));
 
         using var scope = container.CreateScope();
 
@@ -96,17 +96,14 @@ public class SvcContainerDecoratorGenericTests : SvcContainerTestBase
     {
         // Arrange
         using var container = new SvcContainer();
-        container.RegisterSingleton<IUser, User>();
-        container.RegisterSingleton<IDecoratorLogger, ConsoleDecoratorLogger>();
+        container.RegisterSingleton<IUser>(_ => new User());
+        container.RegisterSingleton<IDecoratorLogger>(_ => new ConsoleDecoratorLogger());
 
         // Register the decorator with multiple dependencies
-        container.RegisterTransient<CachingDecorator<IUser>>(
-            scope =>
-                new CachingDecorator<IUser>(
-                    scope.GetService<IUser>(),
-                    scope.GetService<IDecoratorLogger>()
-                )
-        );
+        container.RegisterTransient<CachingDecorator<IUser>>(scope => new CachingDecorator<IUser>(
+            scope.GetService<IUser>(),
+            scope.GetService<IDecoratorLogger>()
+        ));
 
         using var scope = container.CreateScope();
 
@@ -187,22 +184,18 @@ public class SvcContainerDecoratorGenericTests : SvcContainerTestBase
         // Both would be pre-generated at compile time
 
         using var container = new SvcContainer();
-        container.RegisterSingleton<IUser, User>();
-        container.RegisterSingleton<IDecoratorLogger, ConsoleDecoratorLogger>();
+        container.RegisterSingleton<IUser>(_ => new User());
+        container.RegisterSingleton<IDecoratorLogger>(_ => new ConsoleDecoratorLogger());
 
         // First decorator layer
-        container.RegisterTransient<Logger<IUser>>(
-            scope => new Logger<IUser>(scope.GetService<IUser>())
-        );
+        container.RegisterTransient<Logger<IUser>>(scope => new Logger<IUser>(
+            scope.GetService<IUser>()
+        ));
 
         // Second decorator layer (decorating the decorator)
-        container.RegisterTransient<CachingDecorator<Logger<IUser>>>(
-            scope =>
-                new CachingDecorator<Logger<IUser>>(
-                    scope.GetService<Logger<IUser>>(),
-                    scope.GetService<IDecoratorLogger>()
-                )
-        );
+        container.RegisterTransient<CachingDecorator<Logger<IUser>>>(scope => new CachingDecorator<
+            Logger<IUser>
+        >(scope.GetService<Logger<IUser>>(), scope.GetService<IDecoratorLogger>()));
 
         using var scope = container.CreateScope();
 
@@ -226,9 +219,9 @@ public class SvcContainerDecoratorGenericTests : SvcContainerTestBase
         container.RegisterScoped<IUser>(scope => new User());
 
         // Decorator is transient (new instance each time)
-        container.RegisterTransient<Logger<IUser>>(
-            scope => new Logger<IUser>(scope.GetService<IUser>())
-        );
+        container.RegisterTransient<Logger<IUser>>(scope => new Logger<IUser>(
+            scope.GetService<IUser>()
+        ));
 
         using var scope1 = container.CreateScope();
         var logger1a = scope1.GetService<Logger<IUser>>();
@@ -256,12 +249,12 @@ public class SvcContainerDecoratorGenericTests : SvcContainerTestBase
         // it would auto-generate the factory.
 
         using var container = new SvcContainer();
-        container.RegisterSingleton<IUser, User>();
+        container.RegisterSingleton<IUser>(_ => new User());
 
         // Manually register for this test (source generator would do this automatically)
-        container.RegisterTransient<Logger<IUser>>(
-            scope => new Logger<IUser>(scope.GetService<IUser>())
-        );
+        container.RegisterTransient<Logger<IUser>>(scope => new Logger<IUser>(
+            scope.GetService<IUser>()
+        ));
 
         using var scope = container.CreateScope();
 

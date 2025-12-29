@@ -45,6 +45,8 @@ var svc = scope.GetService<IService>();  // Zero reflection. AOT safe.
 
 **That's it.** Source generator handles the rest at compile time.
 
+Important: Pico.DI requires the source generator (Pico.DI.Gen) to emit compile-time factories. If the generator did not run for your project, or you do not call `ConfigureGeneratedServices()`, the placeholder registration overloads that rely on generated code will throw `SourceGeneratorRequiredException` at runtime. For tests or manual setup you can use the factory overloads (for example, `RegisterSingleton<TService>(Func<ISvcScope,TService> factory)`) or enable the generator in your build.
+
 Note: The generated `ConfigureGeneratedServices()` now attempts to call `Build()` on the concrete `SvcContainer` (when available) to freeze registrations and enable the optimized `SvcScope` lookup path.
 
 ---

@@ -65,8 +65,8 @@ public class SvcContainerIntegrationTests : SvcContainerTestBase
         // Arrange - Type-based registration uses AOT-safe Activator.CreateInstance<T>()
         // which is compatible with Native AOT (type parameter is compile-time known)
         var container = new SvcContainer()
-            .RegisterSingleton<IGreeter, ConsoleGreeter>()
-            .RegisterSingleton<ILogger, ConsoleLogger>();
+            .RegisterSingleton<IGreeter>(_ => new ConsoleGreeter())
+            .RegisterSingleton<ILogger>(_ => new ConsoleLogger());
 
         // Assert - Services are registered with AOT-safe factory
         using var scope = container.CreateScope();
@@ -83,7 +83,7 @@ public class SvcContainerIntegrationTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer()
-            .RegisterSingleton<IGreeter, ConsoleGreeter>() // Type-based with AOT-safe CreateInstance<T>()
+            .RegisterSingleton<IGreeter>(_ => new ConsoleGreeter()) // Factory-based registration
             .RegisterSingleton<ILogger>(_ => new ConsoleLogger()); // Factory-based
 
         // Assert
