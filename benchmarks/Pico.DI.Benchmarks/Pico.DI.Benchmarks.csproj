@@ -10,6 +10,10 @@
 
         <!-- Optimize for benchmarks -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <!-- Native AOT: allow publishing benchmarks as Native AOT builds (publish RID required) -->
+        <PublishAot>true</PublishAot>
+        <TrimMode>full</TrimMode>
+        <InvariantGlobalization>true</InvariantGlobalization>
     </PropertyGroup>
 
     <ItemGroup>
