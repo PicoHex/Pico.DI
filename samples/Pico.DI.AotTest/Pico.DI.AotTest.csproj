@@ -10,10 +10,11 @@
 
         <!-- Trimming settings for AOT-like testing -->
         <PublishTrimmed>true</PublishTrimmed>
+        <PublishAOT>true</PublishAOT>
         <TrimMode>full</TrimMode>
         <SelfContained>true</SelfContained>
         <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-        
+
         <!-- Show all trim warnings -->
         <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
         <TrimmerSingleWarn>false</TrimmerSingleWarn>

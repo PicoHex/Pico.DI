@@ -1,14 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
+
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- Enable trimming and native AOT when supported on this machine -->
-    <PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>Full</TrimMode>
-    <UseNativeAot>true</UseNativeAot>
+
+    <PublishAOT>true</PublishAOT>
+    <StripSymbols>false</StripSymbols>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
 
   <ItemGroup>

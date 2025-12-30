@@ -99,6 +99,8 @@ Artifacts and reproduction
 - Managed BenchmarkDotNet artifacts are produced under: `BenchmarkDotNet.Artifacts/results/` inside the `benchmarks/Pico.DI.Benchmarks` run directory (CSV/HTML/markdown).
 - Published Native AOT executable (example output path): `benchmarks/Pico.DI.Benchmarks/publish-win-x64/`.
 
+**CI / Native AOT:** See `docs/CI-AOT.md` for a Windows (GitHub Actions) example and runner prerequisites (MSVC linkers, `VsDevCmd.bat`, `IlcUseEnvironmentalTools=true`, `TrimMode=full`).
+
 To reproduce (managed, detailed):
 
 ```powershell
