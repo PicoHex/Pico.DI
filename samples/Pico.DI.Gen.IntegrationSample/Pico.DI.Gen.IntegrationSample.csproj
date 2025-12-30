@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <PublishAOT>true</PublishAOT>
+    <StripSymbols>false</StripSymbols>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Pico.DI.Abs\Pico.DI.Abs.csproj" />
+    <ProjectReference Include="..\..\src\Pico.DI\Pico.DI.csproj" />
+    <!-- Add generator as an analyzer so it runs during build -->
+    <ProjectReference Include="..\..\src\Pico.DI.Gen\Pico.DI.Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

@@ -5,6 +5,7 @@
   <Folder Name="/samples/">
     <Project Path="samples\Pico.DI.Sample\Pico.DI.Sample.csproj" Type="C#" />
     <Project Path="samples\Pico.DI.Sample.Services\Pico.DI.Sample.Services.csproj" Type="C#" />
+    <Project Path="samples\Pico.DI.Gen.IntegrationSample\Pico.DI.Gen.IntegrationSample.csproj" Type="C#" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src\Pico.DI.Abs\Pico.DI.Abs.csproj" Type="C#" />

@@ -37,7 +37,7 @@ container
     .RegisterSingleton<ILogger, ConsoleLogger>()
     .RegisterScoped<IRepository, SqlRepository>()
     .RegisterTransient<IService, MyService>()
-    .ConfigureGeneratedServices();  // 🔮 Magic happens here
+    .ConfigureGeneratedServices();  // 🔮 Call once after all Register* calls (may call Build())
 
 using var scope = container.CreateScope();
 var svc = scope.GetService<IService>();  // Zero reflection. AOT safe.
@@ -47,7 +47,16 @@ var svc = scope.GetService<IService>();  // Zero reflection. AOT safe.
 
 Important: Pico.DI requires the source generator (Pico.DI.Gen) to emit compile-time factories. If the generator did not run for your project, or you do not call `ConfigureGeneratedServices()`, the placeholder registration overloads that rely on generated code will throw `SourceGeneratorRequiredException` at runtime. For tests or manual setup you can use the factory overloads (for example, `RegisterSingleton<TService>(Func<ISvcScope,TService> factory)`) or enable the generator in your build.
 
-Note: The generated `ConfigureGeneratedServices()` now attempts to call `Build()` on the concrete `SvcContainer` (when available) to freeze registrations and enable the optimized `SvcScope` lookup path.
+Note: The generated `ConfigureGeneratedServices()` now attempts to call `Build()` on the concrete `SvcContainer` (when available) to freeze registrations and enable the optimized `SvcScope` lookup path. Call `ConfigureGeneratedServices()` after you have completed all `Register*` calls; it returns the container and may call `Build()` on the concrete container to optimize lookups and freeze registrations. Attempting to register services after this point will throw an exception.
+
+## 🧪 Testing without the source generator
+
+If you run tests without the source generator, you have two options:
+
+- Use the factory overloads (for example, `RegisterSingleton<TService>(Func<ISvcScope, TService> factory)`) to perform registrations manually in tests.
+- Add `Pico.DI.Gen` as an analyzer to the projects that contain your `Register*` calls (example: add a ProjectReference to `src\Pico.DI.Gen\Pico.DI.Gen.csproj` with `OutputItemType="Analyzer"` in your test project's .csproj). The repository contains examples in `tests/*.csproj`.
+
+Note: The fallback (testing) path uses generic Activator-based construction and is slower than generated factories.
 
 ---
 
@@ -99,6 +108,8 @@ Artifacts and reproduction
 - Managed BenchmarkDotNet artifacts are produced under: `BenchmarkDotNet.Artifacts/results/` inside the `benchmarks/Pico.DI.Benchmarks` run directory (CSV/HTML/markdown).
 - Published Native AOT executable (example output path): `benchmarks/Pico.DI.Benchmarks/publish-win-x64/`.
 
+**CI / Native AOT:** See `docs/CI-AOT.md` for a Windows (GitHub Actions) example and runner prerequisites (MSVC linkers, `VsDevCmd.bat`, `IlcUseEnvironmentalTools=true`, `TrimMode=full`).
+
 To reproduce (managed, detailed):
 
 ```powershell
@@ -118,7 +129,6 @@ Notes:
 - The BenchmarkDotNet managed runs provide richer diagnostics (histograms, CI, allocation measurements) and should be used for formal reporting.
 - The Native AOT published exe uses a manual Stopwatch fallback to obtain AOT timings without depending on CommandLineParser/BenchmarkSwitcher, which are incompatible with Native AOT by default.
 
-
 ---
 
 ## 📦 Install
@@ -129,6 +139,8 @@ Notes:
 dotnet add package Pico.DI
 dotnet add package Pico.DI.Gen
 ```
+
+**Tip:** Add `Pico.DI.Gen` to the projects that contain your `Register*` calls — install it as a NuGet analyzer or reference the generator project as an analyzer in test projects (see `tests/*.csproj` for examples).
 
 ```
  ____  _             ____ ___ 
@@ -168,6 +180,8 @@ container
 .ConfigureGeneratedServices(); // 🔮 Source generator magic
 ```
 
+**Note:** Call `ConfigureGeneratedServices()` only after you have finished registering services; the generated method may call `Build()` on the concrete container to freeze registrations and enable optimal lookup paths. Registering services after `ConfigureGeneratedServices()` is called will throw an exception because the container may be frozen.
+
 1. **Source generator scans your registrations at build time:**
 
 - Analyzes all constructors, dependencies, and open generics.
@@ -194,6 +208,8 @@ container
 using var scope = container.CreateScope();
 var svc = scope.GetService<GreetingService>();
 svc.SayHello("World");
+
+> **Note:** Call `ConfigureGeneratedServices()` once after all `Register*` calls; it returns the container and may invoke `Build()` to freeze the registration state for optimal performance.
 ```
 
 ```csharp

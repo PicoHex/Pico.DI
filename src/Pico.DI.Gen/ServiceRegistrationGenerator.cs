@@ -948,6 +948,36 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         return result;
     }
 
+    /// <summary>
+    /// Attempt to parse a closed generic type full name (from constructor parameters)
+    /// into a ClosedGenericUsage instance. Returns null if not a closed generic.
+    /// Example: "global::Ns.ILog<global::Ns.UserService>" -> Open: "global::Ns.ILog<>", Args: ["global::Ns.UserService"]
+    /// </summary>
+    private static ClosedGenericUsage? ParseClosedGenericUsageFromTypeFullName(string typeFullName)
+    {
+        if (string.IsNullOrEmpty(typeFullName))
+            return null;
+
+        var angleBracketIndex = typeFullName.IndexOf('<');
+        if (angleBracketIndex < 0)
+            return null; // not a generic type
+
+        var baseName = typeFullName.Substring(0, angleBracketIndex);
+        var openServiceTypeFullName = baseName + "<>";
+
+        // Extract type arguments substring and parse, handling nested generics
+        if (typeFullName.Length <= angleBracketIndex + 1)
+            return null;
+
+        var typeArgsStr = typeFullName.Substring(
+            angleBracketIndex + 1,
+            typeFullName.Length - angleBracketIndex - 2
+        );
+        var typeArgs = ParseTypeArguments(typeArgsStr).ToImmutableArray();
+
+        return new ClosedGenericUsage(typeFullName, openServiceTypeFullName, typeArgs);
+    }
+
     private static ServiceRegistration? AnalyzeInvocation(
         InvocationExpressionSyntax invocation,
         SemanticModel semanticModel,
