@@ -5,6 +5,10 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Enable trimming and native AOT when supported on this machine -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>Full</TrimMode>
+    <UseNativeAot>true</UseNativeAot>
   </PropertyGroup>
 
   <ItemGroup>
