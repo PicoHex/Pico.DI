@@ -373,13 +373,51 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             .Distinct()
             .ToList();
 
-        // Process closed generic usages
+        // Process closed generic usages (from GetService<T> calls)
         var closedUsages = closedGenericUsages
             .Where(x => x is not null)
             .Select(x => AnalyzeClosedGenericUsage(x!.ClosedGenericType))
             .OfType<ClosedGenericUsage>()
             .Distinct()
             .ToList();
+
+        // Also detect closed generic usages referenced in constructor parameters of registered services
+        var ctorClosedUsages = registrations
+            .SelectMany(r => r.ConstructorParameters)
+            .Where(p => p.TypeFullName.Contains("<")) // simple heuristic for generics
+            .Select(p =>
+            {
+                var full = p.TypeFullName;
+                var angleIdx = full.IndexOf('<');
+                if (angleIdx < 0)
+                    return null;
+
+                var baseName = full.Substring(0, angleIdx);
+                var typeArgsStr = full.Substring(angleIdx + 1, full.Length - angleIdx - 2);
+                var argList = ParseTypeArguments(typeArgsStr).ToImmutableArray();
+
+                // Build open generic form matching AnalyzeOpenGenericInvocation output, e.g., global::Ns.ILog<> or global::Ns.IGeneric<,>
+                var openGenericArityPlaceholder =
+                    argList.Length > 0 ? new string(',', argList.Length - 1) : string.Empty;
+                var openFullName = $"{baseName}<{openGenericArityPlaceholder}>";
+
+                // Exclude System types
+                if (baseName.StartsWith("global::System"))
+                    return null;
+
+                return new ClosedGenericUsage(full, openFullName, argList);
+            })
+            .Where(x => x is not null)
+            .Cast<ClosedGenericUsage>()
+            .Distinct()
+            .ToList();
+
+        // Merge closed usages from GetService<T> and from constructor parameters
+        foreach (var cu in ctorClosedUsages)
+        {
+            if (!closedUsages.Contains(cu))
+                closedUsages.Add(cu);
+        }
 
         // Generate closed generic registrations from open generic + usages
         var generatedClosedGenerics = GenerateClosedGenericRegistrations(

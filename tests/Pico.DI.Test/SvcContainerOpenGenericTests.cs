@@ -187,9 +187,9 @@ public class SvcContainerOpenGenericTests : SvcContainerTestBase
         // Arrange - For AOT, use explicit factory registration
         using var container = new SvcContainer();
         container.RegisterScoped<IRepository<User>>(scope => new Repository<User>());
-        container.RegisterTransient<UserService>(scope => new UserService(
-            scope.GetService<IRepository<User>>()
-        ));
+        container.RegisterTransient<UserService>(
+            scope => new UserService(scope.GetService<IRepository<User>>())
+        );
 
         using var scope = container.CreateScope();
 
@@ -284,6 +284,51 @@ public class SvcContainerOpenGenericTests : SvcContainerTestBase
     }
 
     #endregion
+
+    [Fact]
+    public void OpenGeneric_Registration_AutoGenerates_ClosedFromCtorDependency()
+    {
+        // Arrange
+        using var container = new SvcContainer();
+
+        // Register open generic mapping ILog<> -> Logger<>
+        container.Register(typeof(ILog<>), typeof(Logger<>), SvcLifetime.Transient);
+
+        // Register a concrete type that depends on ILog<Concrete>
+        container.Register<ServiceWithLog>(SvcLifetime.Transient);
+
+        // Act
+        using var scope = container.CreateScope();
+        var svc = scope.GetService<ServiceWithLog>();
+
+        // Assert
+        Assert.NotNull(svc);
+        Assert.NotNull(svc.Logger);
+        Assert.IsType<Logger<ServiceWithLog>>(svc.Logger);
+    }
+
+    // Helper types for the test
+    public interface ILog<T> { }
+
+    public class Logger<T> : ILog<T>
+    {
+        public T Inner { get; }
+
+        public Logger(T inner)
+        {
+            Inner = inner;
+        }
+    }
+
+    public class ServiceWithLog
+    {
+        public ILog<ServiceWithLog> Logger { get; }
+
+        public ServiceWithLog(ILog<ServiceWithLog> logger)
+        {
+            Logger = logger;
+        }
+    }
 
     private class SpecialUserRepository : IRepository<User>
     {
