@@ -13,7 +13,7 @@ public class DeepDependencyBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        // Pico.DI: type mapping注册，与MS.DI一致
+        // Pico.DI: type mapping registration, consistent with MS.DI
         _picoContainer = new SvcContainer();
         _picoContainer
             .RegisterTransient<ILevel1, Level1>()
@@ -24,7 +24,7 @@ public class DeepDependencyBenchmarks
         _picoContainer.Build();
         _picoScope = _picoContainer.CreateScope();
 
-        // MS.DI: type mapping注册
+        // MS.DI: type mapping registration
         var services = new ServiceCollection();
         services.AddTransient<ILevel1, Level1>();
         services.AddTransient<ILevel2, Level2>();
