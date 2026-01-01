@@ -3,16 +3,17 @@
     <Project Path="benchmarks/Pico.DI.Benchmarks/Pico.DI.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/samples/">
-    <Project Path="samples\Pico.DI.Sample\Pico.DI.Sample.csproj" Type="C#" />
-    <Project Path="samples\Pico.DI.Sample.Services\Pico.DI.Sample.Services.csproj" Type="C#" />
-    <Project Path="samples\Pico.DI.Gen.IntegrationSample\Pico.DI.Gen.IntegrationSample.csproj" Type="C#" />
+    <Project Path="samples\Pico.DI.Sample\Pico.DI.Sample.csproj" />
+    <Project Path="samples\Pico.DI.Sample.Services\Pico.DI.Sample.Services.csproj" />
+    <Project Path="samples\Pico.DI.Gen.IntegrationSample\Pico.DI.Gen.IntegrationSample.csproj" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src\Pico.DI.Abs\Pico.DI.Abs.csproj" Type="C#" />
-    <Project Path="src\Pico.DI.Gen\Pico.DI.Gen.csproj" Type="C#" />
-    <Project Path="src\Pico.DI\Pico.DI.csproj" Type="C#" />
+    <Project Path="src\Pico.DI.Abs\Pico.DI.Abs.csproj" />
+    <Project Path="src\Pico.DI.Gen\Pico.DI.Gen.csproj" />
+    <Project Path="src\Pico.DI\Pico.DI.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests\Pico.DI.Test\Pico.DI.Test.csproj" Type="C#" />
+    <Project Path="tests/Pico.DI.TUnit.Test/Pico.DI.TUnit.Test.csproj" />
+    <Project Path="tests\Pico.DI.Test\Pico.DI.Test.csproj" />
   </Folder>
 </Solution>
