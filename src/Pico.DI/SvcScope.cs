@@ -66,30 +66,31 @@ public sealed class SvcScope : ISvcScope
         if (!TryGetResolvers(serviceType, out var resolvers))
         {
             // Check for open generic
-            if (serviceType.IsGenericType)
-            {
-                var openGenericType = serviceType.GetGenericTypeDefinition();
-                if (
-                    (_descriptorCache != null && _descriptorCache.ContainsKey(openGenericType))
-                    || (
-                        _concurrentDescriptorCache != null
-                        && _concurrentDescriptorCache.ContainsKey(openGenericType)
-                    )
+            if (!serviceType.IsGenericType)
+                throw new PicoDiException(
+                    $"Service type '{serviceType.FullName}' is not registered."
+                );
+            var openGenericType = serviceType.GetGenericTypeDefinition();
+            if (
+                (_descriptorCache != null && _descriptorCache.ContainsKey(openGenericType))
+                || (
+                    _concurrentDescriptorCache != null
+                    && _concurrentDescriptorCache.ContainsKey(openGenericType)
                 )
-                {
-                    throw new PicoDiException(
-                        $"Open generic type '{openGenericType.FullName}' is registered, but closed type "
-                            + $"'{serviceType.FullName}' was not detected at compile time. "
-                            + "Ensure you call GetService<T> with this specific closed generic type in your code, "
-                            + "or register a factory manually."
-                    );
-                }
+            )
+            {
+                throw new PicoDiException(
+                    $"Open generic type '{openGenericType.FullName}' is registered, but closed type "
+                        + $"'{serviceType.FullName}' was not detected at compile time. "
+                        + "Ensure you call GetService<T> with this specific closed generic type in your code, "
+                        + "or register a factory manually."
+                );
             }
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
         }
 
         // Get last registered descriptor (override pattern) - array access is very fast
-        var resolver = resolvers[^1];
+        var resolver = resolvers![^1];
 
         return resolver.Lifetime switch
         {
@@ -152,7 +153,7 @@ public sealed class SvcScope : ISvcScope
         if (!TryGetResolvers(serviceType, out var resolvers))
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
-        return resolvers
+        return resolvers!
             .Select(
                 resolver =>
                     resolver.Lifetime switch

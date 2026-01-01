@@ -2,18 +2,16 @@
 
 namespace Pico.DI.Gen.IntegrationSample;
 
-public interface ILog<T> { }
+public interface ILog<T>;
 
-public class ConsoleLog<T> : ILog<T> { }
+public class ConsoleLog<T> : ILog<T>;
 
-public class UserService
+public class UserService(ILog<UserService> log)
 {
-    public ILog<UserService> Log { get; }
-
-    public UserService(ILog<UserService> log) => Log = log;
+    public ILog<UserService> Log { get; } = log;
 }
 
-internal class Program
+internal static class Program
 {
     static void Main()
     {
@@ -23,9 +21,9 @@ internal class Program
         container.RegisterTransient(typeof(ILog<>), typeof(ConsoleLog<>));
 
         // Register the concrete service via factory which depends on the closed generic logger
-        container.RegisterTransient<UserService>(scope => new UserService(
-            scope.GetService<ILog<UserService>>()
-        ));
+        container.RegisterTransient<UserService>(
+            scope => new UserService(scope.GetService<ILog<UserService>>())
+        );
 
         // Configure generated services (the generated method should exist after build)
         container.ConfigureGeneratedServices();
