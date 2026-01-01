@@ -157,8 +157,7 @@ public class SvcContainerErrorTests : SvcContainerTestBase
         var container = new SvcContainer();
 
         // Act
-        container.RegisterSingleton<IGreeter>(_ => new ConsoleGreeter());
-        container.RegisterSingleton<IGreeter>(_ => new AlternativeGreeter());
+        RegisterGreeterPair(container, SvcLifetime.Singleton);
 
         // Assert
         using var scope = container.CreateScope();

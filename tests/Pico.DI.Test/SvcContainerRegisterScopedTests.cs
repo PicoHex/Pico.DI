@@ -82,7 +82,7 @@ public class SvcContainerRegisterScopedTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterScoped<IGreeter>(_ => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Scoped);
 
         // Act & Assert
         using var scope1 = container.CreateScope();

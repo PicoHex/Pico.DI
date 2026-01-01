@@ -66,7 +66,7 @@ public class SvcContainerRegisterTransientTests : SvcContainerTestBase
         var container = new SvcContainer();
 
         // Act
-        container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Transient);
 
         // Assert
         using var scope = container.CreateScope();

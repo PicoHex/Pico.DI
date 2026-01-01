@@ -10,7 +10,7 @@ public class SvcScopeTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterScoped<IGreeter>(_ => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Scoped);
 
         // Act
         using var scope1 = container.CreateScope();
@@ -28,7 +28,7 @@ public class SvcScopeTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterSingleton<IGreeter>(_ => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Singleton);
 
         // Act
         using var scope1 = container.CreateScope();
@@ -46,8 +46,7 @@ public class SvcScopeTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterSingleton<IGreeter>(_ => new ConsoleGreeter());
-        container.RegisterSingleton<IGreeter>(_ => new AlternativeGreeter());
+        RegisterGreeterPair(container, SvcLifetime.Singleton);
 
         // Act
         using var scope1 = container.CreateScope();
@@ -66,8 +65,7 @@ public class SvcScopeTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
-        container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
+        RegisterGreeterPair(container, SvcLifetime.Transient);
 
         // Act
         using var scope = container.CreateScope();
@@ -86,8 +84,7 @@ public class SvcScopeTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterScoped<IGreeter>(_ => new ConsoleGreeter());
-        container.RegisterScoped<IGreeter>(_ => new AlternativeGreeter());
+        RegisterGreeterPair(container, SvcLifetime.Scoped);
 
         // Act
         using var scope = container.CreateScope();
@@ -106,8 +103,8 @@ public class SvcScopeTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
-        container.RegisterScoped<IGreeter>(_ => new AlternativeGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Transient);
+        RegisterAlternativeGreeter(container, SvcLifetime.Scoped);
 
         // Act
         using var scope = container.CreateScope();

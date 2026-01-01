@@ -24,7 +24,7 @@ public class SvcProviderAdapterExtendedTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterTransient<IGreeter>(scope => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Transient);
         var adapter = container.CreateServiceProviderScope();
         adapter.Dispose();
 
@@ -54,7 +54,7 @@ public class SvcProviderAdapterExtendedTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterTransient<IGreeter>(scope => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Transient);
         var adapter = container.CreateServiceProviderScope();
         adapter.Dispose();
 
@@ -123,7 +123,7 @@ public class SvcProviderAdapterExtendedTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterTransient<IGreeter>(scope => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Transient);
         using var adapter = container.CreateServiceProviderScope();
 
         // Act - Explicitly call ISvcScope.GetService
@@ -139,8 +139,7 @@ public class SvcProviderAdapterExtendedTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterTransient<IGreeter>(scope => new ConsoleGreeter());
-        container.RegisterTransient<IGreeter>(scope => new AlternativeGreeter());
+        RegisterGreeterPair(container, SvcLifetime.Transient);
         using var adapter = container.CreateServiceProviderScope();
 
         // Act
@@ -208,7 +207,7 @@ public class SvcProviderAdapterExtendedTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterTransient<IGreeter>(scope => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Transient);
         using var scope = container.CreateScope();
 
         // Act
@@ -244,7 +243,7 @@ public class SvcProviderAdapterExtendedTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterTransient<IGreeter>(scope => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Transient);
         using var scope = container.CreateScope();
 
         // Act

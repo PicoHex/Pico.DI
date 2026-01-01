@@ -59,7 +59,7 @@ public class SvcScopeExtendedTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterTransient<IGreeter>(scope => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Transient);
         var scope = container.CreateScope();
         scope.Dispose();
 
@@ -72,7 +72,7 @@ public class SvcScopeExtendedTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterTransient<IGreeter>(scope => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Transient);
         var scope = container.CreateScope();
         scope.Dispose();
 

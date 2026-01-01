@@ -109,7 +109,7 @@ public class SvcContainerExtendedTests : SvcContainerTestBase
     {
         // Arrange
         var container = new SvcContainer();
-        container.RegisterSingleton<IGreeter>(scope => new ConsoleGreeter());
+        RegisterConsoleGreeter(container, SvcLifetime.Singleton);
 
         using (var scope = container.CreateScope())
         {
