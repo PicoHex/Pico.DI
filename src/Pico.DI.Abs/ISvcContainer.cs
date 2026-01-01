@@ -103,23 +103,26 @@ public static class SvcContainerExtensions
             );
         }
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer Register<TService, TImplementation>(SvcLifetime lifetime)
-            where TImplementation : TService =>
-            throw new SourceGeneratorRequiredException(
-                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
-            );
+            where TImplementation : TService => container;
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer Register<TService>(SvcLifetime lifetime)
-            where TService : class =>
-            throw new SourceGeneratorRequiredException(
-                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
-            );
+            where TService : class => container;
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer Register<TService>(Type implementType, SvcLifetime lifetime)
-            where TService : class =>
-            throw new SourceGeneratorRequiredException(
-                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
-            );
+            where TService : class => container;
     }
 
     // Add by factory
@@ -174,25 +177,26 @@ public static class SvcContainerExtensions
             );
         }
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer RegisterTransient<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
-            where TImplementation : TService
-        {
-            throw new SourceGeneratorRequiredException(
-                "Runtime fallback registrations are disabled. Enable and run Pico.DI.Gen to generate compile-time factories, then call ConfigureGeneratedServices()."
-            );
-        }
+            where TImplementation : TService => container;
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer RegisterTransient<TService>()
-            where TService : class =>
-            throw new SourceGeneratorRequiredException(
-                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
-            );
+            where TService : class => container;
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer RegisterTransient<TService>(Type implementType)
-            where TService : class =>
-            throw new SourceGeneratorRequiredException(
-                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
-            );
+            where TService : class => container;
 
         #endregion
 
@@ -249,25 +253,26 @@ public static class SvcContainerExtensions
             );
         }
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer RegisterScoped<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
-            where TImplementation : TService
-        {
-            throw new SourceGeneratorRequiredException(
-                "Runtime fallback registrations are disabled. Enable and run Pico.DI.Gen to generate compile-time factories, then call ConfigureGeneratedServices()."
-            );
-        }
+            where TImplementation : TService => container;
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer RegisterScoped<TService>()
-            where TService : class =>
-            throw new SourceGeneratorRequiredException(
-                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
-            );
+            where TService : class => container;
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer RegisterScoped<TService>(Type implementType)
-            where TService : class =>
-            throw new SourceGeneratorRequiredException(
-                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
-            );
+            where TService : class => container;
 
         #endregion
 
@@ -324,25 +329,26 @@ public static class SvcContainerExtensions
             );
         }
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer RegisterSingleton<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
-            where TImplementation : TService
-        {
-            throw new SourceGeneratorRequiredException(
-                "Runtime fallback registrations are disabled. Enable and run Pico.DI.Gen to generate compile-time factories, then call ConfigureGeneratedServices()."
-            );
-        }
+            where TImplementation : TService => container;
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer RegisterSingleton<TService>()
-            where TService : class =>
-            throw new SourceGeneratorRequiredException(
-                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
-            );
+            where TService : class => container;
 
+        /// <summary>
+        /// Placeholder method scanned by source generator. Does nothing at runtime.
+        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// </summary>
         public ISvcContainer RegisterSingleton<TService>(Type implementType)
-            where TService : class =>
-            throw new InvalidOperationException(
-                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
-            );
+            where TService : class => container;
 
         #endregion
 

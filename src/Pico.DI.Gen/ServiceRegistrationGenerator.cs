@@ -93,23 +93,112 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             )
             .Where(static x => x is not null);
 
+        // Find closed generic types used in declarations (variables, fields, properties, parameters)
+        // This helps detect entity-associated generics like IRepository<User>
+        var closedGenericDeclarations = context
+            .SyntaxProvider
+            .CreateSyntaxProvider(
+                predicate: static (node, _) => IsClosedGenericTypeDeclaration(node),
+                transform: static (ctx, _) => GetClosedGenericFromDeclaration(ctx)
+            )
+            .Where(static x => x is not null);
+
         // Combine all sources with compilation
         var compilationAndInvocations = context
             .CompilationProvider
             .Combine(registerInvocations.Collect())
             .Combine(openGenericRegistrations.Collect())
-            .Combine(closedGenericUsages.Collect());
+            .Combine(closedGenericUsages.Collect())
+            .Combine(closedGenericDeclarations.Collect());
 
         // Generate source
         context.RegisterSourceOutput(
             compilationAndInvocations,
             static (spc, source) =>
             {
-                var ((compilationAndRegs, openGenerics), closedUsages) = source;
+                var (((compilationAndRegs, openGenerics), closedUsages), closedDeclarations) =
+                    source;
                 var (compilation, invocations) = compilationAndRegs;
-                Execute(compilation, invocations, openGenerics!, closedUsages!, spc);
+                Execute(
+                    compilation,
+                    invocations,
+                    openGenerics!,
+                    closedUsages!,
+                    closedDeclarations!,
+                    spc
+                );
             }
         );
+    }
+
+    /// <summary>
+    /// Check if this is a closed generic type used in a declaration (variable, field, property, parameter).
+    /// This helps detect entity-associated generics like IRepository&lt;User&gt;.
+    /// </summary>
+    private static bool IsClosedGenericTypeDeclaration(SyntaxNode node)
+    {
+        // Check for generic name syntax in type declarations
+        if (node is not GenericNameSyntax genericName)
+            return false;
+
+        // Must have type arguments (not open generic)
+        if (genericName.TypeArgumentList.Arguments.Count == 0)
+            return false;
+
+        // Check if it's part of a type declaration context
+        var parent = genericName.Parent;
+        while (parent is QualifiedNameSyntax or AliasQualifiedNameSyntax or NullableTypeSyntax)
+            parent = parent.Parent;
+
+        return parent
+            is VariableDeclarationSyntax
+                or // var x = ...; or Type x = ...;
+                PropertyDeclarationSyntax
+                or // public Type Property { get; }
+                FieldDeclarationSyntax
+                or // private Type _field;
+                ParameterSyntax
+                or // void Method(Type param)
+                TypeArgumentListSyntax
+                or // Generic<Type>
+                BaseTypeSyntax
+                or // class Foo : IBase<Type>
+                ObjectCreationExpressionSyntax; // new Type()
+    }
+
+    /// <summary>
+    /// Extract closed generic type info from declaration syntax.
+    /// </summary>
+    private static ClosedGenericUsageInfo? GetClosedGenericFromDeclaration(
+        GeneratorSyntaxContext context
+    )
+    {
+        if (context.Node is not GenericNameSyntax genericName)
+            return null;
+
+        var semanticModel = context.SemanticModel;
+        var typeInfo = semanticModel.GetTypeInfo(genericName);
+        var typeSymbol = typeInfo.Type;
+
+        // Must be a closed generic type
+        if (
+            typeSymbol
+            is not INamedTypeSymbol { IsGenericType: true, IsUnboundGenericType: false } namedType
+        )
+            return null;
+
+        // Skip if any type argument is a type parameter (e.g., T in ILog<T> inside a generic class)
+        // We only want fully closed generics like IRepository<User>
+        if (namedType.TypeArguments.Any(ta => ta is ITypeParameterSymbol))
+            return null;
+
+        // Skip System types
+        var ns = namedType.ContainingNamespace?.ToDisplayString() ?? "";
+        if (ns.StartsWith("System"))
+            return null;
+
+        // Create a dummy invocation info - we only need the type
+        return new ClosedGenericUsageInfo(null!, semanticModel, namedType);
     }
 
     /// <summary>
@@ -228,11 +317,18 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         var containingType = methodSymbol.ContainingType?.ToDisplayString() ?? "";
         var containingNs = methodSymbol.ContainingNamespace?.ToDisplayString() ?? "";
 
+        // Also check receiver type for extension methods
+        var receiverType = methodSymbol.ReceiverType?.ToDisplayString() ?? "";
+        var reducedFrom = methodSymbol.ReducedFrom?.ContainingNamespace?.ToDisplayString() ?? "";
+
         var isPicoDiMethod =
             containingType.StartsWith("Pico.DI")
             || containingType.Contains("SvcContainer")
             || containingType.Contains("ISvcContainer")
-            || containingNs.StartsWith("Pico.DI");
+            || containingNs.StartsWith("Pico.DI")
+            || receiverType.Contains("ISvcContainer")
+            || receiverType.Contains("SvcContainer")
+            || reducedFrom.StartsWith("Pico.DI");
 
         if (!isPicoDiMethod)
             return null;
@@ -281,11 +377,18 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         var containingType = methodSymbol.ContainingType?.ToDisplayString() ?? "";
         var containingNs = methodSymbol.ContainingNamespace?.ToDisplayString() ?? "";
 
+        // Also check receiver type for extension methods
+        var receiverType = methodSymbol.ReceiverType?.ToDisplayString() ?? "";
+        var reducedFrom = methodSymbol.ReducedFrom?.ContainingNamespace?.ToDisplayString() ?? "";
+
         var isPicoDiMethod =
             containingType.StartsWith("Pico.DI")
             || containingType.Contains("SvcContainer")
             || containingType.Contains("ISvcContainer")
-            || containingNs.StartsWith("Pico.DI");
+            || containingNs.StartsWith("Pico.DI")
+            || receiverType.Contains("ISvcContainer")
+            || receiverType.Contains("SvcContainer")
+            || reducedFrom.StartsWith("Pico.DI");
 
         if (!isPicoDiMethod)
             return null;
@@ -354,6 +457,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         ImmutableArray<InvocationInfo?> invocations,
         ImmutableArray<OpenGenericInvocationInfo?> openGenericInvocations,
         ImmutableArray<ClosedGenericUsageInfo?> closedGenericUsages,
+        ImmutableArray<ClosedGenericUsageInfo?> closedGenericDeclarations,
         SourceProductionContext context
     )
     {
@@ -380,6 +484,22 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             .OfType<ClosedGenericUsage>()
             .Distinct()
             .ToList();
+
+        // Process closed generic usages from type declarations (variables, fields, properties, parameters)
+        // This detects entity-associated generics like IRepository<User>
+        var declarationClosedUsages = closedGenericDeclarations
+            .Where(x => x is not null)
+            .Select(x => AnalyzeClosedGenericUsage(x!.ClosedGenericType))
+            .OfType<ClosedGenericUsage>()
+            .Distinct()
+            .ToList();
+
+        // Merge declaration usages
+        foreach (var du in declarationClosedUsages)
+        {
+            if (!closedUsages.Contains(du))
+                closedUsages.Add(du);
+        }
 
         // Also detect closed generic usages referenced in constructor parameters of registered services
         var ctorClosedUsages = registrations
@@ -417,6 +537,14 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         {
             if (!closedUsages.Contains(cu))
                 closedUsages.Add(cu);
+        }
+
+        // Auto-infer service-associated generics (e.g., ILogger<ServiceType> for each registered service)
+        var inferredServiceGenerics = InferServiceAssociatedGenerics(registrations, openGenerics);
+        foreach (var ig in inferredServiceGenerics)
+        {
+            if (!closedUsages.Contains(ig))
+                closedUsages.Add(ig);
         }
 
         // Generate closed generic registrations from open generic + usages
@@ -458,6 +586,87 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             isEnabledByDefault: true,
             description: "A circular dependency chain was detected which will cause a runtime exception. Fix the dependency cycle."
         );
+
+    /// <summary>
+    /// Patterns for service-associated open generics.
+    /// These are open generic types where the type parameter is typically a service type itself.
+    /// For each registered service, we auto-generate closed generic usages for these patterns.
+    /// E.g., for ILogger&lt;&gt;, if UserService is registered, we generate ILogger&lt;UserService&gt;.
+    /// </summary>
+    private static readonly string[] ServiceAssociatedGenericPatterns =
+    [
+        "ILogger<>",
+        "Logger<>",
+        "IOptions<>",
+        "IOptionsSnapshot<>",
+        "IOptionsMonitor<>",
+        "IConfiguration<>",
+        "Lazy<>",
+        "IValidator<>",
+        "Validator<>"
+    ];
+
+    /// <summary>
+    /// Auto-infers service-associated generic usages.
+    /// For patterns like ILogger&lt;T&gt;, automatically generates ILogger&lt;ServiceType&gt;
+    /// for each registered service type.
+    /// </summary>
+    private static List<ClosedGenericUsage> InferServiceAssociatedGenerics(
+        List<ServiceRegistration> registrations,
+        List<OpenGenericRegistration> openGenerics
+    )
+    {
+        var inferred = new List<ClosedGenericUsage>();
+
+        foreach (var og in openGenerics)
+        {
+            // Check if this open generic matches a service-associated pattern
+            var simpleName = GetSimpleName(og.OpenServiceTypeFullName) + "<>";
+            if (!ServiceAssociatedGenericPatterns.Contains(simpleName))
+                continue;
+
+            // Only process single type parameter generics for auto-inference
+            if (og.TypeParameterCount != 1)
+                continue;
+
+            // For each registered service, generate a closed generic usage
+            foreach (var reg in registrations)
+            {
+                // Use implementation type as the type argument (e.g., ILogger<UserService>)
+                var closedServiceType = BuildClosedGenericTypeName(
+                    og.OpenServiceTypeFullName,
+                    [reg.ImplementationTypeFullName]
+                );
+
+                inferred.Add(
+                    new ClosedGenericUsage(
+                        closedServiceType,
+                        og.OpenServiceTypeFullName,
+                        [reg.ImplementationTypeFullName]
+                    )
+                );
+
+                // Also generate for service type if different (e.g., ILogger<IUserService>)
+                if (reg.ServiceTypeFullName != reg.ImplementationTypeFullName)
+                {
+                    var closedForServiceInterface = BuildClosedGenericTypeName(
+                        og.OpenServiceTypeFullName,
+                        [reg.ServiceTypeFullName]
+                    );
+
+                    inferred.Add(
+                        new ClosedGenericUsage(
+                            closedForServiceInterface,
+                            og.OpenServiceTypeFullName,
+                            [reg.ServiceTypeFullName]
+                        )
+                    );
+                }
+            }
+        }
+
+        return inferred.Distinct().ToList();
+    }
 
     /// <summary>
     /// Detects circular dependencies at compile-time by analyzing the dependency graph.
@@ -691,6 +900,11 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     private static ClosedGenericUsage? AnalyzeClosedGenericUsage(ITypeSymbol closedType)
     {
         if (closedType is not INamedTypeSymbol { IsGenericType: true } namedType)
+            return null;
+
+        // Skip if any type argument is a type parameter (e.g., T in ILog<T>)
+        // We only want fully closed generics like IRepository<User>
+        if (namedType.TypeArguments.Any(ta => ta is ITypeParameterSymbol))
             return null;
 
         var openType = namedType.ConstructUnboundGenericType();
@@ -1006,11 +1220,18 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         var containingType = methodSymbol.ContainingType?.ToDisplayString() ?? "";
         var containingNs = methodSymbol.ContainingNamespace?.ToDisplayString() ?? "";
 
+        // Also check receiver type for extension methods
+        var receiverType = methodSymbol.ReceiverType?.ToDisplayString() ?? "";
+        var reducedFrom = methodSymbol.ReducedFrom?.ContainingNamespace?.ToDisplayString() ?? "";
+
         var isPicoDiMethod =
             containingType.StartsWith("Pico.DI")
             || containingType.Contains("SvcContainer")
             || containingType.Contains("ISvcContainer")
-            || containingNs.StartsWith("Pico.DI");
+            || containingNs.StartsWith("Pico.DI")
+            || receiverType.Contains("ISvcContainer")
+            || receiverType.Contains("SvcContainer")
+            || reducedFrom.StartsWith("Pico.DI");
 
         if (!isPicoDiMethod)
             return null;

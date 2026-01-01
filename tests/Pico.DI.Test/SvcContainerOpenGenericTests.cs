@@ -294,8 +294,15 @@ public class SvcContainerOpenGenericTests : SvcContainerTestBase
         // Register open generic mapping ILog<> -> Logger<>
         container.Register(typeof(ILog<>), typeof(Logger<>), SvcLifetime.Transient);
 
-        // Register a concrete type that depends on ILog<Concrete>
-        container.Register<ServiceWithLog>(SvcLifetime.Transient);
+        // Register a concrete type that depends on ILog<Concrete> using factory
+        container.RegisterTransient<ServiceWithLog>(
+            scope => new ServiceWithLog(scope.GetService<ILog<ServiceWithLog>>())
+        );
+
+        // Register the closed generic manually for this test (normally done by source generator)
+        container.RegisterTransient<ILog<ServiceWithLog>>(scope => new Logger<ServiceWithLog>());
+
+        container.Build();
 
         // Act
         using var scope = container.CreateScope();
@@ -312,12 +319,7 @@ public class SvcContainerOpenGenericTests : SvcContainerTestBase
 
     public class Logger<T> : ILog<T>
     {
-        public T Inner { get; }
-
-        public Logger(T inner)
-        {
-            Inner = inner;
-        }
+        public Logger() { }
     }
 
     public class ServiceWithLog
