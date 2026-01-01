@@ -1,0 +1,9 @@
+global using System;
+global using System.Collections.Generic;
+global using System.Linq;
+global using System.Threading.Tasks;
+global using Pico.DI;
+global using Pico.DI.Abs;
+global using TUnit.Assertions;
+global using TUnit.Assertions.Extensions;
+global using TUnit.Core;
