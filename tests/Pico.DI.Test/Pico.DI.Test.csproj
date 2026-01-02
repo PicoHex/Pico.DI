@@ -32,9 +32,5 @@
       <ProjectReference Include="..\..\src\Pico.DI\Pico.DI.csproj" />
       <ProjectReference Include="..\..\src\Pico.DI.Gen\Pico.DI.Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
-    <ItemGroup>
-      <!-- Exclude the original duplicated test file (it contained accidental duplicates). -->
-      <Compile Remove="SvcContainerRegisterByTypeTests.cs" />
-    </ItemGroup>
 
 </Project>
