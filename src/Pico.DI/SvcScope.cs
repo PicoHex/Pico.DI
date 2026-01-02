@@ -17,7 +17,7 @@ public sealed class SvcScope : ISvcScope
     private readonly ConcurrentDictionary<Type, SvcDescriptor[]>? _concurrentDescriptorCache;
     private readonly ConcurrentDictionary<SvcDescriptor, object> _scopedInstances = new();
     private static readonly ConcurrentDictionary<SvcDescriptor, object> SingletonLocks = new();
-    private bool _disposing;
+    private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
     /// <summary>
     /// Creates a new optimized service resolution scope.
@@ -38,7 +38,7 @@ public sealed class SvcScope : ISvcScope
     /// <inheritdoc />
     public ISvcScope CreateScope()
     {
-        ObjectDisposedException.ThrowIf(_disposing, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
         return _descriptorCache != null
             ? new SvcScope(_descriptorCache)
             : new SvcScope(_concurrentDescriptorCache!);
@@ -48,7 +48,7 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object GetService(Type serviceType)
     {
-        ObjectDisposedException.ThrowIf(_disposing, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
 
         // Prefer frozen cache when available
         if (!TryGetResolvers(serviceType, out var resolvers))
@@ -137,7 +137,7 @@ public sealed class SvcScope : ISvcScope
 
     public IEnumerable<object> GetServices(Type serviceType)
     {
-        ObjectDisposedException.ThrowIf(_disposing, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
         if (!TryGetResolvers(serviceType, out var resolvers))
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
@@ -200,9 +200,9 @@ public sealed class SvcScope : ISvcScope
 
     public void Dispose()
     {
-        if (_disposing)
+        // Thread-safe check-and-set using Interlocked
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
-        _disposing = true;
 
         foreach (var svc in _scopedInstances.Values)
         {
@@ -210,14 +210,13 @@ public sealed class SvcScope : ISvcScope
                 disposable.Dispose();
         }
         _scopedInstances.Clear();
-        GC.SuppressFinalize(this);
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposing)
+        // Thread-safe check-and-set using Interlocked
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
-        _disposing = true;
 
         foreach (var svc in _scopedInstances.Values)
         {
@@ -232,6 +231,5 @@ public sealed class SvcScope : ISvcScope
             }
         }
         _scopedInstances.Clear();
-        GC.SuppressFinalize(this);
     }
 }

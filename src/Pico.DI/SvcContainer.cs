@@ -38,7 +38,7 @@
 /// - ✅ Compile-time safe: Errors caught during build
 /// - ✅ Maximum performance: Direct code execution in production
 /// </summary>
-public partial class SvcContainer : ISvcContainer
+public sealed class SvcContainer : ISvcContainer
 {
     private readonly ConcurrentDictionary<Type, SvcDescriptor[]> _descriptorCache = new();
 
@@ -47,13 +47,13 @@ public partial class SvcContainer : ISvcContainer
     /// </summary>
     private FrozenDictionary<Type, SvcDescriptor[]>? _frozenCache;
 
-    private bool _disposing;
+    private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
     private bool _isBuilt;
 
     /// <inheritdoc />
     public ISvcContainer Register(SvcDescriptor descriptor)
     {
-        ObjectDisposedException.ThrowIf(_disposing, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
 
         if (_isBuilt)
             throw new InvalidOperationException(
@@ -81,7 +81,7 @@ public partial class SvcContainer : ISvcContainer
     /// <returns>The container instance for method chaining.</returns>
     public SvcContainer Build()
     {
-        ObjectDisposedException.ThrowIf(_disposing, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
 
         if (_isBuilt)
             return this;
@@ -94,7 +94,7 @@ public partial class SvcContainer : ISvcContainer
     /// <inheritdoc />
     public ISvcScope CreateScope()
     {
-        ObjectDisposedException.ThrowIf(_disposing, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
 
         // Use frozen cache if available for better performance
         if (_frozenCache != null)
@@ -108,15 +108,9 @@ public partial class SvcContainer : ISvcContainer
     /// <inheritdoc />
     public void Dispose()
     {
-        Dispose(disposing: true);
-        GC.SuppressFinalize(this);
-    }
-
-    private void Dispose(bool disposing)
-    {
-        if (_disposing)
+        // Thread-safe check-and-set using Interlocked
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
-        _disposing = true;
 
         foreach (var keyValuePair in _descriptorCache)
         {
@@ -134,9 +128,9 @@ public partial class SvcContainer : ISvcContainer
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_disposing)
+        // Thread-safe check-and-set using Interlocked
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
-        _disposing = true;
 
         foreach (
             var svc in _descriptorCache
@@ -156,6 +150,5 @@ public partial class SvcContainer : ISvcContainer
             }
         }
         _descriptorCache.Clear();
-        GC.SuppressFinalize(this);
     }
 }
