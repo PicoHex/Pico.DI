@@ -97,12 +97,7 @@ public sealed class SvcContainer : ISvcContainer
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
 
         // Use frozen cache if available for better performance
-        if (_frozenCache != null)
-        {
-            return new SvcScope(_frozenCache);
-        }
-
-        return new SvcScope(_descriptorCache);
+        return _frozenCache != null ? new SvcScope(_frozenCache) : new SvcScope(_descriptorCache);
     }
 
     /// <inheritdoc />
