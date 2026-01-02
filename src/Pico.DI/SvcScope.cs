@@ -14,9 +14,7 @@ namespace Pico.DI;
 public sealed class SvcScope : ISvcScope
 {
     private readonly FrozenDictionary<Type, SvcDescriptor[]>? _descriptorCache;
-    private readonly FrozenDictionary<Type, DecoratorMetadata>? _decoratorMetadata;
     private readonly ConcurrentDictionary<Type, SvcDescriptor[]>? _concurrentDescriptorCache;
-    private readonly ConcurrentDictionary<Type, DecoratorMetadata>? _concurrentDecoratorMetadata;
     private readonly ConcurrentDictionary<SvcDescriptor, object> _scopedInstances = new();
     private static readonly ConcurrentDictionary<SvcDescriptor, object> SingletonLocks = new();
     private bool _disposing;
@@ -24,27 +22,17 @@ public sealed class SvcScope : ISvcScope
     /// <summary>
     /// Creates a new optimized service resolution scope.
     /// </summary>
-    public SvcScope(
-        FrozenDictionary<Type, SvcDescriptor[]> descriptorCache,
-        FrozenDictionary<Type, DecoratorMetadata>? decoratorMetadata = null
-    )
+    public SvcScope(FrozenDictionary<Type, SvcDescriptor[]> descriptorCache)
     {
         _descriptorCache = descriptorCache;
-        _decoratorMetadata = decoratorMetadata;
         _concurrentDescriptorCache = null;
-        _concurrentDecoratorMetadata = null;
     }
 
     // Backwards-compatible constructor for non-built container path
-    public SvcScope(
-        ConcurrentDictionary<Type, SvcDescriptor[]> descriptorCache,
-        ConcurrentDictionary<Type, DecoratorMetadata>? decoratorMetadata = null
-    )
+    public SvcScope(ConcurrentDictionary<Type, SvcDescriptor[]> descriptorCache)
     {
         _concurrentDescriptorCache = descriptorCache;
-        _concurrentDecoratorMetadata = decoratorMetadata;
         _descriptorCache = null;
-        _decoratorMetadata = null;
     }
 
     /// <inheritdoc />
@@ -52,8 +40,8 @@ public sealed class SvcScope : ISvcScope
     {
         ObjectDisposedException.ThrowIf(_disposing, this);
         return _descriptorCache != null
-            ? new SvcScope(_descriptorCache, _decoratorMetadata)
-            : new SvcScope(_concurrentDescriptorCache!, _concurrentDecoratorMetadata);
+            ? new SvcScope(_descriptorCache)
+            : new SvcScope(_concurrentDescriptorCache!);
     }
 
     /// <inheritdoc />
