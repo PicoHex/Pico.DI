@@ -1,47 +1,13 @@
 ﻿namespace Pico.DI;
 
 /// <summary>
-/// The main dependency injection container for registering and managing service descriptors.
-/// Implements <see cref="ISvcContainer"/> and supports both synchronous and asynchronous disposal.
-///
-/// ARCHITECTURE: Zero-Reflection Compile-Time Factory Generation
-/// ===============================================================
-///
-/// This container uses a DUAL-MODE architecture:
-///
-/// PRODUCTION PATH (with Source Generator):
-/// =========================================
-/// 1. Source generator scans RegisterSingleton<T, TImpl>() calls at compile-time
-/// 2. Generator analyzes constructor parameters and generates explicit factory code
-/// 3. Generator produces ConfigureGeneratedServices() with pre-built SvcDescriptor instances
-/// 4. Each descriptor contains pre-compiled factory (e.g., static _ => new TImpl())
-/// 5. At runtime: Register(SvcDescriptor) simply caches these pre-built descriptors
-/// 6. GetService() calls pre-generated factory (ZERO REFLECTION!)
-///
-/// TESTING PATH (without Source Generator):
-/// =========================================
-/// 1. Extension methods like RegisterSingleton<T, TImpl>() create fallback factories
-/// 2. Fallback uses Activator.CreateInstance<T>() (AOT-safe generic activator)
-/// 3. Allows tests to work without source generator
-/// 4. Performance is lower but still reasonable for testing
-///
-/// PERFORMANCE OPTIMIZATION:
-/// =========================
-/// Call Build() after all registrations to convert to FrozenDictionary for fastest lookups.
-/// Without Build(), ConcurrentDictionary is used (slightly slower but thread-safe for registration).
-///
-/// RESULT:
-/// - ✅ Production: Zero runtime reflection via pre-generated factories
-/// - ✅ Testing: Works without source generator
-/// - ✅ AOT-compatible: All generated code uses only compile-time-known types
-/// - ✅ IL trimmer friendly: No dynamic type discovery
-/// - ✅ Compile-time safe: Errors caught during build
-/// - ✅ Maximum performance: Direct code execution in production
+/// A high-performance, AOT-compatible dependency injection container.
+/// Manages service registrations, scope creation, and singleton instance lifecycle.
 /// </summary>
 public sealed class SvcContainer : ISvcContainer
 {
     private readonly ConcurrentDictionary<Type, SvcDescriptor[]> _descriptorCache = new();
-    private readonly ConcurrentBag<SvcScope> _rootScopes = new();
+    private readonly ConcurrentBag<SvcScope> _rootScopes = [];
 
     /// <summary>
     /// Frozen (optimized) descriptor cache after Build() is called.

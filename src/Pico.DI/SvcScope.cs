@@ -1,15 +1,8 @@
 namespace Pico.DI;
 
 /// <summary>
-/// High-performance service resolution scope using FrozenDictionary.
-/// This implementation is used after Build() is called on the container.
-///
-/// PERFORMANCE CHARACTERISTICS:
-/// ============================
-/// - FrozenDictionary provides O(1) lookup with minimal overhead
-/// - No concurrent dictionary overhead (read-only after build)
-/// - Optimized for hot-path resolution with aggressive inlining
-/// - Minimal allocations for scoped instance tracking
+/// Represents a service scope that manages the lifetime of scoped service instances.
+/// Supports hierarchical scopes where child scopes are automatically disposed when the parent is disposed.
 /// </summary>
 public sealed class SvcScope : ISvcScope
 {
@@ -21,15 +14,20 @@ public sealed class SvcScope : ISvcScope
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
     /// <summary>
-    /// Creates a new optimized service resolution scope.
+    /// Initializes a new instance of <see cref="SvcScope"/> with a frozen (optimized) descriptor cache.
     /// </summary>
+    /// <param name="descriptorCache">The frozen dictionary containing service descriptors.</param>
     public SvcScope(FrozenDictionary<Type, SvcDescriptor[]> descriptorCache)
     {
         _descriptorCache = descriptorCache;
         _concurrentDescriptorCache = null;
     }
 
-    // Backwards-compatible constructor for non-built container path
+    /// <summary>
+    /// Initializes a new instance of <see cref="SvcScope"/> with a concurrent descriptor cache.
+    /// Used when the container has not been built yet.
+    /// </summary>
+    /// <param name="descriptorCache">The concurrent dictionary containing service descriptors.</param>
     public SvcScope(ConcurrentDictionary<Type, SvcDescriptor[]> descriptorCache)
     {
         _concurrentDescriptorCache = descriptorCache;
@@ -101,6 +99,37 @@ public sealed class SvcScope : ISvcScope
         };
     }
 
+    /// <inheritdoc />
+    public IEnumerable<object> GetServices(Type serviceType)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
+        if (!TryGetResolvers(serviceType, out var resolvers))
+            throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
+
+        return resolvers!
+            .Select(
+                resolver =>
+                    resolver.Lifetime switch
+                    {
+                        SvcLifetime.Transient
+                            => resolver.Factory != null
+                                ? resolver.Factory(this)
+                                : throw new PicoDiException(
+                                    $"No factory registered for transient service '{serviceType.FullName}'."
+                                ),
+                        SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
+                        SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+                        _
+                            => throw new ArgumentOutOfRangeException(
+                                nameof(SvcLifetime),
+                                resolver.Lifetime,
+                                $"Unknown service lifetime '{resolver.Lifetime}'."
+                            )
+                    }
+            )
+            .ToArray();
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private object ResolveTransient(Type serviceType, SvcDescriptor resolver)
     {
@@ -142,36 +171,6 @@ public sealed class SvcScope : ISvcScope
         }
     }
 
-    public IEnumerable<object> GetServices(Type serviceType)
-    {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
-        if (!TryGetResolvers(serviceType, out var resolvers))
-            throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
-
-        return resolvers!
-            .Select(
-                resolver =>
-                    resolver.Lifetime switch
-                    {
-                        SvcLifetime.Transient
-                            => resolver.Factory != null
-                                ? resolver.Factory(this)
-                                : throw new PicoDiException(
-                                    $"No factory registered for transient service '{serviceType.FullName}'."
-                                ),
-                        SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-                        SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-                        _
-                            => throw new ArgumentOutOfRangeException(
-                                nameof(SvcLifetime),
-                                resolver.Lifetime,
-                                $"Unknown service lifetime '{resolver.Lifetime}'."
-                            )
-                    }
-            )
-            .ToArray();
-    }
-
     private bool TryGetResolvers(Type serviceType, out SvcDescriptor[]? resolvers)
     {
         if (_descriptorCache != null)
@@ -205,6 +204,7 @@ public sealed class SvcScope : ISvcScope
             this
         );
 
+    /// <inheritdoc />
     public void Dispose()
     {
         // Thread-safe check-and-set using Interlocked
@@ -226,6 +226,7 @@ public sealed class SvcScope : ISvcScope
         _scopedInstances.Clear();
     }
 
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         // Thread-safe check-and-set using Interlocked
