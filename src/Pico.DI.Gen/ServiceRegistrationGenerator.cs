@@ -10,7 +10,7 @@ internal record ServiceRegistration(
     string ImplementationTypeFullName,
     string Lifetime, // "Transient", "Scoped", "Singleton"
     bool HasFactory,
-    ImmutableArray<ConstructorParameter> ConstructorParameters
+    ImmutableArray<string> ConstructorParameters // TypeFullNames of constructor parameters
 );
 
 /// <summary>
@@ -22,17 +22,7 @@ internal record OpenGenericRegistration(
     string Lifetime,
     int TypeParameterCount,
     ImmutableArray<string> TypeParameterNames, // e.g., ["T", "TKey"]
-    ImmutableArray<OpenGenericConstructorParameter> ConstructorParameters // Constructor parameters of the open generic type
-);
-
-/// <summary>
-/// Represents a constructor parameter in an open generic type.
-/// The TypeFullName may contain type parameters (e.g., "T" or "ILogger&lt;T&gt;").
-/// </summary>
-internal record OpenGenericConstructorParameter(
-    string TypeFullName,
-    string TypeName,
-    string ParameterName
+    ImmutableArray<string> ConstructorParameters // TypeFullNames of constructor parameters (may contain type parameters)
 );
 
 /// <summary>
@@ -43,8 +33,6 @@ internal record ClosedGenericUsage(
     string OpenServiceTypeFullName, // e.g., "IRepository<>"
     ImmutableArray<string> TypeArgumentsFullNames // e.g., ["User"]
 );
-
-internal record ConstructorParameter(string TypeFullName, string TypeName, string ParameterName);
 
 /// <summary>
 /// Source Generator that scans all ISvcContainer.Register* method calls
@@ -101,30 +89,20 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             )
             .Where(static x => x is not null);
 
-        // Combine all sources with compilation
-        var compilationAndInvocations = context
-            .CompilationProvider
-            .Combine(registerInvocations.Collect())
+        // Combine all sources
+        var combinedSources = registerInvocations
+            .Collect()
             .Combine(openGenericRegistrations.Collect())
             .Combine(closedGenericUsages.Collect())
             .Combine(closedGenericDeclarations.Collect());
 
         // Generate source
         context.RegisterSourceOutput(
-            compilationAndInvocations,
+            combinedSources,
             static (spc, source) =>
             {
-                var (((compilationAndRegs, openGenerics), closedUsages), closedDeclarations) =
-                    source;
-                var (compilation, invocations) = compilationAndRegs;
-                Execute(
-                    compilation,
-                    invocations,
-                    openGenerics,
-                    closedUsages,
-                    closedDeclarations,
-                    spc
-                );
+                var (((invocations, openGenerics), closedUsages), closedDeclarations) = source;
+                Execute(invocations, openGenerics, closedUsages, closedDeclarations, spc);
             }
         );
     }
@@ -430,7 +408,6 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     }
 
     private static void Execute(
-        Compilation compilation,
         ImmutableArray<InvocationInfo?> invocations,
         ImmutableArray<OpenGenericInvocationInfo?> openGenericInvocations,
         ImmutableArray<ITypeSymbol?> closedGenericUsages,
@@ -480,10 +457,10 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         // Also detect closed generic usages referenced in constructor parameters of registered services
         var ctorClosedUsages = registrations
             .SelectMany(r => r.ConstructorParameters)
-            .Where(p => p.TypeFullName.Contains("<")) // simple heuristic for generics
-            .Select(p =>
+            .Where(typeFullName => typeFullName.Contains("<")) // simple heuristic for generics
+            .Select(typeFullName =>
             {
-                var full = p.TypeFullName;
+                var full = typeFullName;
                 var angleIdx = full.IndexOf('<');
                 if (angleIdx < 0)
                     return null;
@@ -523,8 +500,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         // Generate closed generic registrations from open generic + usages
         var generatedClosedGenerics = GenerateClosedGenericRegistrations(
             openGenerics,
-            closedUsages,
-            compilation
+            closedUsages
         );
 
         // Combine all registrations
@@ -659,9 +635,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 dependencyGraph[reg.ServiceTypeFullName] =  [];
             }
 
-            foreach (var param in reg.ConstructorParameters)
+            foreach (var paramTypeFullName in reg.ConstructorParameters)
             {
-                dependencyGraph[reg.ServiceTypeFullName].Add(param.TypeFullName);
+                dependencyGraph[reg.ServiceTypeFullName].Add(paramTypeFullName);
             }
         }
 
@@ -780,7 +756,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         }
 
         // Infer lifetime from method name if not explicit
-        if (methodName!.Contains("Transient"))
+        if (methodName.Contains("Transient"))
             lifetime = "Transient";
         else if (methodName.Contains("Scoped"))
             lifetime = "Scoped";
@@ -797,8 +773,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         var openImplType = namedImplType.OriginalDefinition;
         var typeParamNames = openImplType.TypeParameters.Select(tp => tp.Name).ToImmutableArray();
 
-        // Extract constructor parameters, marking which ones involve type parameters
-        var ctorParams = GetOpenGenericConstructorParameters(openImplType, typeParamNames);
+        // Extract constructor parameters
+        var ctorParams = GetOpenGenericConstructorParameters(openImplType);
 
         return new OpenGenericRegistration(
             namedServiceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -811,11 +787,10 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Gets the constructor parameters of an open generic type, marking type parameter usage.
+    /// Gets the constructor parameter type full names of an open generic type.
     /// </summary>
-    private static ImmutableArray<OpenGenericConstructorParameter> GetOpenGenericConstructorParameters(
-        INamedTypeSymbol openGenericType,
-        ImmutableArray<string> typeParameterNames
+    private static ImmutableArray<string> GetOpenGenericConstructorParameters(
+        INamedTypeSymbol openGenericType
     )
     {
         var constructors = openGenericType
@@ -826,15 +801,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         var constructor = constructors.FirstOrDefault();
         if (constructor is null)
-            return ImmutableArray<OpenGenericConstructorParameter>.Empty;
+            return ImmutableArray<string>.Empty;
 
         return
         [
-            .. constructor.Parameters.Select(p => new OpenGenericConstructorParameter(
-                p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                p.Type.Name,
-                p.Name
-            ))
+            .. constructor.Parameters.Select(p =>
+                p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            )
         ];
     }
 
@@ -870,8 +843,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     /// </summary>
     private static List<ServiceRegistration> GenerateClosedGenericRegistrations(
         List<OpenGenericRegistration> openGenerics,
-        List<ClosedGenericUsage> closedUsages,
-        Compilation compilation
+        List<ClosedGenericUsage> closedUsages
     )
     {
         var result = new List<ServiceRegistration>();
@@ -907,14 +879,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             // Generate closed type constructor parameters based on open generic constructor parameters
             var constructorParams = openGeneric
                 .ConstructorParameters
-                .Select(
-                    p =>
-                        new ConstructorParameter(
-                            SubstituteTypeParameters(p.TypeFullName, typeParamMap),
-                            p.TypeName,
-                            p.ParameterName
-                        )
-                )
+                .Select(typeFullName => SubstituteTypeParameters(typeFullName, typeParamMap))
                 .ToImmutableArray();
 
             result.Add(
@@ -1203,10 +1168,10 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         );
     }
 
-    private static ImmutableArray<ConstructorParameter> GetConstructorParameters(ITypeSymbol type)
+    private static ImmutableArray<string> GetConstructorParameters(ITypeSymbol type)
     {
         if (type is not INamedTypeSymbol namedType)
-            return ImmutableArray<ConstructorParameter>.Empty;
+            return ImmutableArray<string>.Empty;
 
         // Find the best constructor (prefer the one with most parameters, or [ActivatorUtilitiesConstructor] if present)
         var constructors = namedType
@@ -1217,15 +1182,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         var constructor = constructors.FirstOrDefault();
         if (constructor is null)
-            return ImmutableArray<ConstructorParameter>.Empty;
+            return ImmutableArray<string>.Empty;
 
         return
         [
-            .. constructor.Parameters.Select(p => new ConstructorParameter(
-                p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                p.Type.Name,
-                p.Name
-            ))
+            .. constructor.Parameters.Select(p =>
+                p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            )
         ];
     }
 
@@ -1360,9 +1323,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         var paramExpressions = reg.ConstructorParameters
             .Select(
-                param =>
+                paramTypeFullName =>
                     GenerateParameterExpression(
-                        param.TypeFullName,
+                        paramTypeFullName,
                         registrationLookup,
                         visitedTypes,
                         indentLevel + 1
