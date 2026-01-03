@@ -32,8 +32,7 @@ internal record OpenGenericRegistration(
 internal record OpenGenericConstructorParameter(
     string TypeFullName,
     string TypeName,
-    string ParameterName,
-    bool IsTypeParameter // Whether it is a type parameter itself (e.g., T)
+    string ParameterName
 );
 
 /// <summary>
@@ -121,9 +120,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 Execute(
                     compilation,
                     invocations,
-                    openGenerics!,
-                    closedUsages!,
-                    closedDeclarations!,
+                    openGenerics,
+                    closedUsages,
+                    closedDeclarations,
                     spc
                 );
             }
@@ -168,9 +167,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     /// <summary>
     /// Extract closed generic type info from declaration syntax.
     /// </summary>
-    private static ClosedGenericUsageInfo? GetClosedGenericFromDeclaration(
-        GeneratorSyntaxContext context
-    )
+    private static ITypeSymbol? GetClosedGenericFromDeclaration(GeneratorSyntaxContext context)
     {
         if (context.Node is not GenericNameSyntax genericName)
             return null;
@@ -193,11 +190,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Skip System types
         var ns = namedType.ContainingNamespace?.ToDisplayString() ?? "";
-        return ns.StartsWith("System")
-            ? null
-            :
-            // Create a dummy invocation info - we only need the type
-            new ClosedGenericUsageInfo(null!, semanticModel, namedType);
+        return ns.StartsWith("System") ? null : namedType;
     }
 
     /// <summary>
@@ -345,12 +338,6 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         SemanticModel SemanticModel
     );
 
-    private record ClosedGenericUsageInfo(
-        InvocationExpressionSyntax Invocation,
-        SemanticModel SemanticModel,
-        ITypeSymbol ClosedGenericType
-    );
-
     /// <summary>
     /// Extract open generic registration info from Register* methods with open generic type arguments.
     /// </summary>
@@ -409,7 +396,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     /// <summary>
     /// Extract closed generic usage from GetService&lt;T&gt; calls.
     /// </summary>
-    private static ClosedGenericUsageInfo? GetClosedGenericUsageInfo(GeneratorSyntaxContext context)
+    private static ITypeSymbol? GetClosedGenericUsageInfo(GeneratorSyntaxContext context)
     {
         if (context.Node is not InvocationExpressionSyntax invocation)
             return null;
@@ -439,17 +426,15 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Skip if it's IEnumerable<T> or other system types
         var ns = namedType.ContainingNamespace?.ToDisplayString() ?? "";
-        return ns.StartsWith("System")
-            ? null
-            : new ClosedGenericUsageInfo(invocation, semanticModel, namedType);
+        return ns.StartsWith("System") ? null : namedType;
     }
 
     private static void Execute(
         Compilation compilation,
         ImmutableArray<InvocationInfo?> invocations,
         ImmutableArray<OpenGenericInvocationInfo?> openGenericInvocations,
-        ImmutableArray<ClosedGenericUsageInfo?> closedGenericUsages,
-        ImmutableArray<ClosedGenericUsageInfo?> closedGenericDeclarations,
+        ImmutableArray<ITypeSymbol?> closedGenericUsages,
+        ImmutableArray<ITypeSymbol?> closedGenericDeclarations,
         SourceProductionContext context
     )
     {
@@ -472,7 +457,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         // Process closed generic usages (from GetService<T> calls)
         var closedUsages = closedGenericUsages
             .Where(x => x is not null)
-            .Select(x => AnalyzeClosedGenericUsage(x!.ClosedGenericType))
+            .Select(x => AnalyzeClosedGenericUsage(x!))
             .OfType<ClosedGenericUsage>()
             .Distinct()
             .ToList();
@@ -481,7 +466,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         // This detects entity-associated generics like IRepository<User>
         var declarationClosedUsages = closedGenericDeclarations
             .Where(x => x is not null)
-            .Select(x => AnalyzeClosedGenericUsage(x!.ClosedGenericType))
+            .Select(x => AnalyzeClosedGenericUsage(x!))
             .OfType<ClosedGenericUsage>()
             .Distinct()
             .ToList();
@@ -845,18 +830,11 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         return
         [
-            .. constructor.Parameters.Select(p =>
-            {
-                var typeFullName = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                var isTypeParam = p.Type is ITypeParameterSymbol;
-
-                return new OpenGenericConstructorParameter(
-                    typeFullName,
-                    p.Type.Name,
-                    p.Name,
-                    isTypeParam
-                );
-            })
+            .. constructor.Parameters.Select(p => new OpenGenericConstructorParameter(
+                p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                p.Type.Name,
+                p.Name
+            ))
         ];
     }
 
