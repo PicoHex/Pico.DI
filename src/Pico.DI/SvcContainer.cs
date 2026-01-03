@@ -75,8 +75,12 @@ public sealed class SvcContainer : ISvcContainer
 
     /// <summary>
     /// Builds and optimizes the container for maximum performance.
+    /// Converts internal ConcurrentDictionary to FrozenDictionary for fastest lookups.
     /// Call this method after all services have been registered.
     /// After calling Build(), no more services can be registered.
+    ///
+    /// NOTE: This method is automatically called by the source-generated ConfigureGeneratedServices() method.
+    /// You do not need to call it manually unless you are registering services without using the source generator.
     /// </summary>
     /// <returns>The container instance for method chaining.</returns>
     public SvcContainer Build()

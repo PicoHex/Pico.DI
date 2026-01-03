@@ -1470,7 +1470,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         }
 
         sb.AppendLine(
-            "        // If the concrete container supports Build(), freeze registrations for optimal lookup."
+            "        // If the container is SvcContainer, call Build() to freeze registrations for optimal lookup."
         );
         sb.AppendLine(
             "        if (container is global::Pico.DI.SvcContainer svcContainer) svcContainer.Build();"
