@@ -1,5 +1,3 @@
-
-
 // Run BenchmarkDotNet only when explicitly requested (use --bdn).
 // Default behavior is the manual Stopwatch-based runner which is AOT-friendly.
 
@@ -16,8 +14,7 @@ Console.WriteLine("╚═══════════════════�
 Console.WriteLine();
 var config = DefaultConfig.Instance.WithOptions(ConfigOptions.DisableOptimizationsValidator);
 
-var runBdn =
-    args.Any(a => string.Equals(a, "--bdn", StringComparison.OrdinalIgnoreCase));
+var runBdn = args.Any(a => string.Equals(a, "--bdn", StringComparison.OrdinalIgnoreCase));
 
 if (runBdn)
 {
@@ -41,11 +38,14 @@ for (var i = 0; i < warmupIterations; i++)
     c1.RegisterSingleton<ISingletonService>(_ => new SingletonService())
         .RegisterScoped<IScopedService>(_ => new ScopedService())
         .RegisterTransient<ITransientService>(_ => new TransientService())
-        .RegisterScoped<IComplexService>(s => new ComplexService(
-            s.GetService<ITransientService>(),
-            s.GetService<IScopedService>(),
-            s.GetService<ISingletonService>()
-        ));
+        .RegisterScoped<IComplexService>(
+            s =>
+                new ComplexService(
+                    s.GetService<ITransientService>(),
+                    s.GetService<IScopedService>(),
+                    s.GetService<ISingletonService>()
+                )
+        );
 
     var c2 = new ServiceCollection();
     c2.AddSingleton<ISingletonService, SingletonService>();
@@ -64,11 +64,14 @@ for (var i = 0; i < benchmarkIterations; i++)
         .RegisterSingleton<ISingletonService>(_ => new SingletonService())
         .RegisterScoped<IScopedService>(_ => new ScopedService())
         .RegisterTransient<ITransientService>(_ => new TransientService())
-        .RegisterScoped<IComplexService>(s => new ComplexService(
-            s.GetService<ITransientService>(),
-            s.GetService<IScopedService>(),
-            s.GetService<ISingletonService>()
-        ));
+        .RegisterScoped<IComplexService>(
+            s =>
+                new ComplexService(
+                    s.GetService<ITransientService>(),
+                    s.GetService<IScopedService>(),
+                    s.GetService<ISingletonService>()
+                )
+        );
 }
 sw.Stop();
 var picoSetupNs =
@@ -98,11 +101,14 @@ picoContainer
     .RegisterSingleton<ISingletonService>(_ => new SingletonService())
     .RegisterScoped<IScopedService>(_ => new ScopedService())
     .RegisterTransient<ITransientService>(_ => new TransientService())
-    .RegisterScoped<IComplexService>(s => new ComplexService(
-        s.GetService<ITransientService>(),
-        s.GetService<IScopedService>(),
-        s.GetService<ISingletonService>()
-    ));
+    .RegisterScoped<IComplexService>(
+        s =>
+            new ComplexService(
+                s.GetService<ITransientService>(),
+                s.GetService<IScopedService>(),
+                s.GetService<ISingletonService>()
+            )
+    );
 using var picoScope = picoContainer.CreateScope();
 
 var msdiServices = new ServiceCollection();

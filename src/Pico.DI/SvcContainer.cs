@@ -70,68 +70,7 @@ public sealed class SvcContainer : ISvcContainer
         // Create scope and track it for automatic disposal when container is disposed
         var scope =
             _frozenCache != null ? new SvcScope(_frozenCache) : new SvcScope(_descriptorCache);
-
-        _rootScopes.Add(scope);
-        return scope;
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        // Thread-safe check-and-set using Interlocked
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
-            return;
-
-        // Dispose all root scopes first (which will recursively dispose their child scopes)
-        while (_rootScopes.TryTake(out var scope))
-        {
-            scope.Dispose();
         }
-
-        // Then dispose singleton instances owned by the container
-        foreach (var keyValuePair in _descriptorCache)
-        {
-            foreach (var svc in keyValuePair.Value)
-            {
-                if (svc.SingleInstance is IDisposable disposable)
-                {
-                    disposable.Dispose();
-                }
-            }
-        }
-        _descriptorCache.Clear();
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        // Thread-safe check-and-set using Interlocked
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
-            return;
-
-        // Dispose all root scopes first (which will recursively dispose their child scopes)
-        while (_rootScopes.TryTake(out var scope))
-        {
-            await scope.DisposeAsync();
-        }
-
-        // Then dispose singleton instances owned by the container
-        foreach (
-            var svc in _descriptorCache
-                .SelectMany(p => p.Value)
-                .Select(p => p.SingleInstance)
-                .Where(p => p is not null)
-        )
-        {
-            switch (svc)
-            {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-            }
         }
         _descriptorCache.Clear();
     }
