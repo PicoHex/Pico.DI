@@ -1,64 +1,39 @@
 ﻿namespace Pico.DI.Abs;
 
 /// <summary>
-/// Represents a dependency injection container for registering service descriptors and creating scopes.
-/// 
-/// DESIGN NOTE: Zero-Reflection Compile-Time Architecture
-/// ========================================================
-/// 
-/// This container implements a compile-time factory generation architecture:
-/// 
-/// 1. Extension methods like RegisterSingleton<T, TImpl>() are PLACEHOLDERS.
-///    - They do nothing at runtime (return container unchanged)
-///    - They are SCANNED by the Roslyn source generator at compile-time
-///    
-/// 2. The source generator (Pico.DI.Gen) analyzes these calls and generates
-///    a ConfigureGeneratedServices() extension method that:
-///    - Analyzes constructor parameters of each implementation type
-///    - Generates explicit factory code (no reflection)
-///    - Calls this Register(SvcDescriptor) method with pre-built SvcDescriptor instances
-///    
-/// 3. Each SvcDescriptor contains a pre-compiled factory delegate with all
-///    dependencies statically resolved at compile-time
-///    
-/// 4. At runtime, GetService() simply calls the pre-generated factory
-///    (no reflection, no dynamic type discovery)
-/// 
-/// This design ensures:
-/// - ✅ Zero runtime reflection
-/// - ✅ AOT-compatible (Native AOT, IL trimming)
-/// - ✅ All errors caught at compile-time
-/// - ✅ Maximum performance (direct code execution)
-/// - ✅ Explicit, debuggable factory code
+/// Represents a dependency injection container that manages service registrations and scope creation.
 /// </summary>
 public interface ISvcContainer : IDisposable, IAsyncDisposable
 {
     /// <summary>
-    /// Registers a service descriptor in the container.
-    /// 
-    /// NOTE: This method is called by the source-generated ConfigureGeneratedServices() method
-    /// with pre-built SvcDescriptor instances containing compile-time-generated factory delegates.
-    /// The SvcDescriptor should already contain a fully-constructed factory; this method
-    /// simply adds it to the descriptor cache without any factory generation or reflection.
+    /// Registers a service descriptor with the container.
     /// </summary>
-    /// <param name="descriptor">The service descriptor to register (with pre-built factory).</param>
+    /// <param name="descriptor">The service descriptor containing service type, factory, and lifetime information.</param>
     /// <returns>The container instance for method chaining.</returns>
     ISvcContainer Register(SvcDescriptor descriptor);
 
     /// <summary>
-    /// Creates a new service resolution scope.
+    /// Creates a new service scope for resolving scoped services.
     /// </summary>
-    /// <returns>A new <see cref="ISvcScope"/> instance.</returns>
+    /// <returns>A new service scope instance.</returns>
     ISvcScope CreateScope();
 }
 
+/// <summary>
+/// Provides extension methods for <see cref="ISvcContainer"/> to simplify service registration.
+/// </summary>
 public static class SvcContainerExtensions
 {
-    // Add by type - these methods handle both regular types and open generics
-    // For non-open generics, the Source Generator generates factory-based registration
-    // For open generics, they are registered directly with the descriptor
     extension(ISvcContainer container)
     {
+        /// <summary>
+        /// Registers a service with the specified implementation type and lifetime.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="implementType">The implementation type.</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        /// <exception cref="SourceGeneratorRequiredException">Thrown when source generator registration is required but not available.</exception>
         public ISvcContainer Register(Type serviceType, Type implementType, SvcLifetime lifetime)
         {
             // Automatically detect and handle open generic types
@@ -69,11 +44,19 @@ public static class SvcContainerExtensions
                     implementType,
                     lifetime));
             }
+
             throw new SourceGeneratorRequiredException(
                 "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
             );
         }
 
+        /// <summary>
+        /// Registers a service type as its own implementation with the specified lifetime.
+        /// </summary>
+        /// <param name="serviceType">The service type to register (also used as implementation).</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        /// <exception cref="SourceGeneratorRequiredException">Thrown when source generator registration is required but not available.</exception>
         public ISvcContainer Register(Type serviceType, SvcLifetime lifetime)
         {
             // Automatically detect and handle open generic types
@@ -84,29 +67,41 @@ public static class SvcContainerExtensions
                     serviceType,
                     lifetime));
             }
+
             throw new SourceGeneratorRequiredException(
                 "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
             );
         }
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a service with the specified implementation type and lifetime.
+        /// This is a placeholder for source generator to provide the actual implementation.
         /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <typeparam name="TImplementation">The implementation type.</typeparam>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer Register<TService, TImplementation>(SvcLifetime lifetime)
             where TImplementation : TService => container;
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a service type as its own implementation with the specified lifetime.
+        /// This is a placeholder for source generator to provide the actual implementation.
         /// </summary>
+        /// <typeparam name="TService">The service type (also used as implementation).</typeparam>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer Register<TService>(SvcLifetime lifetime)
             where TService : class => container;
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a service with the specified implementation type and lifetime.
+        /// This is a placeholder for source generator to provide the actual implementation.
         /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="implementType">The implementation type.</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer Register<TService>(Type implementType, SvcLifetime lifetime)
             where TService : class => container;
     }
@@ -114,14 +109,36 @@ public static class SvcContainerExtensions
     // Add by factory
     extension(ISvcContainer container)
     {
+        /// <summary>
+        /// Registers a service with a factory function and specified lifetime.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer Register(Type serviceType,
             Func<ISvcScope, object> factory, SvcLifetime lifetime) =>
             container.Register(new SvcDescriptor(serviceType, factory, lifetime));
 
+        /// <summary>
+        /// Registers a service with a factory function and specified lifetime.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer Register<TService>(Func<ISvcScope, TService> factory, SvcLifetime lifetime)
             where TService : class =>
             container.Register(new SvcDescriptor(typeof(TService), factory, lifetime));
 
+        /// <summary>
+        /// Registers a service with a factory function and specified lifetime.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <typeparam name="TImplementation">The implementation type returned by the factory.</typeparam>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer Register<TService, TImplementation>(Func<ISvcScope, TImplementation> factory, SvcLifetime lifetime)
             where TService : class
             where TImplementation : class =>
@@ -133,6 +150,14 @@ public static class SvcContainerExtensions
     {
         #region Add by type - handles both regular and open generic types
 
+        /// <summary>
+        /// Registers a transient service with the specified implementation type.
+        /// A new instance is created each time the service is requested.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="implementType">The implementation type.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        /// <exception cref="SourceGeneratorRequiredException">Thrown when source generator registration is required but not available.</exception>
         public ISvcContainer RegisterTransient(Type serviceType, Type implementType)
         {
             // Automatically detect and handle open generic types
@@ -143,11 +168,19 @@ public static class SvcContainerExtensions
                     implementType,
                     SvcLifetime.Transient));
             }
+
             throw new SourceGeneratorRequiredException(
                 "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
             );
         }
 
+        /// <summary>
+        /// Registers a transient service type as its own implementation.
+        /// A new instance is created each time the service is requested.
+        /// </summary>
+        /// <param name="serviceType">The service type to register (also used as implementation).</param>
+        /// <returns>The container instance for method chaining.</returns>
+        /// <exception cref="SourceGeneratorRequiredException">Thrown when source generator registration is required but not available.</exception>
         public ISvcContainer RegisterTransient(Type serviceType)
         {
             // Automatically detect and handle open generic types
@@ -158,29 +191,38 @@ public static class SvcContainerExtensions
                     serviceType,
                     SvcLifetime.Transient));
             }
+
             throw new SourceGeneratorRequiredException(
                 "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
             );
         }
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a transient service with the specified implementation type.
+        /// A new instance is created each time the service is requested.
         /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <typeparam name="TImplementation">The implementation type.</typeparam>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterTransient<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
             where TImplementation : TService => container;
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a transient service type as its own implementation.
+        /// A new instance is created each time the service is requested.
         /// </summary>
+        /// <typeparam name="TService">The service type (also used as implementation).</typeparam>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterTransient<TService>()
             where TService : class => container;
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a transient service with the specified implementation type.
+        /// A new instance is created each time the service is requested.
         /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="implementType">The implementation type.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterTransient<TService>(Type implementType)
             where TService : class => container;
 
@@ -188,14 +230,36 @@ public static class SvcContainerExtensions
 
         #region Add by factory
 
+        /// <summary>
+        /// Registers a transient service with a factory function.
+        /// A new instance is created each time the service is requested.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterTransient(Type serviceType,
             Func<ISvcScope, object> factory) =>
             container.Register(new SvcDescriptor(serviceType, factory, SvcLifetime.Transient));
 
+        /// <summary>
+        /// Registers a transient service with a factory function.
+        /// A new instance is created each time the service is requested.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterTransient<TService>(Func<ISvcScope, TService> factory)
             where TService : class =>
             container.Register(new SvcDescriptor(typeof(TService), factory, SvcLifetime.Transient));
 
+        /// <summary>
+        /// Registers a transient service with a factory function.
+        /// A new instance is created each time the service is requested.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <typeparam name="TImplementation">The implementation type returned by the factory.</typeparam>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterTransient<TService, TImplementation>(Func<ISvcScope, TImplementation> factory)
             where TService : class
             where TImplementation : class =>
@@ -209,6 +273,14 @@ public static class SvcContainerExtensions
     {
         #region Add by type - handles both regular and open generic types
 
+        /// <summary>
+        /// Registers a scoped service with the specified implementation type.
+        /// A single instance is created per scope.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="implementType">The implementation type.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        /// <exception cref="SourceGeneratorRequiredException">Thrown when source generator registration is required but not available.</exception>
         public ISvcContainer RegisterScoped(Type serviceType, Type implementType)
         {
             // Automatically detect and handle open generic types
@@ -219,11 +291,19 @@ public static class SvcContainerExtensions
                     implementType,
                     SvcLifetime.Scoped));
             }
+
             throw new SourceGeneratorRequiredException(
                 "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
             );
         }
 
+        /// <summary>
+        /// Registers a scoped service type as its own implementation.
+        /// A single instance is created per scope.
+        /// </summary>
+        /// <param name="serviceType">The service type to register (also used as implementation).</param>
+        /// <returns>The container instance for method chaining.</returns>
+        /// <exception cref="SourceGeneratorRequiredException">Thrown when source generator registration is required but not available.</exception>
         public ISvcContainer RegisterScoped(Type serviceType)
         {
             // Automatically detect and handle open generic types
@@ -234,29 +314,38 @@ public static class SvcContainerExtensions
                     serviceType,
                     SvcLifetime.Scoped));
             }
+
             throw new SourceGeneratorRequiredException(
                 "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
             );
         }
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a scoped service with the specified implementation type.
+        /// A single instance is created per scope.
         /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <typeparam name="TImplementation">The implementation type.</typeparam>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterScoped<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
             where TImplementation : TService => container;
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a scoped service type as its own implementation.
+        /// A single instance is created per scope.
         /// </summary>
+        /// <typeparam name="TService">The service type (also used as implementation).</typeparam>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterScoped<TService>()
             where TService : class => container;
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a scoped service with the specified implementation type.
+        /// A single instance is created per scope.
         /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="implementType">The implementation type.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterScoped<TService>(Type implementType)
             where TService : class => container;
 
@@ -264,14 +353,36 @@ public static class SvcContainerExtensions
 
         #region Add by factory
 
+        /// <summary>
+        /// Registers a scoped service with a factory function.
+        /// A single instance is created per scope.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterScoped(Type serviceType,
             Func<ISvcScope, object> factory) =>
             container.Register(new SvcDescriptor(serviceType, factory, SvcLifetime.Scoped));
 
+        /// <summary>
+        /// Registers a scoped service with a factory function.
+        /// A single instance is created per scope.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterScoped<TService>(Func<ISvcScope, TService> factory)
             where TService : class =>
             container.Register(new SvcDescriptor(typeof(TService), factory, SvcLifetime.Scoped));
 
+        /// <summary>
+        /// Registers a scoped service with a factory function.
+        /// A single instance is created per scope.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <typeparam name="TImplementation">The implementation type returned by the factory.</typeparam>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterScoped<TService, TImplementation>(Func<ISvcScope, TImplementation> factory)
             where TService : class
             where TImplementation : class =>
@@ -285,6 +396,14 @@ public static class SvcContainerExtensions
     {
         #region Add by type - handles both regular and open generic types
 
+        /// <summary>
+        /// Registers a singleton service with the specified implementation type.
+        /// A single instance is shared across the entire application.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="implementType">The implementation type.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        /// <exception cref="SourceGeneratorRequiredException">Thrown when source generator registration is required but not available.</exception>
         public ISvcContainer RegisterSingleton(Type serviceType, Type implementType)
         {
             // Automatically detect and handle open generic types
@@ -295,11 +414,19 @@ public static class SvcContainerExtensions
                     implementType,
                     SvcLifetime.Singleton));
             }
+
             throw new SourceGeneratorRequiredException(
                 "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
             );
         }
 
+        /// <summary>
+        /// Registers a singleton service type as its own implementation.
+        /// A single instance is shared across the entire application.
+        /// </summary>
+        /// <param name="serviceType">The service type to register (also used as implementation).</param>
+        /// <returns>The container instance for method chaining.</returns>
+        /// <exception cref="SourceGeneratorRequiredException">Thrown when source generator registration is required but not available.</exception>
         public ISvcContainer RegisterSingleton(Type serviceType)
         {
             // Automatically detect and handle open generic types
@@ -310,29 +437,38 @@ public static class SvcContainerExtensions
                     serviceType,
                     SvcLifetime.Singleton));
             }
+
             throw new SourceGeneratorRequiredException(
                 "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
             );
         }
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a singleton service with the specified implementation type.
+        /// A single instance is shared across the entire application.
         /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <typeparam name="TImplementation">The implementation type.</typeparam>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingleton<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
             where TImplementation : TService => container;
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a singleton service type as its own implementation.
+        /// A single instance is shared across the entire application.
         /// </summary>
+        /// <typeparam name="TService">The service type (also used as implementation).</typeparam>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingleton<TService>()
             where TService : class => container;
 
         /// <summary>
-        /// Placeholder method scanned by source generator. Does nothing at runtime.
-        /// Actual registration is generated in ConfigureGeneratedServices().
+        /// Registers a singleton service with the specified implementation type.
+        /// A single instance is shared across the entire application.
         /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="implementType">The implementation type.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingleton<TService>(Type implementType)
             where TService : class => container;
 
@@ -340,14 +476,36 @@ public static class SvcContainerExtensions
 
         #region Add by factory
 
+        /// <summary>
+        /// Registers a singleton service with a factory function.
+        /// A single instance is shared across the entire application.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="factory">The factory function to create the service instance.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingleton(Type serviceType,
             Func<ISvcScope, object> factory) =>
             container.Register(new SvcDescriptor(serviceType, factory));
 
+        /// <summary>
+        /// Registers a singleton service with a factory function.
+        /// A single instance is shared across the entire application.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="factory">The factory function to create the service instance.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingleton<TService>(Func<ISvcScope, TService> factory)
             where TService : class =>
             container.Register(new SvcDescriptor(typeof(TService), factory));
 
+        /// <summary>
+        /// Registers a singleton service with a factory function.
+        /// A single instance is shared across the entire application.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <typeparam name="TImplementation">The implementation type returned by the factory.</typeparam>
+        /// <param name="factory">The factory function to create the service instance.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingleton<TService, TImplementation>(Func<ISvcScope, TImplementation> factory)
             where TService : class
             where TImplementation : class =>
@@ -357,11 +515,23 @@ public static class SvcContainerExtensions
 
         #region Add by instance
 
+        /// <summary>
+        /// Registers a pre-created instance as a singleton service.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="instance">The pre-created instance.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingle(
             Type serviceType,
             object instance
         ) => container.Register(new SvcDescriptor(serviceType, instance));
 
+        /// <summary>
+        /// Registers a pre-created instance as a singleton service.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="instance">The pre-created instance.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingle<TService
         >(object instance) =>
             container.Register(new SvcDescriptor(typeof(TService), instance));
@@ -374,14 +544,16 @@ public static class SvcContainerExtensions
     {
         /// <summary>
         /// Registers multiple service descriptors at once.
-        /// Useful for registering generated descriptors.
         /// </summary>
+        /// <param name="descriptors">The collection of service descriptors to register.</param>
+        /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterRange(IEnumerable<SvcDescriptor> descriptors)
         {
             foreach (var descriptor in descriptors)
             {
                 container.Register(descriptor);
             }
+
             return container;
         }
     }
