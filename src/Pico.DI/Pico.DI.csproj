@@ -18,21 +18,40 @@
         <PackageId>Pico.DI</PackageId>
         <Version>1.0.0</Version>
         <Authors>Pico.DI Contributors</Authors>
-        <Description>A lightweight, zero-reflection, AOT-compatible dependency injection container for .NET</Description>
-        <PackageTags>DI;IoC;AOT;Dependency Injection;Container</PackageTags>
+        <Description>A lightweight, zero-reflection, AOT-compatible dependency injection container for .NET with compile-time source generation</Description>
+        <PackageTags>DI;IoC;AOT;Dependency Injection;Container;Source Generator</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/pico-di/Pico.DI</PackageProjectUrl>
         <RepositoryUrl>https://github.com/pico-di/Pico.DI</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        
+        <!-- Include Source Generator in this package -->
+        <DevelopmentDependency>true</DevelopmentDependency>
     </PropertyGroup>
 
     <ItemGroup>
         <None Include="../../README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 
+    <!-- Reference to Abstractions - will become a NuGet dependency -->
     <ItemGroup>
         <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj" />
+    </ItemGroup>
+
+    <!-- Reference to Source Generator (compile-time only, not a runtime dependency) -->
+    <ItemGroup>
+        <ProjectReference Include="..\Pico.DI.Gen\Pico.DI.Gen.csproj" 
+                          OutputItemType="Analyzer" 
+                          ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+    <!-- Pack the Source Generator DLL into analyzers folder -->
+    <ItemGroup>
+        <None Include="..\Pico.DI.Gen\bin\$(Configuration)\netstandard2.0\Pico.DI.Gen.dll" 
+              Pack="true" 
+              PackagePath="analyzers/dotnet/cs" 
+              Visible="false" />
     </ItemGroup>
 
 </Project>
