@@ -13,6 +13,7 @@
     <Project Path="src\Pico.DI\Pico.DI.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Pico.DI.Gen.Test/Pico.DI.Gen.Test.csproj" />
     <Project Path="tests/Pico.DI.TUnit.Test/Pico.DI.TUnit.Test.csproj" />
     <Project Path="tests\Pico.DI.Test\Pico.DI.Test.csproj" />
   </Folder>
