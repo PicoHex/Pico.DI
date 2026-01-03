@@ -1055,53 +1055,6 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Try to get a type symbol by its full name including generic arguments.
-    /// </summary>
-    private static INamedTypeSymbol? GetTypeByMetadataName(Compilation compilation, string fullName)
-    {
-        // For closed generic types, we need to construct them from the open generic
-        // Parse out the base type and type arguments
-        var angleBracketIndex = fullName.IndexOf('<');
-        if (angleBracketIndex < 0)
-        {
-            var cleanName = fullName.Replace("global::", "");
-            return compilation.GetTypeByMetadataName(cleanName);
-        }
-
-        var baseName = fullName.Substring(0, angleBracketIndex).Replace("global::", "");
-        var typeArgsStr = fullName.Substring(
-            angleBracketIndex + 1,
-            fullName.Length - angleBracketIndex - 2
-        );
-
-        // Parse type arguments (simple split by ", " - may need more robust parsing for nested generics)
-        var typeArgNames = ParseTypeArguments(typeArgsStr);
-
-        // Get arity for open generic lookup
-        var arity = typeArgNames.Count;
-        var metadataName = $"{baseName}`{arity}";
-
-        var openType = compilation.GetTypeByMetadataName(metadataName);
-        if (openType is null)
-            return null;
-
-        // Get type argument symbols
-        var typeArgSymbols = new List<ITypeSymbol>();
-        foreach (
-            var argType in typeArgNames.Select(
-                argName => GetTypeByMetadataName(compilation, argName)
-            )
-        )
-        {
-            if (argType is null)
-                return null;
-            typeArgSymbols.Add(argType);
-        }
-
-        return openType.Construct(typeArgSymbols.ToArray());
-    }
-
-    /// <summary>
     /// Parse type arguments from a string like "global::Ns.Type1, global::Ns.Type2".
     /// Handles nested generics.
     /// </summary>
@@ -1129,36 +1082,6 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             result.Add(typeArgsStr.Substring(start).Trim());
 
         return result;
-    }
-
-    /// <summary>
-    /// Attempt to parse a closed generic type full name (from constructor parameters)
-    /// into a ClosedGenericUsage instance. Returns null if not a closed generic.
-    /// Example: "global::Ns.ILog<global::Ns.UserService>" -> Open: "global::Ns.ILog<>", Args: ["global::Ns.UserService"]
-    /// </summary>
-    private static ClosedGenericUsage? ParseClosedGenericUsageFromTypeFullName(string typeFullName)
-    {
-        if (string.IsNullOrEmpty(typeFullName))
-            return null;
-
-        var angleBracketIndex = typeFullName.IndexOf('<');
-        if (angleBracketIndex < 0)
-            return null; // not a generic type
-
-        var baseName = typeFullName.Substring(0, angleBracketIndex);
-        var openServiceTypeFullName = baseName + "<>";
-
-        // Extract type arguments substring and parse, handling nested generics
-        if (typeFullName.Length <= angleBracketIndex + 1)
-            return null;
-
-        var typeArgsStr = typeFullName.Substring(
-            angleBracketIndex + 1,
-            typeFullName.Length - angleBracketIndex - 2
-        );
-        var typeArgs = ParseTypeArguments(typeArgsStr).ToImmutableArray();
-
-        return new ClosedGenericUsage(typeFullName, openServiceTypeFullName, typeArgs);
     }
 
     private static ServiceRegistration? AnalyzeInvocation(
