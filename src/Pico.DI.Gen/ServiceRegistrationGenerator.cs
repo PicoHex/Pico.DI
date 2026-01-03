@@ -460,13 +460,15 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             .Where(typeFullName => typeFullName.Contains("<")) // simple heuristic for generics
             .Select(typeFullName =>
             {
-                var full = typeFullName;
-                var angleIdx = full.IndexOf('<');
+                var angleIdx = typeFullName.IndexOf('<');
                 if (angleIdx < 0)
                     return null;
 
-                var baseName = full.Substring(0, angleIdx);
-                var typeArgsStr = full.Substring(angleIdx + 1, full.Length - angleIdx - 2);
+                var baseName = typeFullName.Substring(0, angleIdx);
+                var typeArgsStr = typeFullName.Substring(
+                    angleIdx + 1,
+                    typeFullName.Length - angleIdx - 2
+                );
                 var argList = ParseTypeArguments(typeArgsStr).ToImmutableArray();
 
                 // Build open generic form matching AnalyzeOpenGenericInvocation output, e.g., global::Ns.ILog<> or global::Ns.IGeneric<,>
@@ -477,7 +479,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 // Exclude System types
                 return baseName.StartsWith("global::System")
                     ? null
-                    : new ClosedGenericUsage(full, openFullName, argList);
+                    : new ClosedGenericUsage(typeFullName, openFullName, argList);
             })
             .Where(x => x is not null)
             .Cast<ClosedGenericUsage>()
@@ -648,16 +650,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         foreach (var serviceType in serviceTypes)
         {
-            if (DetectCycleDfs(serviceType, dependencyGraph, visited, recursionStack, path, cycles))
-            {
-                // Found a cycle, already added to cycles list
-            }
+            DetectCycleDfs(serviceType, dependencyGraph, visited, recursionStack, path, cycles);
         }
 
         return cycles;
     }
 
-    private static bool DetectCycleDfs(
+    private static void DetectCycleDfs(
         string current,
         Dictionary<string, HashSet<string>> graph,
         HashSet<string> visited,
@@ -671,18 +670,19 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             // Found a cycle - extract the cycle path
             var cycleStart = path.IndexOf(current);
             if (cycleStart < 0)
-                return true;
+                return;
             var cyclePath = path.Skip(cycleStart).Append(current).ToList();
             var cycleStr = string.Join(" -> ", cyclePath.Select(GetSimpleName));
             if (!cycles.Contains(cycleStr))
             {
                 cycles.Add(cycleStr);
             }
-            return true;
+
+            return;
         }
 
         if (!visited.Add(current))
-            return false;
+            return;
 
         recursionStack.Add(current);
         path.Add(current);
@@ -697,7 +697,6 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         path.RemoveAt(path.Count - 1);
         recursionStack.Remove(current);
-        return false;
     }
 
     /// <summary>
@@ -732,13 +731,12 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             if (arg.Expression is TypeOfExpressionSyntax typeOfExpr)
             {
                 var typeSymbol = semanticModel.GetTypeInfo(typeOfExpr.Type).Type;
-                if (typeSymbol is INamedTypeSymbol { IsUnboundGenericType: true } unboundType)
-                {
-                    if (serviceType is null)
-                        serviceType = unboundType;
-                    else
-                        implementationType = unboundType;
-                }
+                if (typeSymbol is not INamedTypeSymbol { IsUnboundGenericType: true } unboundType)
+                    continue;
+                if (serviceType is null)
+                    serviceType = unboundType;
+                else
+                    implementationType = unboundType;
             }
             else
             {
@@ -1010,14 +1008,18 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         for (var i = 0; i < typeArgsStr.Length; i++)
         {
             var c = typeArgsStr[i];
-            if (c == '<')
-                depth++;
-            else if (c == '>')
-                depth--;
-            else if (c == ',' && depth == 0)
+            switch (c)
             {
-                result.Add(typeArgsStr.Substring(start, i - start).Trim());
-                start = i + 1;
+                case '<':
+                    depth++;
+                    break;
+                case '>':
+                    depth--;
+                    break;
+                case ',' when depth == 0:
+                    result.Add(typeArgsStr.Substring(start, i - start).Trim());
+                    start = i + 1;
+                    break;
             }
         }
 
