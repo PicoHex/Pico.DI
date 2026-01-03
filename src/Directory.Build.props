@@ -1,0 +1,15 @@
+<Project>
+    <!-- Shared version for all Pico.DI packages -->
+    <PropertyGroup>
+        <PicoDIVersion>1.0.0</PicoDIVersion>
+    </PropertyGroup>
+    
+    <!-- Common package metadata -->
+    <PropertyGroup>
+        <Authors>Pico.DI Contributors</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/pico-di/Pico.DI</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/pico-di/Pico.DI</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+</Project>

@@ -57,12 +57,13 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
         );
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        ImmutableArray.Create(
+
+        [
             UnregisteredDependencyRule,
             CircularDependencyRule,
             AbstractTypeRegistrationRule,
             MissingPublicConstructorRule
-        );
+        ];
 
     public override void Initialize(AnalysisContext context)
     {
@@ -101,19 +102,23 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
 
         // Check if it's a factory-based registration - multiple detection methods
         // 1. Check if any argument is a lambda expression or anonymous method
-        var hasLambda = invocation.ArgumentList.Arguments.Any(arg =>
-            arg.Expression is LambdaExpressionSyntax
-            || arg.Expression is AnonymousMethodExpressionSyntax
-            || arg.Expression is AnonymousFunctionExpressionSyntax
-        );
+        var hasLambda = invocation
+            .ArgumentList
+            .Arguments
+            .Any(
+                arg =>
+                    arg.Expression is LambdaExpressionSyntax
+                    || arg.Expression is AnonymousMethodExpressionSyntax
+                    || arg.Expression is AnonymousFunctionExpressionSyntax
+            );
 
         if (hasLambda)
             return;
 
         // 2. Check if the method has a Func parameter (covers delegate and method group cases)
-        var hasFactoryParameter = methodSymbol.Parameters.Any(p =>
-            p.Type is INamedTypeSymbol { Name: "Func" }
-        );
+        var hasFactoryParameter = methodSymbol
+            .Parameters
+            .Any(p => p.Type is INamedTypeSymbol { Name: "Func" });
 
         if (hasFactoryParameter && invocation.ArgumentList.Arguments.Count > 0)
             return;
@@ -126,70 +131,65 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
             _ => null
         };
 
-        if (genericNameSyntax?.TypeArgumentList.Arguments.Count > 0)
+        if (genericNameSyntax?.TypeArgumentList.Arguments.Count is null or 0)
+            return;
+        var typeArgs = genericNameSyntax.TypeArgumentList.Arguments;
+
+        // Skip placeholder methods (type-based registration scanned by Source Generator)
+        // These are methods with only type arguments and possibly Type/SvcLifetime arguments
+        // but no factory. They return container immediately and real registration is generated.
+        // We only want to analyze Register<TService, TImplementation>() where both types are concrete.
+        if (typeArgs.Count == 1)
         {
-            var typeArgs = genericNameSyntax.TypeArgumentList.Arguments;
+            // Self-registration like Register<TService>() - skip unless it has a concrete type
+            // These are placeholder methods for Source Generator
+            return;
+        }
 
-            // Skip placeholder methods (type-based registration scanned by Source Generator)
-            // These are methods with only type arguments and possibly Type/SvcLifetime arguments
-            // but no factory. They return container immediately and real registration is generated.
-            // We only want to analyze Register<TService, TImplementation>() where both types are concrete.
-            if (typeArgs.Count == 1)
-            {
-                // Self-registration like Register<TService>() - skip unless it has a concrete type
-                // These are placeholder methods for Source Generator
-                return;
-            }
+        // For Register<TService, TImplementation>() - check the implementation type (last type arg)
+        var implementationTypeArg = typeArgs.Last();
+        var implementationType = context.SemanticModel.GetTypeInfo(implementationTypeArg).Type;
 
-            // For Register<TService, TImplementation>() - check the implementation type (last type arg)
-            var implementationTypeArg = typeArgs.Last();
-            var implementationType = context.SemanticModel.GetTypeInfo(implementationTypeArg).Type;
-
-            if (implementationType != null)
-            {
-                // Check if implementation is abstract or interface
-                if (
-                    implementationType.TypeKind == TypeKind.Interface
-                    || implementationType.IsAbstract
+        if (implementationType == null)
+            return;
+        // Check if implementation is abstract or interface
+        if (implementationType.TypeKind == TypeKind.Interface || implementationType.IsAbstract)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    AbstractTypeRegistrationRule,
+                    implementationTypeArg.GetLocation(),
+                    implementationType.Name
                 )
-                {
-                    context.ReportDiagnostic(
-                        Diagnostic.Create(
-                            AbstractTypeRegistrationRule,
-                            implementationTypeArg.GetLocation(),
-                            implementationType.Name
-                        )
-                    );
-                    return;
-                }
+            );
+            return;
+        }
 
-                // Check for public constructor
-                if (implementationType is INamedTypeSymbol namedType)
-                {
-                    var hasPublicConstructor = namedType.Constructors.Any(c =>
-                        !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public
-                    );
+        // Check for public constructor
+        if (implementationType is not INamedTypeSymbol namedType)
+            return;
+        var hasPublicConstructor = namedType
+            .Constructors
+            .Any(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public);
 
-                    if (!hasPublicConstructor && !implementationType.IsValueType)
-                    {
-                        context.ReportDiagnostic(
-                            Diagnostic.Create(
-                                MissingPublicConstructorRule,
-                                implementationTypeArg.GetLocation(),
-                                implementationType.Name
-                            )
-                        );
-                    }
-                }
-            }
+        if (!hasPublicConstructor && !implementationType.IsValueType)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    MissingPublicConstructorRule,
+                    implementationTypeArg.GetLocation(),
+                    implementationType.Name
+                )
+            );
         }
     }
 
     private static bool IsRegisterMethod(string methodName)
     {
-        return methodName == "Register"
-            || methodName == "RegisterTransient"
-            || methodName == "RegisterScoped"
-            || methodName == "RegisterSingleton";
+        return methodName
+            is "Register"
+                or "RegisterTransient"
+                or "RegisterScoped"
+                or "RegisterSingleton";
     }
 }

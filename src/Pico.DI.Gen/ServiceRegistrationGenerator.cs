@@ -33,8 +33,7 @@ internal record OpenGenericConstructorParameter(
     string TypeFullName,
     string TypeName,
     string ParameterName,
-    bool IsTypeParameter, // Whether it is a type parameter itself (e.g., T)
-    bool ContainsTypeParameter // Whether it contains a type parameter (e.g., ILogger<T>)
+    bool IsTypeParameter // Whether it is a type parameter itself (e.g., T)
 );
 
 /// <summary>
@@ -194,11 +193,11 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Skip System types
         var ns = namedType.ContainingNamespace?.ToDisplayString() ?? "";
-        if (ns.StartsWith("System"))
-            return null;
-
-        // Create a dummy invocation info - we only need the type
-        return new ClosedGenericUsageInfo(null!, semanticModel, namedType);
+        return ns.StartsWith("System")
+            ? null
+            :
+            // Create a dummy invocation info - we only need the type
+            new ClosedGenericUsageInfo(null!, semanticModel, namedType);
     }
 
     /// <summary>
@@ -236,19 +235,17 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         };
 
         // Check for Register* methods with typeof() arguments that might be open generics
-        if (methodName is not null && RegisterMethodNames.Any(m => methodName.StartsWith(m)))
+        if (methodName is null || !RegisterMethodNames.Any(m => methodName.StartsWith(m)))
+            return false;
+        // Look for typeof(T<>) patterns in arguments
+        foreach (var arg in invocation.ArgumentList.Arguments)
         {
-            // Look for typeof(T<>) patterns in arguments
-            foreach (var arg in invocation.ArgumentList.Arguments)
-            {
-                if (arg.Expression is TypeOfExpressionSyntax typeOfExpr)
-                {
-                    // Check if it looks like an open generic (has <> in the text)
-                    var typeText = typeOfExpr.Type.ToString();
-                    if (typeText.Contains("<>") || typeText.Contains("<,"))
-                        return true;
-                }
-            }
+            if (arg.Expression is not TypeOfExpressionSyntax typeOfExpr)
+                continue;
+            // Check if it looks like an open generic (has <> in the text)
+            var typeText = typeOfExpr.Type.ToString();
+            if (typeText.Contains("<>") || typeText.Contains("<,"))
+                return true;
         }
 
         return false;
@@ -277,12 +274,11 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         // Exclude invocations with typeof(T<>) which are open generic registrations
         foreach (var arg in invocation.ArgumentList.Arguments)
         {
-            if (arg.Expression is TypeOfExpressionSyntax typeOfExpr)
-            {
-                var typeText = typeOfExpr.Type.ToString();
-                if (typeText.Contains("<>") || typeText.Contains("<,"))
-                    return false;
-            }
+            if (arg.Expression is not TypeOfExpressionSyntax typeOfExpr)
+                continue;
+            var typeText = typeOfExpr.Type.ToString();
+            if (typeText.Contains("<>") || typeText.Contains("<,"))
+                return false;
         }
 
         return true;
@@ -334,10 +330,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             return null;
 
         var methodName = methodSymbol.Name;
-        if (!RegisterMethodNames.Contains(methodName))
-            return null;
-
-        return new InvocationInfo(invocation, semanticModel);
+        return !RegisterMethodNames.Contains(methodName)
+            ? null
+            : new InvocationInfo(invocation, semanticModel);
     }
 
     private record InvocationInfo(
@@ -396,18 +391,16 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         var methodName = methodSymbol.Name;
 
         // Check if it's a Register* method with open generic arguments
-        if (RegisterMethodNames.Contains(methodName))
+        if (!RegisterMethodNames.Contains(methodName))
+            return null;
+        // Verify it has open generic type arguments
+        foreach (var arg in invocation.ArgumentList.Arguments)
         {
-            // Verify it has open generic type arguments
-            foreach (var arg in invocation.ArgumentList.Arguments)
-            {
-                if (arg.Expression is TypeOfExpressionSyntax typeOfExpr)
-                {
-                    var typeSymbol = semanticModel.GetTypeInfo(typeOfExpr.Type).Type;
-                    if (typeSymbol is INamedTypeSymbol { IsUnboundGenericType: true })
-                        return new OpenGenericInvocationInfo(invocation, semanticModel);
-                }
-            }
+            if (arg.Expression is not TypeOfExpressionSyntax typeOfExpr)
+                continue;
+            var typeSymbol = semanticModel.GetTypeInfo(typeOfExpr.Type).Type;
+            if (typeSymbol is INamedTypeSymbol { IsUnboundGenericType: true })
+                return new OpenGenericInvocationInfo(invocation, semanticModel);
         }
 
         return null;
@@ -446,10 +439,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Skip if it's IEnumerable<T> or other system types
         var ns = namedType.ContainingNamespace?.ToDisplayString() ?? "";
-        if (ns.StartsWith("System"))
-            return null;
-
-        return new ClosedGenericUsageInfo(invocation, semanticModel, namedType);
+        return ns.StartsWith("System")
+            ? null
+            : new ClosedGenericUsageInfo(invocation, semanticModel, namedType);
     }
 
     private static void Execute(
@@ -464,7 +456,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         // Process regular registrations
         var registrations = invocations
             .Where(x => x is not null)
-            .Select(x => AnalyzeInvocation(x!.Invocation, x.SemanticModel, compilation))
+            .Select(x => AnalyzeInvocation(x!.Invocation, x.SemanticModel))
             .OfType<ServiceRegistration>()
             .Distinct()
             .ToList();
@@ -495,10 +487,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             .ToList();
 
         // Merge declaration usages
-        foreach (var du in declarationClosedUsages)
+        foreach (var du in declarationClosedUsages.Where(du => !closedUsages.Contains(du)))
         {
-            if (!closedUsages.Contains(du))
-                closedUsages.Add(du);
+            closedUsages.Add(du);
         }
 
         // Also detect closed generic usages referenced in constructor parameters of registered services
@@ -522,10 +513,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 var openFullName = $"{baseName}<{openGenericArityPlaceholder}>";
 
                 // Exclude System types
-                if (baseName.StartsWith("global::System"))
-                    return null;
-
-                return new ClosedGenericUsage(full, openFullName, argList);
+                return baseName.StartsWith("global::System")
+                    ? null
+                    : new ClosedGenericUsage(full, openFullName, argList);
             })
             .Where(x => x is not null)
             .Cast<ClosedGenericUsage>()
@@ -533,18 +523,16 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             .ToList();
 
         // Merge closed usages from GetService<T> and from constructor parameters
-        foreach (var cu in ctorClosedUsages)
+        foreach (var cu in ctorClosedUsages.Where(cu => !closedUsages.Contains(cu)))
         {
-            if (!closedUsages.Contains(cu))
-                closedUsages.Add(cu);
+            closedUsages.Add(cu);
         }
 
         // Auto-infer service-associated generics (e.g., ILogger<ServiceType> for each registered service)
         var inferredServiceGenerics = InferServiceAssociatedGenerics(registrations, openGenerics);
-        foreach (var ig in inferredServiceGenerics)
+        foreach (var ig in inferredServiceGenerics.Where(ig => !closedUsages.Contains(ig)))
         {
-            if (!closedUsages.Contains(ig))
-                closedUsages.Add(ig);
+            closedUsages.Add(ig);
         }
 
         // Generate closed generic registrations from open generic + usages
@@ -647,21 +635,20 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 );
 
                 // Also generate for service type if different (e.g., ILogger<IUserService>)
-                if (reg.ServiceTypeFullName != reg.ImplementationTypeFullName)
-                {
-                    var closedForServiceInterface = BuildClosedGenericTypeName(
+                if (reg.ServiceTypeFullName == reg.ImplementationTypeFullName)
+                    continue;
+                var closedForServiceInterface = BuildClosedGenericTypeName(
+                    og.OpenServiceTypeFullName,
+                    [reg.ServiceTypeFullName]
+                );
+
+                inferred.Add(
+                    new ClosedGenericUsage(
+                        closedForServiceInterface,
                         og.OpenServiceTypeFullName,
                         [reg.ServiceTypeFullName]
-                    );
-
-                    inferred.Add(
-                        new ClosedGenericUsage(
-                            closedForServiceInterface,
-                            og.OpenServiceTypeFullName,
-                            [reg.ServiceTypeFullName]
-                        )
-                    );
-                }
+                    )
+                );
             }
         }
 
@@ -722,22 +709,20 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         {
             // Found a cycle - extract the cycle path
             var cycleStart = path.IndexOf(current);
-            if (cycleStart >= 0)
+            if (cycleStart < 0)
+                return true;
+            var cyclePath = path.Skip(cycleStart).Append(current).ToList();
+            var cycleStr = string.Join(" -> ", cyclePath.Select(GetSimpleName));
+            if (!cycles.Contains(cycleStr))
             {
-                var cyclePath = path.Skip(cycleStart).Append(current).ToList();
-                var cycleStr = string.Join(" -> ", cyclePath.Select(GetSimpleName));
-                if (!cycles.Contains(cycleStr))
-                {
-                    cycles.Add(cycleStr);
-                }
+                cycles.Add(cycleStr);
             }
             return true;
         }
 
-        if (visited.Contains(current))
+        if (!visited.Add(current))
             return false;
 
-        visited.Add(current);
         recursionStack.Add(current);
         path.Add(current);
 
@@ -864,34 +849,15 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             {
                 var typeFullName = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
                 var isTypeParam = p.Type is ITypeParameterSymbol;
-                var containsTypeParam = ContainsTypeParameter(p.Type, typeParameterNames);
 
                 return new OpenGenericConstructorParameter(
                     typeFullName,
                     p.Type.Name,
                     p.Name,
-                    isTypeParam,
-                    containsTypeParam
+                    isTypeParam
                 );
             })
         ];
-    }
-
-    /// <summary>
-    /// Checks whether a type contains any of the specified type parameters.
-    /// </summary>
-    private static bool ContainsTypeParameter(
-        ITypeSymbol type,
-        ImmutableArray<string> typeParameterNames
-    )
-    {
-        if (type is ITypeParameterSymbol tp)
-            return typeParameterNames.Contains(tp.Name);
-
-        if (type is INamedTypeSymbol namedType && namedType.IsGenericType)
-            return namedType.TypeArguments.Any(ta => ContainsTypeParameter(ta, typeParameterNames));
-
-        return false;
     }
 
     /// <summary>
@@ -1121,9 +1087,12 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Get type argument symbols
         var typeArgSymbols = new List<ITypeSymbol>();
-        foreach (var argName in typeArgNames)
+        foreach (
+            var argType in typeArgNames.Select(
+                argName => GetTypeByMetadataName(compilation, argName)
+            )
+        )
         {
-            var argType = GetTypeByMetadataName(compilation, argName);
             if (argType is null)
                 return null;
             typeArgSymbols.Add(argType);
@@ -1194,8 +1163,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
     private static ServiceRegistration? AnalyzeInvocation(
         InvocationExpressionSyntax invocation,
-        SemanticModel semanticModel,
-        Compilation compilation
+        SemanticModel semanticModel
     )
     {
         // Get the method name
@@ -1412,12 +1380,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 sb.AppendLine($"            typeof({reg.ServiceTypeFullName}),");
 
                 // Generate inlined factory
-                var factoryCode = GenerateInlinedFactory(
-                    reg,
-                    registrationLookup,
-                    new HashSet<string>(),
-                    0
-                );
+                var factoryCode = GenerateInlinedFactory(reg, registrationLookup, [], 0);
                 sb.AppendLine($"            static scope => {factoryCode},");
                 sb.AppendLine($"            {lifetimeEnum}));");
             }
@@ -1454,12 +1417,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 }
                 else
                 {
-                    var factoryCode = GenerateInlinedFactory(
-                        reg,
-                        registrationLookup,
-                        new HashSet<string>(),
-                        4
-                    );
+                    var factoryCode = GenerateInlinedFactory(reg, registrationLookup, [], 4);
                     sb.AppendLine($"                {factoryCode}{comma}");
                 }
             }
@@ -1494,25 +1452,22 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         int indentLevel
     )
     {
-        var indent = new string(' ', 16 + indentLevel * 4);
-
         if (reg.ConstructorParameters.IsEmpty)
         {
             return $"new {reg.ImplementationTypeFullName}()";
         }
 
-        var paramExpressions = new List<string>();
-
-        foreach (var param in reg.ConstructorParameters)
-        {
-            var paramExpr = GenerateParameterExpression(
-                param.TypeFullName,
-                registrationLookup,
-                visitedTypes,
-                indentLevel + 1
-            );
-            paramExpressions.Add(paramExpr);
-        }
+        var paramExpressions = reg.ConstructorParameters
+            .Select(
+                param =>
+                    GenerateParameterExpression(
+                        param.TypeFullName,
+                        registrationLookup,
+                        visitedTypes,
+                        indentLevel + 1
+                    )
+            )
+            .ToList();
 
         if (paramExpressions.Count == 1)
         {
@@ -1552,25 +1507,22 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     )
     {
         // Check if we have a registration for this type
-        if (registrationLookup.TryGetValue(paramTypeFullName, out var depReg))
+        if (!registrationLookup.TryGetValue(paramTypeFullName, out var depReg))
+            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+        // Only inline Transient dependencies to avoid breaking singleton/scoped semantics
+        if (depReg.Lifetime != "Transient")
+            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+        // Check for circular dependency
+        if (visitedTypes.Contains(paramTypeFullName))
         {
-            // Only inline Transient dependencies to avoid breaking singleton/scoped semantics
-            if (depReg.Lifetime == "Transient")
-            {
-                // Check for circular dependency
-                if (visitedTypes.Contains(paramTypeFullName))
-                {
-                    // Fall back to GetService for circular references
-                    return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
-                }
-
-                // Mark as visited and recursively inline
-                var newVisited = new HashSet<string>(visitedTypes) { paramTypeFullName };
-                return GenerateInlinedFactory(depReg, registrationLookup, newVisited, indentLevel);
-            }
+            // Fall back to GetService for circular references
+            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
         }
 
+        // Mark as visited and recursively inline
+        var newVisited = new HashSet<string>(visitedTypes) { paramTypeFullName };
+        return GenerateInlinedFactory(depReg, registrationLookup, newVisited, indentLevel);
+
         // For Singleton, Scoped, or unknown dependencies, use GetService
-        return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
     }
 }

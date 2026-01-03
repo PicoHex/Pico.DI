@@ -16,14 +16,9 @@
     <!-- NuGet Package Metadata -->
     <PropertyGroup>
         <PackageId>Pico.DI</PackageId>
-        <Version>1.0.0</Version>
-        <Authors>Pico.DI Contributors</Authors>
+        <Version>$(PicoDIVersion)</Version>
         <Description>A lightweight, zero-reflection, AOT-compatible dependency injection container for .NET with compile-time source generation</Description>
         <PackageTags>DI;IoC;AOT;Dependency Injection;Container;Source Generator</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageProjectUrl>https://github.com/pico-di/Pico.DI</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/pico-di/Pico.DI</RepositoryUrl>
-        <RepositoryType>git</RepositoryType>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         
         <!-- Include Source Generator in this package -->
