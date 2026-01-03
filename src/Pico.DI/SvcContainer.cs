@@ -41,6 +41,7 @@
 public sealed class SvcContainer : ISvcContainer
 {
     private readonly ConcurrentDictionary<Type, SvcDescriptor[]> _descriptorCache = new();
+    private readonly ConcurrentBag<SvcScope> _rootScopes = new();
 
     /// <summary>
     /// Frozen (optimized) descriptor cache after Build() is called.
@@ -100,8 +101,12 @@ public sealed class SvcContainer : ISvcContainer
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
 
-        // Use frozen cache if available for better performance
-        return _frozenCache != null ? new SvcScope(_frozenCache) : new SvcScope(_descriptorCache);
+        // Create scope and track it for automatic disposal when container is disposed
+        var scope =
+            _frozenCache != null ? new SvcScope(_frozenCache) : new SvcScope(_descriptorCache);
+
+        _rootScopes.Add(scope);
+        return scope;
     }
 
     /// <inheritdoc />
@@ -111,6 +116,13 @@ public sealed class SvcContainer : ISvcContainer
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
 
+        // Dispose all root scopes first (which will recursively dispose their child scopes)
+        while (_rootScopes.TryTake(out var scope))
+        {
+            scope.Dispose();
+        }
+
+        // Then dispose singleton instances owned by the container
         foreach (var keyValuePair in _descriptorCache)
         {
             foreach (var svc in keyValuePair.Value)
@@ -131,6 +143,13 @@ public sealed class SvcContainer : ISvcContainer
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
 
+        // Dispose all root scopes first (which will recursively dispose their child scopes)
+        while (_rootScopes.TryTake(out var scope))
+        {
+            await scope.DisposeAsync();
+        }
+
+        // Then dispose singleton instances owned by the container
         foreach (
             var svc in _descriptorCache
                 .SelectMany(p => p.Value)

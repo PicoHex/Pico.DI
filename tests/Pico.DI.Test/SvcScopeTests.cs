@@ -263,4 +263,120 @@ public class SvcScopeTests : XUnitTestBase
     }
 
     #endregion
+
+    #region Child Scope Auto-Disposal Tests
+
+    [Fact]
+    public void ParentScope_Dispose_DisposesChildScopes()
+    {
+        // Arrange
+        using var container = new SvcContainer();
+        container.RegisterScoped<DisposableService>(_ => new DisposableService());
+
+        var parentScope = container.CreateScope();
+        var childScope = parentScope.CreateScope();
+        var grandchildScope = childScope.CreateScope();
+
+        var parentService = parentScope.GetService<DisposableService>();
+        var childService = childScope.GetService<DisposableService>();
+        var grandchildService = grandchildScope.GetService<DisposableService>();
+
+        // Act - dispose parent only
+        parentScope.Dispose();
+
+        // Assert - all services should be disposed (depth-first)
+        Assert.True(grandchildService.IsDisposed);
+        Assert.True(childService.IsDisposed);
+        Assert.True(parentService.IsDisposed);
+    }
+
+    [Fact]
+    public async Task ParentScope_DisposeAsync_DisposesChildScopes()
+    {
+        // Arrange
+        using var container = new SvcContainer();
+        container.RegisterScoped<AsyncDisposableService>(_ => new AsyncDisposableService());
+
+        var parentScope = container.CreateScope();
+        var childScope = parentScope.CreateScope();
+
+        var parentService = parentScope.GetService<AsyncDisposableService>();
+        var childService = childScope.GetService<AsyncDisposableService>();
+
+        // Act - dispose parent only
+        await parentScope.DisposeAsync();
+
+        // Assert - both services should be disposed
+        Assert.True(childService.IsDisposed);
+        Assert.True(parentService.IsDisposed);
+    }
+
+    [Fact]
+    public void ChildScope_DisposedByParent_CannotResolveServices()
+    {
+        // Arrange
+        using var container = new SvcContainer();
+        RegisterConsoleGreeter(container);
+
+        var parentScope = container.CreateScope();
+        var childScope = parentScope.CreateScope();
+
+        // Act - dispose parent
+        parentScope.Dispose();
+
+        // Assert - child scope should throw ObjectDisposedException
+        Assert.Throws<ObjectDisposedException>(() => childScope.GetService<IGreeter>());
+    }
+
+    [Fact]
+    public void ChildScope_DisposedIndependently_DoesNotAffectParent()
+    {
+        // Arrange
+        using var container = new SvcContainer();
+        container.RegisterScoped<DisposableService>(_ => new DisposableService());
+
+        using var parentScope = container.CreateScope();
+        var childScope = parentScope.CreateScope();
+
+        var parentService = parentScope.GetService<DisposableService>();
+        var childService = childScope.GetService<DisposableService>();
+
+        // Act - dispose child only
+        childScope.Dispose();
+
+        // Assert - child is disposed, parent is not
+        Assert.True(childService.IsDisposed);
+        Assert.False(parentService.IsDisposed);
+
+        // Parent should still work
+        var anotherService = parentScope.GetService<DisposableService>();
+        Assert.Same(parentService, anotherService);
+    }
+
+    [Fact]
+    public void MultipleChildScopes_AllDisposedByParent()
+    {
+        // Arrange
+        using var container = new SvcContainer();
+        container.RegisterScoped<DisposableService>(_ => new DisposableService());
+
+        var parentScope = container.CreateScope();
+        var child1 = parentScope.CreateScope();
+        var child2 = parentScope.CreateScope();
+        var child3 = parentScope.CreateScope();
+
+        var service1 = child1.GetService<DisposableService>();
+        var service2 = child2.GetService<DisposableService>();
+        var service3 = child3.GetService<DisposableService>();
+
+        // Act
+        parentScope.Dispose();
+
+        // Assert - all child services should be disposed
+        Assert.True(service1.IsDisposed);
+        Assert.True(service2.IsDisposed);
+        Assert.True(service3.IsDisposed);
+    }
+
+    #endregion
 }

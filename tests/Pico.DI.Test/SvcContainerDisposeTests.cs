@@ -293,4 +293,114 @@ public class SvcContainerDisposeTests : XUnitTestBase
     }
 
     #endregion
+
+    #region Container Auto-Disposes Root Scopes Tests
+
+    [Fact]
+    public void Container_Dispose_DisposesAllRootScopes()
+    {
+        // Arrange
+        var container = new SvcContainer();
+        container.RegisterScoped<DisposableService>(_ => new DisposableService());
+
+        var scope1 = container.CreateScope();
+        var scope2 = container.CreateScope();
+        var scope3 = container.CreateScope();
+
+        var service1 = scope1.GetService<DisposableService>();
+        var service2 = scope2.GetService<DisposableService>();
+        var service3 = scope3.GetService<DisposableService>();
+
+        // Act - dispose container only
+        container.Dispose();
+
+        // Assert - all scoped services should be disposed
+        Assert.True(service1.IsDisposed);
+        Assert.True(service2.IsDisposed);
+        Assert.True(service3.IsDisposed);
+    }
+
+    [Fact]
+    public async Task Container_DisposeAsync_DisposesAllRootScopes()
+    {
+        // Arrange
+        var container = new SvcContainer();
+        container.RegisterScoped<AsyncDisposableService>(_ => new AsyncDisposableService());
+
+        var scope1 = container.CreateScope();
+        var scope2 = container.CreateScope();
+
+        var service1 = scope1.GetService<AsyncDisposableService>();
+        var service2 = scope2.GetService<AsyncDisposableService>();
+
+        // Act - dispose container only
+        await container.DisposeAsync();
+
+        // Assert - all scoped services should be disposed
+        Assert.True(service1.IsDisposed);
+        Assert.True(service2.IsDisposed);
+    }
+
+    [Fact]
+    public void Container_Dispose_DisposesNestedScopes()
+    {
+        // Arrange
+        var container = new SvcContainer();
+        container.RegisterScoped<DisposableService>(_ => new DisposableService());
+
+        var rootScope = container.CreateScope();
+        var childScope = rootScope.CreateScope();
+        var grandchildScope = childScope.CreateScope();
+
+        var rootService = rootScope.GetService<DisposableService>();
+        var childService = childScope.GetService<DisposableService>();
+        var grandchildService = grandchildScope.GetService<DisposableService>();
+
+        // Act - dispose container only
+        container.Dispose();
+
+        // Assert - all services at all levels should be disposed
+        Assert.True(grandchildService.IsDisposed);
+        Assert.True(childService.IsDisposed);
+        Assert.True(rootService.IsDisposed);
+    }
+
+    [Fact]
+    public void Container_Dispose_ScopesCannotResolveAfterwards()
+    {
+        // Arrange
+        var container = new SvcContainer();
+        RegisterConsoleGreeter(container);
+
+        var scope = container.CreateScope();
+
+        // Act
+        container.Dispose();
+
+        // Assert - scope should throw ObjectDisposedException
+        Assert.Throws<ObjectDisposedException>(() => scope.GetService<IGreeter>());
+    }
+
+    [Fact]
+    public void Container_Dispose_ScopeDisposedIndependently_NoDoubleDispose()
+    {
+        // Arrange
+        var container = new SvcContainer();
+        container.RegisterScoped<DisposableService>(_ => new DisposableService());
+
+        var scope = container.CreateScope();
+        var service = scope.GetService<DisposableService>();
+
+        // Act - dispose scope first, then container
+        scope.Dispose();
+        Assert.True(service.IsDisposed);
+
+        // This should not throw (idempotent dispose)
+        container.Dispose();
+
+        // Assert - still disposed, no exception
+        Assert.True(service.IsDisposed);
+    }
+
+    #endregion
 }

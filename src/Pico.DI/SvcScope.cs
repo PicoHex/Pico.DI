@@ -16,6 +16,7 @@ public sealed class SvcScope : ISvcScope
     private readonly FrozenDictionary<Type, SvcDescriptor[]>? _descriptorCache;
     private readonly ConcurrentDictionary<Type, SvcDescriptor[]>? _concurrentDescriptorCache;
     private readonly ConcurrentDictionary<SvcDescriptor, object> _scopedInstances = new();
+    private readonly ConcurrentBag<SvcScope> _childScopes = new();
     private static readonly ConcurrentDictionary<SvcDescriptor, object> SingletonLocks = new();
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
@@ -39,9 +40,15 @@ public sealed class SvcScope : ISvcScope
     public ISvcScope CreateScope()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
-        return _descriptorCache != null
-            ? new SvcScope(_descriptorCache)
-            : new SvcScope(_concurrentDescriptorCache!);
+
+        // Create child scope and track it for automatic disposal when parent is disposed
+        var childScope =
+            _descriptorCache != null
+                ? new SvcScope(_descriptorCache)
+                : new SvcScope(_concurrentDescriptorCache!);
+
+        _childScopes.Add(childScope);
+        return childScope;
     }
 
     /// <inheritdoc />
@@ -204,6 +211,13 @@ public sealed class SvcScope : ISvcScope
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
 
+        // Dispose child scopes first (depth-first disposal)
+        while (_childScopes.TryTake(out var childScope))
+        {
+            childScope.Dispose();
+        }
+
+        // Then dispose scoped instances owned by this scope
         foreach (var svc in _scopedInstances.Values)
         {
             if (svc is IDisposable disposable)
@@ -218,6 +232,13 @@ public sealed class SvcScope : ISvcScope
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
 
+        // Dispose child scopes first (depth-first disposal)
+        while (_childScopes.TryTake(out var childScope))
+        {
+            await childScope.DisposeAsync();
+        }
+
+        // Then dispose scoped instances owned by this scope
         foreach (var svc in _scopedInstances.Values)
         {
             switch (svc)
