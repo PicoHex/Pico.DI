@@ -17,6 +17,23 @@ public sealed class SvcContainer : ISvcContainer
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
     private bool _isBuilt;
 
+    /// <summary>
+    /// Creates a new instance of <see cref="SvcContainer"/>.
+    /// If a source-generated configurator has been registered via Module Initializer,
+    /// it will be automatically applied to this container.
+    /// </summary>
+    /// <param name="autoConfigureFromGenerator">
+    /// If true (default), automatically applies source-generated service registrations.
+    /// Set to false if you want to manually configure the container without auto-generated services.
+    /// </param>
+    public SvcContainer(bool autoConfigureFromGenerator = true)
+    {
+        if (autoConfigureFromGenerator)
+        {
+            SvcContainerAutoConfiguration.TryApplyConfiguration(this);
+        }
+    }
+
     /// <inheritdoc />
     public ISvcContainer Register(SvcDescriptor descriptor)
     {

@@ -11,7 +11,7 @@ public class SvcContainerEnumerableInjectionTests : XUnitTestBase
     public void GetServices_MultipleRegistrations_ReturnsAll()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
 
@@ -28,7 +28,7 @@ public class SvcContainerEnumerableInjectionTests : XUnitTestBase
     public void GetServices_MultipleRegistrations_PreservesOrder()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
 
@@ -46,7 +46,7 @@ public class SvcContainerEnumerableInjectionTests : XUnitTestBase
     public void GetService_MultipleRegistrations_ReturnsLast()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
 
@@ -67,7 +67,7 @@ public class SvcContainerEnumerableInjectionTests : XUnitTestBase
     public void GetServices_MixedLifetimes_AllResolve()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterScoped<IGreeter>(_ => new AlternativeGreeter());
 
@@ -84,7 +84,7 @@ public class SvcContainerEnumerableInjectionTests : XUnitTestBase
     public void GetServices_MixedLifetimes_RespectsLifetimes()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
 
@@ -108,7 +108,7 @@ public class SvcContainerEnumerableInjectionTests : XUnitTestBase
     public void Factory_CanResolve_MultipleServices()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
         container.RegisterTransient<GreeterAggregator>(
@@ -141,7 +141,7 @@ public class SvcContainerEnumerableInjectionTests : XUnitTestBase
     public void RegisterRange_WithMultipleDescriptors_AllResolvable()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         var descriptors = new[]
         {
             new SvcDescriptor(typeof(IGreeter), _ => new ConsoleGreeter(), SvcLifetime.Transient),
@@ -167,7 +167,7 @@ public class SvcContainerEnumerableInjectionTests : XUnitTestBase
     public void RegisterRange_EmptyCollection_DoesNotThrow()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         var descriptors = Array.Empty<SvcDescriptor>();
 
         // Act - should not throw
@@ -181,7 +181,7 @@ public class SvcContainerEnumerableInjectionTests : XUnitTestBase
     public void RegisterRange_ReturnsContainer_ForChaining()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         var descriptors = new[]
         {
             new SvcDescriptor(typeof(IGreeter), _ => new ConsoleGreeter(), SvcLifetime.Transient)

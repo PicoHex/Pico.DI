@@ -12,7 +12,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterTransient_Generic_TwoTypes_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.RegisterTransient<IGreeter, ConsoleGreeter>();
@@ -25,7 +25,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterTransient_Generic_SingleType_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.RegisterTransient<ConsoleGreeter>();
@@ -38,7 +38,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterTransient_Generic_WithImplementationType_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.RegisterTransient<IGreeter>(typeof(ConsoleGreeter));
@@ -55,7 +55,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterScoped_Generic_TwoTypes_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.RegisterScoped<IGreeter, ConsoleGreeter>();
@@ -68,7 +68,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterScoped_Generic_SingleType_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.RegisterScoped<ConsoleGreeter>();
@@ -81,7 +81,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterScoped_Generic_WithImplementationType_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.RegisterScoped<IGreeter>(typeof(ConsoleGreeter));
@@ -98,7 +98,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterSingleton_Generic_TwoTypes_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.RegisterSingleton<IGreeter, ConsoleGreeter>();
@@ -111,7 +111,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterSingleton_Generic_SingleType_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.RegisterSingleton<ConsoleGreeter>();
@@ -124,7 +124,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterSingleton_Generic_WithImplementationType_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.RegisterSingleton<IGreeter>(typeof(ConsoleGreeter));
@@ -141,7 +141,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void Register_Generic_TwoTypes_WithLifetime_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.Register<IGreeter, ConsoleGreeter>(SvcLifetime.Transient);
@@ -154,7 +154,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void Register_Generic_SingleType_WithLifetime_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.Register<ConsoleGreeter>(SvcLifetime.Scoped);
@@ -167,7 +167,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void Register_Generic_WithImplementationType_AndLifetime_ReturnsContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method returns container unchanged
         var result = container.Register<IGreeter>(typeof(ConsoleGreeter), SvcLifetime.Singleton);
@@ -184,7 +184,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterTransient_Placeholder_DoesNotActuallyRegister()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method does nothing
         container.RegisterTransient<IGreeter, ConsoleGreeter>();
@@ -199,7 +199,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterScoped_Placeholder_DoesNotActuallyRegister()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method does nothing
         container.RegisterScoped<IGreeter, ConsoleGreeter>();
@@ -214,7 +214,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void RegisterSingleton_Placeholder_DoesNotActuallyRegister()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - placeholder method does nothing
         container.RegisterSingleton<IGreeter, ConsoleGreeter>();
@@ -233,7 +233,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void Placeholders_CanBeChained()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - chain multiple placeholders
         var result = container
@@ -249,7 +249,7 @@ public class SvcContainerPlaceholderTests : XUnitTestBase
     public void Placeholders_CanBeMixedWithRealRegistrations()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - mix placeholders with real factory registrations
         var result = container

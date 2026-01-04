@@ -145,7 +145,7 @@ public class SvcDescriptorTests : XUnitTestBase
         );
 
         // Act
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.Register(descriptor);
         using var scope = container.CreateScope();
         var result = scope.GetService<IGreeter>();
@@ -158,7 +158,7 @@ public class SvcDescriptorTests : XUnitTestBase
     public void Factory_ReceivesScopeParameter_CanResolveDependencies()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<ServiceWithDependency>(
             scope => new ServiceWithDependency(scope.GetService<IGreeter>())

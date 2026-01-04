@@ -1,18 +1,18 @@
 ﻿namespace Pico.DI.Sample;
 
 using Pico.DI.Abs;
-using Pico.DI.Gen;
 using Pico.DI.Sample.Services;
 
 public static class ServiceConfig
 {
     public static void ConfigureServices(ISvcContainer container)
     {
+        // Note: ConfigureGeneratedServices() is now called automatically via Module Initializer
+        // when SvcContainer is created. Manual registration calls below are for descriptive purposes.
         container
             .RegisterSingleton<ILogger, ConsoleLogger>()
             .RegisterTransient<IGreeter, Greeter>()
-            .RegisterScoped<GreetingService>()
-            .ConfigureGeneratedServices();
+            .RegisterScoped<GreetingService>();
     }
 }
 

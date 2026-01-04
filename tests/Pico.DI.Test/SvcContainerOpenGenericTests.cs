@@ -11,7 +11,7 @@ public class SvcContainerOpenGenericTests : XUnitTestBase
     public void RegisterTransient_OpenGeneric_RegistersSuccessfully()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - register open generic
         container.RegisterTransient(typeof(IRepository<>), typeof(Repository<>));
@@ -24,7 +24,7 @@ public class SvcContainerOpenGenericTests : XUnitTestBase
     public void RegisterScoped_OpenGeneric_RegistersSuccessfully()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - register open generic
         container.RegisterScoped(typeof(IRepository<>), typeof(Repository<>));
@@ -37,7 +37,7 @@ public class SvcContainerOpenGenericTests : XUnitTestBase
     public void RegisterSingleton_OpenGeneric_RegistersSuccessfully()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - register open generic
         container.RegisterSingleton(typeof(IRepository<>), typeof(Repository<>));
@@ -50,7 +50,7 @@ public class SvcContainerOpenGenericTests : XUnitTestBase
     public void Register_OpenGeneric_WithLifetime_RegistersSuccessfully()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - register open generic with explicit lifetime
         container.Register(typeof(IRepository<>), typeof(Repository<>), SvcLifetime.Transient);
@@ -63,7 +63,7 @@ public class SvcContainerOpenGenericTests : XUnitTestBase
     public void RegisterTransient_SingleOpenGeneric_RegistersSuccessfully()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - register open generic with single type parameter
         container.RegisterTransient(typeof(Repository<>));
@@ -76,7 +76,7 @@ public class SvcContainerOpenGenericTests : XUnitTestBase
     public void RegisterScoped_SingleOpenGeneric_RegistersSuccessfully()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - register open generic with single type parameter
         container.RegisterScoped(typeof(Repository<>));
@@ -89,7 +89,7 @@ public class SvcContainerOpenGenericTests : XUnitTestBase
     public void RegisterSingleton_SingleOpenGeneric_RegistersSuccessfully()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - register open generic with single type parameter
         container.RegisterSingleton(typeof(Repository<>));
@@ -102,7 +102,7 @@ public class SvcContainerOpenGenericTests : XUnitTestBase
     public void Register_SingleOpenGeneric_WithLifetime_RegistersSuccessfully()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act - register open generic with explicit lifetime
         container.Register(typeof(Repository<>), SvcLifetime.Transient);
@@ -119,7 +119,7 @@ public class SvcContainerOpenGenericTests : XUnitTestBase
     public void GetService_OpenGenericWithoutClosedTypeGenerated_ThrowsWithHelpfulMessage()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient(typeof(IRepository<>), typeof(Repository<>));
         using var scope = container.CreateScope();
 
@@ -135,7 +135,7 @@ public class SvcContainerOpenGenericTests : XUnitTestBase
     public void GetService_OpenGenericNotRegistered_ThrowsWithTypeName()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         using var scope = container.CreateScope();
 
         // Act & Assert

@@ -11,7 +11,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void GetService_UnregisteredService_ThrowsPicoDiException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         using var scope = container.CreateScope();
 
         // Act & Assert
@@ -23,7 +23,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void GetService_UnregisteredService_ErrorMessageContainsTypeName()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         using var scope = container.CreateScope();
 
         // Act & Assert
@@ -35,7 +35,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void GetService_ByType_UnregisteredService_ThrowsPicoDiException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         using var scope = container.CreateScope();
 
         // Act & Assert
@@ -47,7 +47,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void GetServices_UnregisteredService_ThrowsPicoDiException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         using var scope = container.CreateScope();
 
         // Act & Assert
@@ -63,7 +63,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void GetService_OpenGenericNotRegistered_ThrowsPicoDiException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         using var scope = container.CreateScope();
 
         // Act & Assert
@@ -75,7 +75,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void GetService_OpenGenericRegistered_ClosedTypeNotDetected_ThrowsWithHint()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient(typeof(IRepository<>), typeof(Repository<>));
         using var scope = container.CreateScope();
 
@@ -92,7 +92,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void GetService_Transient_NoFactory_ThrowsPicoDiException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.Register(
             new SvcDescriptor(typeof(IGreeter), typeof(ConsoleGreeter), SvcLifetime.Transient)
         );
@@ -107,7 +107,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void GetService_Singleton_NoFactory_ThrowsPicoDiException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.Register(
             new SvcDescriptor(typeof(IGreeter), typeof(ConsoleGreeter), SvcLifetime.Singleton)
         );
@@ -122,7 +122,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void GetService_Scoped_NoFactory_ThrowsPicoDiException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.Register(
             new SvcDescriptor(typeof(IGreeter), typeof(ConsoleGreeter), SvcLifetime.Scoped)
         );
@@ -137,7 +137,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void GetServices_Transient_NoFactory_ThrowsPicoDiException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.Register(
             new SvcDescriptor(typeof(IGreeter), typeof(ConsoleGreeter), SvcLifetime.Transient)
         );
@@ -236,7 +236,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void Register_NonGenericTypeByType_ThrowsSourceGeneratorRequiredException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act & Assert
         Assert.Throws<SourceGeneratorRequiredException>(
@@ -249,7 +249,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void RegisterTransient_NonGenericTypeByType_ThrowsSourceGeneratorRequiredException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act & Assert
         Assert.Throws<SourceGeneratorRequiredException>(
@@ -261,7 +261,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void RegisterScoped_NonGenericTypeByType_ThrowsSourceGeneratorRequiredException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act & Assert
         Assert.Throws<SourceGeneratorRequiredException>(
@@ -273,7 +273,7 @@ public class SvcContainerErrorTests : XUnitTestBase
     public void RegisterSingleton_NonGenericTypeByType_ThrowsSourceGeneratorRequiredException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act & Assert
         Assert.Throws<SourceGeneratorRequiredException>(

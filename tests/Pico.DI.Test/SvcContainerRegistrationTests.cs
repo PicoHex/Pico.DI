@@ -11,7 +11,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void Register_SvcDescriptor_AddsToContainer()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         var descriptor = new SvcDescriptor(
             typeof(IGreeter),
             _ => new ConsoleGreeter(),
@@ -32,7 +32,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void Register_MultipleDescriptors_AllAreResolvable()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act
         container.Register(
@@ -56,7 +56,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void Register_ReturnsContainerInstance_ForChaining()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         var descriptor = new SvcDescriptor(
             typeof(IGreeter),
             _ => new ConsoleGreeter(),
@@ -74,7 +74,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void Register_AfterBuild_ThrowsInvalidOperationException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
         container.Build();
 
@@ -93,7 +93,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void Register_SameServiceType_OverridesWithLastRegistration()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
         RegisterAlternativeGreeter(container);
 
@@ -110,7 +110,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void Register_AfterDispose_ThrowsObjectDisposedException()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         container.Dispose();
 
         var descriptor = new SvcDescriptor(
@@ -127,7 +127,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void RegisterRange_MultipleDescriptors_AllAreRegistered()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         var descriptors = new[]
         {
             new SvcDescriptor(typeof(IGreeter), _ => new ConsoleGreeter(), SvcLifetime.Transient),
@@ -152,7 +152,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void Build_ReturnsContainer_ForChaining()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         // Act
@@ -166,7 +166,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void Build_MultipleCalls_DoNotThrow()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         // Act - multiple Build() calls should be idempotent
@@ -182,7 +182,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void Build_AfterDispose_ThrowsObjectDisposedException()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         RegisterConsoleGreeter(container);
         container.Dispose();
 
@@ -194,7 +194,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void Build_ImprovesFrozenDictionaryUsage_ForScopeCreation()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
         container.Build();
 
@@ -215,7 +215,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void CreateScope_ReturnsNewScopeInstance()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         // Act
@@ -230,7 +230,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void CreateScope_AfterDispose_ThrowsObjectDisposedException()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         container.Dispose();
 
         // Act & Assert
@@ -241,7 +241,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void CreateScope_WithoutBuild_UsesNonFrozenCache()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         // Act - create scope without Build()
@@ -255,7 +255,7 @@ public class SvcContainerRegistrationTests : XUnitTestBase
     public void CreateScope_WithBuild_UsesFrozenCache()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
         container.Build();
 

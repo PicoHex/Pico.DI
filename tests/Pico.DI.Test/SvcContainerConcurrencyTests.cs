@@ -11,7 +11,7 @@ public class SvcContainerConcurrencyTests : XUnitTestBase
     public async Task ConcurrentRegistration_BeforeBuild_IsThreadSafe()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         var registrationTasks = new List<Task>();
 
         // Act - register many services concurrently
@@ -44,7 +44,7 @@ public class SvcContainerConcurrencyTests : XUnitTestBase
     public async Task ConcurrentResolution_Transient_IsThreadSafe()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Transient);
 
         var resolvedInstances = new System.Collections.Concurrent.ConcurrentBag<IGreeter>();
@@ -68,7 +68,7 @@ public class SvcContainerConcurrencyTests : XUnitTestBase
     public async Task ConcurrentResolution_Singleton_ReturnsSameInstance()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Singleton);
 
         var resolvedInstances = new IGreeter[100];
@@ -92,7 +92,7 @@ public class SvcContainerConcurrencyTests : XUnitTestBase
     public async Task ConcurrentResolution_Scoped_EachScopeHasOwnInstance()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Scoped);
 
         var resolvedInstances = new IGreeter[100];
@@ -116,7 +116,7 @@ public class SvcContainerConcurrencyTests : XUnitTestBase
     public async Task ConcurrentResolution_WithinSameScope_Scoped_ReturnsSame()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Scoped);
 
         using var scope = container.CreateScope();
@@ -145,7 +145,7 @@ public class SvcContainerConcurrencyTests : XUnitTestBase
     public async Task ConcurrentResolution_WhileBuilding_IsThreadSafe()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         for (int i = 0; i < 50; i++)
         {
             container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
@@ -188,7 +188,7 @@ public class SvcContainerConcurrencyTests : XUnitTestBase
     public async Task ConcurrentScopeCreation_IsThreadSafe()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         var scopes = new ISvcScope[100];
@@ -218,7 +218,7 @@ public class SvcContainerConcurrencyTests : XUnitTestBase
     public async Task ConcurrentScopeDisposal_IsThreadSafe()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<DisposableService>(_ => new DisposableService());
 
         var scopes = new ISvcScope[100];
@@ -253,7 +253,7 @@ public class SvcContainerConcurrencyTests : XUnitTestBase
     {
         // Arrange
         var creationCount = 0;
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<IGreeter>(_ =>
         {
             Interlocked.Increment(ref creationCount);

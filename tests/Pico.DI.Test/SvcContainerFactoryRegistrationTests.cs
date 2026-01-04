@@ -11,7 +11,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterTransient_WithGenericFactory_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
 
         using var scope = container.CreateScope();
@@ -27,7 +27,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterTransient_WithTypeAndFactory_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient(typeof(IGreeter), _ => new ConsoleGreeter());
 
         using var scope = container.CreateScope();
@@ -43,7 +43,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterTransient_WithTwoGenericsFactory_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter, ConsoleGreeter>(_ => new ConsoleGreeter());
 
         using var scope = container.CreateScope();
@@ -59,7 +59,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterTransient_ReturnsContainer_ForChaining()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act
         var result = container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
@@ -76,7 +76,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterScoped_WithGenericFactory_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<IGreeter>(_ => new ConsoleGreeter());
 
         using var scope = container.CreateScope();
@@ -92,7 +92,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterScoped_WithTypeAndFactory_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped(typeof(IGreeter), _ => new ConsoleGreeter());
 
         using var scope = container.CreateScope();
@@ -108,7 +108,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterScoped_WithTwoGenericsFactory_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<IGreeter, ConsoleGreeter>(_ => new ConsoleGreeter());
 
         using var scope = container.CreateScope();
@@ -124,7 +124,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterScoped_ReturnsContainer_ForChaining()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act
         var result = container.RegisterScoped<IGreeter>(_ => new ConsoleGreeter());
@@ -141,7 +141,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterSingleton_WithGenericFactory_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<IGreeter>(_ => new ConsoleGreeter());
 
         using var scope = container.CreateScope();
@@ -157,7 +157,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterSingleton_WithTypeAndFactory_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton(typeof(IGreeter), _ => new ConsoleGreeter());
 
         using var scope = container.CreateScope();
@@ -173,7 +173,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterSingleton_WithTwoGenericsFactory_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<IGreeter, ConsoleGreeter>(_ => new ConsoleGreeter());
 
         using var scope = container.CreateScope();
@@ -189,7 +189,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void RegisterSingleton_ReturnsContainer_ForChaining()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Act
         var result = container.RegisterSingleton<IGreeter>(_ => new ConsoleGreeter());
@@ -206,7 +206,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void Register_WithFactory_AndLifetime_Transient()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.Register<IGreeter>(_ => new ConsoleGreeter(), SvcLifetime.Transient);
 
         using var scope = container.CreateScope();
@@ -223,7 +223,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void Register_WithFactory_AndLifetime_Scoped()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.Register<IGreeter>(_ => new ConsoleGreeter(), SvcLifetime.Scoped);
 
         using var scope = container.CreateScope();
@@ -240,7 +240,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void Register_WithFactory_AndLifetime_Singleton()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.Register<IGreeter>(_ => new ConsoleGreeter(), SvcLifetime.Singleton);
 
         using var scope1 = container.CreateScope();
@@ -258,7 +258,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void Register_TypeWithFactory_AndLifetime()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.Register(typeof(IGreeter), _ => new ConsoleGreeter(), SvcLifetime.Transient);
 
         using var scope = container.CreateScope();
@@ -274,7 +274,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void Register_TwoGenericsWithFactory_AndLifetime()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.Register<IGreeter, ConsoleGreeter>(
             _ => new ConsoleGreeter(),
             SvcLifetime.Singleton
@@ -297,7 +297,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void Factory_CanResolve_Dependencies()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<ILogger>(_ => new ConsoleLogger());
         container.RegisterTransient<ServiceWithMultipleDependencies>(
@@ -323,7 +323,7 @@ public class SvcContainerFactoryRegistrationTests : XUnitTestBase
     public void Factory_CanMix_Lifetimes()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterScoped<ILogger>(_ => new ConsoleLogger());
         container.RegisterTransient<ServiceWithMultipleDependencies>(

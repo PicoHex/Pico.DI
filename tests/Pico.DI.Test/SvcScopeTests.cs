@@ -11,7 +11,7 @@ public class SvcScopeTests : XUnitTestBase
     public void GetService_Generic_ReturnsTypedInstance()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         using var scope = container.CreateScope();
@@ -28,7 +28,7 @@ public class SvcScopeTests : XUnitTestBase
     public void GetService_ByType_ReturnsObjectInstance()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         using var scope = container.CreateScope();
@@ -45,7 +45,7 @@ public class SvcScopeTests : XUnitTestBase
     public void GetService_LastRegistration_Wins()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
 
@@ -66,7 +66,7 @@ public class SvcScopeTests : XUnitTestBase
     public void GetServices_Generic_ReturnsAllRegistrations()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
 
@@ -85,7 +85,7 @@ public class SvcScopeTests : XUnitTestBase
     public void GetServices_ByType_ReturnsAllRegistrations()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
 
@@ -102,7 +102,7 @@ public class SvcScopeTests : XUnitTestBase
     public void GetServices_MixedLifetimes_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
 
@@ -131,7 +131,7 @@ public class SvcScopeTests : XUnitTestBase
     public void CreateScope_FromScope_CreatesNestedScope()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         using var parentScope = container.CreateScope();
@@ -148,7 +148,7 @@ public class SvcScopeTests : XUnitTestBase
     public void NestedScope_Scoped_HasOwnInstances()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<CountingService>(_ => new CountingService());
         CountingService.ResetCounter();
 
@@ -168,7 +168,7 @@ public class SvcScopeTests : XUnitTestBase
     public void NestedScope_Singleton_SharesSameInstance()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<CountingService>(_ => new CountingService());
         CountingService.ResetCounter();
 
@@ -187,7 +187,7 @@ public class SvcScopeTests : XUnitTestBase
     public void NestedScope_MultipleLevel_ScopedAreIsolated()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<CountingService>(_ => new CountingService());
         CountingService.ResetCounter();
 
@@ -214,7 +214,7 @@ public class SvcScopeTests : XUnitTestBase
     public void Scope_FromBuiltContainer_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
         container.Build();
 
@@ -231,7 +231,7 @@ public class SvcScopeTests : XUnitTestBase
     public void Scope_FromNonBuiltContainer_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
         // Note: Build() not called
 
@@ -248,7 +248,7 @@ public class SvcScopeTests : XUnitTestBase
     public void Scope_FromBuiltContainer_NestedScope_ResolvesCorrectly()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
         container.Build();
 
@@ -270,7 +270,7 @@ public class SvcScopeTests : XUnitTestBase
     public void ParentScope_Dispose_DisposesChildScopes()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<DisposableService>(_ => new DisposableService());
 
         var parentScope = container.CreateScope();
@@ -294,7 +294,7 @@ public class SvcScopeTests : XUnitTestBase
     public async Task ParentScope_DisposeAsync_DisposesChildScopes()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<AsyncDisposableService>(_ => new AsyncDisposableService());
 
         var parentScope = container.CreateScope();
@@ -315,7 +315,7 @@ public class SvcScopeTests : XUnitTestBase
     public void ChildScope_DisposedByParent_CannotResolveServices()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         var parentScope = container.CreateScope();
@@ -332,7 +332,7 @@ public class SvcScopeTests : XUnitTestBase
     public void ChildScope_DisposedIndependently_DoesNotAffectParent()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<DisposableService>(_ => new DisposableService());
 
         using var parentScope = container.CreateScope();
@@ -357,7 +357,7 @@ public class SvcScopeTests : XUnitTestBase
     public void MultipleChildScopes_AllDisposedByParent()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<DisposableService>(_ => new DisposableService());
 
         var parentScope = container.CreateScope();

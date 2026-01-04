@@ -150,10 +150,9 @@ public class DecoratorGenericSample
         // 2. Scan all GetService<Logger<T>> calls in the code
         // 3. Pre-generate factories for Logger<IUserService>, Logger<IDatabaseService>, etc.
 
-        // Step 3: Configure generated services
-        // The source generator produces a ConfigureGeneratedServices() extension method
-        Console.WriteLine("Step 3: Configuring generated services");
-        container.ConfigureGeneratedServices();
+        // Note: ConfigureGeneratedServices() is now called automatically via Module Initializer
+        // when SvcContainer is created - no manual call needed!
+        Console.WriteLine("Step 3: Services auto-configured via Module Initializer");
 
         // Step 4: Resolve and use services with decorators
         Console.WriteLine("\nStep 4: Resolving services with decorators\n");

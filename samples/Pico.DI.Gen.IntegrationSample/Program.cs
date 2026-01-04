@@ -1,4 +1,4 @@
-// ConfigureGeneratedServices extension is generated into this namespace
+// Service registrations are now auto-configured via Module Initializer
 
 namespace Pico.DI.Gen.IntegrationSample;
 
@@ -15,6 +15,8 @@ internal static class Program
 {
     static void Main()
     {
+        // SvcContainer constructor automatically applies source-generated service registrations
+        // via Module Initializer - no manual ConfigureGeneratedServices() call needed!
         using var container = new SvcContainer();
 
         // Register open generic logger as descriptor for generator to use
@@ -24,9 +26,6 @@ internal static class Program
         container.RegisterTransient<UserService>(
             scope => new UserService(scope.GetService<ILog<UserService>>())
         );
-
-        // Configure generated services (the generated method should exist after build)
-        container.ConfigureGeneratedServices();
 
         using var scope = container.CreateScope();
         var log = scope.GetService<ILog<UserService>>();

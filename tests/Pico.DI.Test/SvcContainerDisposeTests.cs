@@ -12,7 +12,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     {
         // Arrange
         DisposableService? service;
-        using (var container = new SvcContainer())
+        using (var container = CreateContainer())
         {
             container.RegisterSingleton<DisposableService>(_ => new DisposableService());
             using var scope = container.CreateScope();
@@ -31,7 +31,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     {
         // Arrange
         AsyncDisposableService? service;
-        await using (var container = new SvcContainer())
+        await using (var container = CreateContainer())
         {
             container.RegisterSingleton<AsyncDisposableService>(_ => new AsyncDisposableService());
             await using var scope = container.CreateScope();
@@ -50,7 +50,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     {
         // Arrange
         BothDisposableService? service;
-        await using (var container = new SvcContainer())
+        await using (var container = CreateContainer())
         {
             container.RegisterSingleton<BothDisposableService>(_ => new BothDisposableService());
             await using var scope = container.CreateScope();
@@ -70,7 +70,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Dispose_AfterDispose_DoesNotThrow()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         // Act
@@ -84,7 +84,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public async Task DisposeAsync_AfterDisposeAsync_DoesNotThrow()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         // Act
@@ -98,7 +98,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Dispose_PreventsFurtherRegistration()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         container.Dispose();
 
         // Act & Assert
@@ -110,7 +110,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Dispose_PreventsScopeCreation()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         container.Dispose();
 
         // Act & Assert
@@ -126,7 +126,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Dispose_Scope_DisposesScopedInstances()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<DisposableService>(_ => new DisposableService());
 
         DisposableService? service;
@@ -146,7 +146,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public async Task DisposeAsync_Scope_DisposesAsyncDisposables()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<AsyncDisposableService>(_ => new AsyncDisposableService());
 
         AsyncDisposableService? service;
@@ -166,7 +166,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public async Task DisposeAsync_Scope_PrefersAsyncDisposable_OverDisposable()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<BothDisposableService>(_ => new BothDisposableService());
 
         BothDisposableService? service;
@@ -188,7 +188,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Dispose_Scope_DoesNotDispose_Singletons()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<DisposableService>(_ => new DisposableService());
 
         DisposableService? service;
@@ -205,7 +205,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Dispose_Scope_DoesNotDispose_Transients()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<DisposableService>(_ => new DisposableService());
 
         DisposableService? service;
@@ -222,7 +222,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Scope_DisposeMultipleTimes_DoesNotThrow()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         var scope = container.CreateScope();
@@ -238,7 +238,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public async Task Scope_DisposeAsyncMultipleTimes_DoesNotThrow()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         var scope = container.CreateScope();
@@ -254,7 +254,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Scope_AfterDispose_GetServiceThrowsObjectDisposedException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         var scope = container.CreateScope();
@@ -268,7 +268,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Scope_AfterDispose_GetServicesThrowsObjectDisposedException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         var scope = container.CreateScope();
@@ -282,7 +282,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Scope_AfterDispose_CreateScopeThrowsObjectDisposedException()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         var scope = container.CreateScope();
@@ -300,7 +300,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Container_Dispose_DisposesAllRootScopes()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         container.RegisterScoped<DisposableService>(_ => new DisposableService());
 
         var scope1 = container.CreateScope();
@@ -324,7 +324,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public async Task Container_DisposeAsync_DisposesAllRootScopes()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         container.RegisterScoped<AsyncDisposableService>(_ => new AsyncDisposableService());
 
         var scope1 = container.CreateScope();
@@ -345,7 +345,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Container_Dispose_DisposesNestedScopes()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         container.RegisterScoped<DisposableService>(_ => new DisposableService());
 
         var rootScope = container.CreateScope();
@@ -369,7 +369,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Container_Dispose_ScopesCannotResolveAfterwards()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         RegisterConsoleGreeter(container);
 
         var scope = container.CreateScope();
@@ -385,7 +385,7 @@ public class SvcContainerDisposeTests : XUnitTestBase
     public void Container_Dispose_ScopeDisposedIndependently_NoDoubleDispose()
     {
         // Arrange
-        var container = new SvcContainer();
+        var container = CreateContainer();
         container.RegisterScoped<DisposableService>(_ => new DisposableService());
 
         var scope = container.CreateScope();

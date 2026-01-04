@@ -11,7 +11,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
     public void Integration_ComplexDependencyGraph_ResolvesCorrectly()
     {
         // Arrange - set up a complex dependency graph
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         container.RegisterSingleton<ILogger>(_ => new ConsoleLogger());
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
@@ -41,7 +41,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
     public void Integration_NestedDependencies_ResolvesSameScope()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         container.RegisterScoped<ILogger>(_ => new ConsoleLogger());
         container.RegisterScoped<IGreeter>(_ => new ConsoleGreeter());
@@ -76,7 +76,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
         // Arrange
         DisposableService? singletonService;
 
-        using (var container = new SvcContainer())
+        using (var container = CreateContainer())
         {
             container.RegisterSingleton<DisposableService>(_ => new DisposableService());
 
@@ -102,7 +102,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
         // Arrange
         AsyncDisposableService? service;
 
-        await using (var container = new SvcContainer())
+        await using (var container = CreateContainer())
         {
             container.RegisterSingleton<AsyncDisposableService>(_ => new AsyncDisposableService());
 
@@ -128,7 +128,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
     public void Integration_FluentRegistration_WorksCorrectly()
     {
         // Arrange & Act
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container
             .RegisterSingleton<ILogger>(_ => new ConsoleLogger())
             .RegisterTransient<IGreeter>(_ => new ConsoleGreeter())
@@ -153,7 +153,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
     public void Integration_OverridePattern_LastRegistrationWins()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // First registration
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
@@ -174,7 +174,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
     public void Integration_OverridePattern_GetServicesReturnsAll()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.RegisterTransient<IGreeter>(_ => new AlternativeGreeter());
@@ -196,7 +196,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
     public void Integration_DecoratorPattern_WorksWithFactories()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
 
         // Register the base implementation with a concrete type
         container.RegisterTransient<ConsoleGreeter>(_ => new ConsoleGreeter());
@@ -239,7 +239,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
     public void Integration_MultiScope_SingletonsShared_ScopedIsolated()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<ILogger>(_ => new ConsoleLogger());
         container.RegisterScoped<IGreeter>(_ => new ConsoleGreeter());
 
@@ -261,7 +261,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
     public void Integration_ParallelScopes_WorkIndependently()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<ConsoleLogger>(_ => new ConsoleLogger());
 
         // Act
@@ -289,7 +289,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
     public void Integration_WithoutBuild_StillWorks()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         // Note: Build() is NOT called
 
@@ -306,7 +306,7 @@ public class SvcContainerIntegrationTests : XUnitTestBase
     public void Integration_WithBuild_PerformanceOptimized()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ => new ConsoleGreeter());
         container.Build(); // Optimize with FrozenDictionary
 

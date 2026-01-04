@@ -147,6 +147,12 @@ public abstract class XUnitTestBase
 
     #region Test Helpers
 
+    /// <summary>
+    /// Creates a new SvcContainer without auto-configuration from the source generator.
+    /// Use this in tests to avoid interference from source-generated service registrations.
+    /// </summary>
+    protected static SvcContainer CreateContainer() => new(autoConfigureFromGenerator: false);
+
     protected static void RegisterConsoleGreeter(
         ISvcContainer container,
         SvcLifetime lifetime = SvcLifetime.Transient

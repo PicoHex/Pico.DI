@@ -11,7 +11,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     public void Transient_CreatesNewInstance_EachRequest()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Transient);
 
         using var scope = container.CreateScope();
@@ -28,7 +28,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     public void Transient_CreatesNewInstance_AcrossScopes()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Transient);
 
         // Act
@@ -46,7 +46,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     {
         // Arrange
         var factoryCallCount = 0;
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterTransient<IGreeter>(_ =>
         {
             Interlocked.Increment(ref factoryCallCount);
@@ -72,7 +72,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     public void Scoped_ReturnsSameInstance_WithinScope()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Scoped);
 
         using var scope = container.CreateScope();
@@ -89,7 +89,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     public void Scoped_ReturnsDifferentInstance_AcrossScopes()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Scoped);
 
         // Act
@@ -106,7 +106,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     public void Scoped_NestedScope_HasOwnInstance()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Scoped);
 
         using var parentScope = container.CreateScope();
@@ -125,7 +125,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     {
         // Arrange
         var factoryCallCount = 0;
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterScoped<IGreeter>(_ =>
         {
             Interlocked.Increment(ref factoryCallCount);
@@ -152,7 +152,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     public void Singleton_ReturnsSameInstance_WithinScope()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Singleton);
 
         using var scope = container.CreateScope();
@@ -169,7 +169,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     public void Singleton_ReturnsSameInstance_AcrossScopes()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         RegisterConsoleGreeter(container, SvcLifetime.Singleton);
 
         // Act
@@ -187,7 +187,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     {
         // Arrange
         var factoryCallCount = 0;
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<IGreeter>(_ =>
         {
             Interlocked.Increment(ref factoryCallCount);
@@ -210,7 +210,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     public void Singleton_ThreadSafe_ConcurrentAccess()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         container.RegisterSingleton<CountingService>(_ => new CountingService());
 
         var results = new CountingService[100];
@@ -239,7 +239,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     public void RegisterSingle_PreExistingInstance_ReturnsExactInstance()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         var existingInstance = new ConsoleGreeter();
         container.RegisterSingle<IGreeter>(existingInstance);
 
@@ -256,7 +256,7 @@ public class SvcScopeLifetimeTests : XUnitTestBase
     public void RegisterSingle_ByType_ReturnsExactInstance()
     {
         // Arrange
-        using var container = new SvcContainer();
+        using var container = CreateContainer();
         var existingInstance = new ConsoleGreeter();
         container.RegisterSingle(typeof(IGreeter), existingInstance);
 
