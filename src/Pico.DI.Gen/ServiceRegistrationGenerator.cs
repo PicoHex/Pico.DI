@@ -1328,3 +1328,67 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 paramTypeFullName =>
                     GenerateParameterExpression(
                         paramTypeFullName,
+                        registrationLookup,
+                        visitedTypes,
+                        indentLevel + 1
+                    )
+            )
+            .ToList();
+
+        if (paramExpressions.Count == 1)
+        {
+            return $"new {reg.ImplementationTypeFullName}({paramExpressions[0]})";
+        }
+
+        // Multi-line format for multiple parameters
+        var sb = new StringBuilder();
+        sb.Append($"new {reg.ImplementationTypeFullName}(");
+
+        for (var i = 0; i < paramExpressions.Count; i++)
+        {
+            var comma = i < paramExpressions.Count - 1 ? "," : "";
+            if (i == 0)
+            {
+                sb.Append(paramExpressions[i] + comma);
+            }
+            else
+            {
+                sb.Append(" " + paramExpressions[i] + comma);
+            }
+        }
+        sb.Append(")");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Generates the expression for a constructor parameter.
+    /// Inlines Transient dependencies, uses GetService for Singleton/Scoped.
+    /// </summary>
+    private static string GenerateParameterExpression(
+        string paramTypeFullName,
+        Dictionary<string, ServiceRegistration> registrationLookup,
+        HashSet<string> visitedTypes,
+        int indentLevel
+    )
+    {
+        // Check if we have a registration for this type
+        if (!registrationLookup.TryGetValue(paramTypeFullName, out var depReg))
+            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+        // Only inline Transient dependencies to avoid breaking singleton/scoped semantics
+        if (depReg.Lifetime != "Transient")
+            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+        // Check for circular dependency
+        if (visitedTypes.Contains(paramTypeFullName))
+        {
+            // Fall back to GetService for circular references
+            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+        }
+
+        // Mark as visited and recursively inline
+        var newVisited = new HashSet<string>(visitedTypes) { paramTypeFullName };
+        return GenerateInlinedFactory(depReg, registrationLookup, newVisited, indentLevel);
+
+        // For Singleton, Scoped, or unknown dependencies, use GetService
+    }
+}

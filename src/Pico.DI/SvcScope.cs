@@ -227,14 +227,6 @@ public sealed class SvcScope : ISvcScope
     }
 
     /// <inheritdoc />
-        {
-            if (svc is IDisposable disposable)
-                disposable.Dispose();
-        }
-        _scopedInstances.Clear();
-    }
-
-    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         // Thread-safe check-and-set using Interlocked
