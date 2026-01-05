@@ -82,52 +82,67 @@ We consolidated benchmarking into a single project: `benchmarks/Pico.DI.Benchmar
 Two modes are supported:
 
 - **Managed BenchmarkDotNet** (recommended for detailed reports): runs the `ContainerSetupBenchmarks` and `ServiceResolutionBenchmarks` with BenchmarkDotNet and generates rich artifacts (CSV, HTML, markdown).
-- **Native AOT friendly manual runner** (default when running the published AOT exe): a lightweight Stopwatch-based runner that reproduces comparable AOT timings without relying on CommandLineParser/BenchmarkSwitcher (which is not AOT-friendly).
+- **Native AOT Stopwatch Runner** (default when running the published AOT exe): a lightweight Stopwatch-based comparison benchmark against Microsoft.Extensions.DependencyInjection that works with Native AOT.
 
-Example AOT header from a run (machine: 12th Gen Intel Core i7-1260P, Windows 11):
+#### Latest Benchmark Results (Native AOT, TrimMode=full)
 
+**Pico.DI wins 14 out of 15 scenarios** against Microsoft.Extensions.DependencyInjection:
+
+| Scenario | Lifetime | Pico.DI | Ms.DI | Ratio | Winner |
+|----------|----------|--------:|------:|------:|--------|
+| **ContainerSetup** | Transient | 1141 ns | 1416 ns | 0.81x | ✅ Pico.DI |
+| | Scoped | 834 ns | 1318 ns | 0.63x | ✅ Pico.DI |
+| | Singleton | 833 ns | 1318 ns | 0.63x | ✅ Pico.DI |
+| **ScopeCreation** | Transient | 856 ns | 2003 ns | 0.43x | ✅ Pico.DI |
+| | Scoped | 870 ns | 1843 ns | 0.47x | ✅ Pico.DI |
+| | Singleton | 806 ns | 1908 ns | 0.42x | ✅ Pico.DI |
+| **SingleResolution** | Transient | 94 ns | 261 ns | 0.36x | ✅ Pico.DI |
+| | Scoped | 528 ns | 403 ns | 1.31x | Ms.DI |
+| | Singleton | 58 ns | 265 ns | **0.22x** | ✅ Pico.DI |
+| **MultipleResolutions** | Transient | 5609 ns | 18914 ns | 0.30x | ✅ Pico.DI |
+| | Scoped | 2582 ns | 7452 ns | 0.35x | ✅ Pico.DI |
+| | Singleton | 1188 ns | 3525 ns | 0.34x | ✅ Pico.DI |
+| **DeepDependencyChain** | Transient | 148 ns | 392 ns | 0.38x | ✅ Pico.DI |
+| | Scoped | 425 ns | 1130 ns | 0.38x | ✅ Pico.DI |
+| | Singleton | 56 ns | 151 ns | 0.37x | ✅ Pico.DI |
+
+**Key Highlights:**
+- **Singleton resolution: 4.6x faster** (58ns vs 265ns)
+- **Transient resolution: 2.8x faster** (94ns vs 261ns)
+- **Scope creation: 2.3x faster** (856ns vs 2003ns)
+- **Deep dependency chain (5 levels): 2.7x faster** (56ns vs 151ns for singleton)
+
+#### Running Benchmarks
+
+**Native AOT (recommended for real-world performance):**
+
+```powershell
+# Build and publish AOT executable
+dotnet publish benchmarks/Pico.DI.Benchmarks -c Release -r win-x64 --self-contained
+
+# Run the benchmark
+./benchmarks/Pico.DI.Benchmarks/bin/Release/net10.0/win-x64/publish/Pico.DI.Benchmarks.exe
 ```
-Pico.DI vs MS.DI - Native AOT Benchmark
-Runtime: .NET 10.0.1 — AOT: Yes (Native AOT)
-```
 
-Quick AOT sample results (example run):
-
-| Metric | Pico.DI (ns) | MS.DI (ns) | Speedup |
-|---|---:|---:|---:|
-| Container Setup | 778.82 | 1527.70 | 1.96x |
-| Singleton Resolve | 16.38 | 34.01 | 2.08x |
-| Transient Resolve | 22.34 | 62.51 | 2.80x |
-| Scoped Resolve | 26.55 | 83.73 | 3.15x |
-| Complex (3 deps) | 28.56 | 120.17 | 4.21x |
-
-These numbers were produced by the AOT-friendly runner inside the published executable.
-
-Artifacts and reproduction
-
-- Managed BenchmarkDotNet artifacts are produced under: `BenchmarkDotNet.Artifacts/results/` inside the `benchmarks/Pico.DI.Benchmarks` run directory (CSV/HTML/markdown).
-- Published Native AOT executable (example output path): `benchmarks/Pico.DI.Benchmarks/publish-win-x64/`.
-
-**CI / Native AOT:** See `docs/CI-AOT.md` for a Windows (GitHub Actions) example and runner prerequisites (MSVC linkers, `VsDevCmd.bat`, `IlcUseEnvironmentalTools=true`, `TrimMode=full`).
-
-To reproduce (managed, detailed):
+**BenchmarkDotNet (for detailed statistical analysis):**
 
 ```powershell
 dotnet run --project benchmarks/Pico.DI.Benchmarks -c Release -- --bdn
 ```
 
-To publish and run the Native AOT executable (example for `win-x64`):
+#### Advanced: Generated Typed Resolvers
 
-```powershell
-dotnet publish benchmarks/Pico.DI.Benchmarks -c Release -r win-x64 --self-contained true -o benchmarks/Pico.DI.Benchmarks/publish-win-x64
-.
-benchmarks\Pico.DI.Benchmarks\publish-win-x64\Pico.DI.Benchmarks.exe
+For maximum performance, Pico.DI.Gen generates typed resolver methods that bypass dictionary lookup entirely:
+
+```csharp
+// Standard resolution (uses FrozenDictionary lookup)
+var logger = scope.GetService<ILogger>();
+
+// Generated typed resolver (direct factory call, ~20% faster)
+var logger = Pico.DI.Gen.GeneratedServiceRegistrations.Resolve.MyNamespace_ILogger(scope);
 ```
 
-Notes:
-
-- The BenchmarkDotNet managed runs provide richer diagnostics (histograms, CI, allocation measurements) and should be used for formal reporting.
-- The Native AOT published exe uses a manual Stopwatch fallback to obtain AOT timings without depending on CommandLineParser/BenchmarkSwitcher, which are incompatible with Native AOT by default.
+**CI / Native AOT:** See `docs/CI-AOT.md` for a Windows (GitHub Actions) example and runner prerequisites (MSVC linkers, `VsDevCmd.bat`, `IlcUseEnvironmentalTools=true`, `TrimMode=full`).
 
 ---
 
