@@ -1,4 +1,4 @@
-namespace Pico.DI.TUnit.Test;
+namespace Pico.DI.Test;
 
 public sealed class SvcLifetimeMatrixTests
 {
