@@ -107,6 +107,7 @@ Two modes are supported:
 | | Singleton | 56 ns | 151 ns | 0.37x | ✅ Pico.DI |
 
 **Key Highlights:**
+
 - **Singleton resolution: 4.6x faster** (58ns vs 265ns)
 - **Transient resolution: 2.8x faster** (94ns vs 261ns)
 - **Scope creation: 2.3x faster** (856ns vs 2003ns)
