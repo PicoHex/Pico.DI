@@ -35,16 +35,27 @@ public static class SvcProviderExtensions
     {
         /// <summary>
         /// Resolves a service of the specified type.
+        /// Uses static generic class caching to avoid typeof(T) overhead on repeated calls.
         /// </summary>
         /// <typeparam name="T">The type of service to resolve.</typeparam>
         /// <returns>The resolved service instance.</returns>
-        public T GetService<T>() => (T)provider.GetService(typeof(T));
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T GetService<T>() => (T)provider.GetService(TypeCache<T>.Value);
 
         /// <summary>
         /// Resolves all services of the specified type.
         /// </summary>
         /// <typeparam name="T">The type of services to resolve.</typeparam>
         /// <returns>An enumerable of all registered service instances of the specified type.</returns>
-        public IEnumerable<T> GetServices<T>() => provider.GetServices(typeof(T)).Cast<T>();
+        public IEnumerable<T> GetServices<T>() => provider.GetServices(TypeCache<T>.Value).Cast<T>();
+    }
+
+    /// <summary>
+    /// Static generic class for caching Type objects.
+    /// Each unique T gets its own static field, avoiding typeof(T) reflection overhead.
+    /// </summary>
+    private static class TypeCache<T>
+    {
+        public static readonly Type Value = typeof(T);
     }
 }

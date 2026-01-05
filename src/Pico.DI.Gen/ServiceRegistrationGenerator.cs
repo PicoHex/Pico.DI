@@ -1345,9 +1345,151 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Close ConfigureGeneratedServicesCore method
         sb.AppendLine("    }");
+        sb.AppendLine();
+
+        // Generate typed resolver extension methods for each service (Optimization #9)
+        GenerateTypedResolvers(sb, registrations, registrationLookup);
+
         sb.AppendLine("}");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Generates typed resolver extension methods that bypass dictionary lookup.
+    /// These provide direct factory calls for maximum performance.
+    /// </summary>
+    private static void GenerateTypedResolvers(
+        StringBuilder sb,
+        List<ServiceRegistration> registrations,
+        Dictionary<string, ServiceRegistration> registrationLookup
+    )
+    {
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// High-performance typed resolvers that bypass dictionary lookup.");
+        sb.AppendLine("    /// Use these methods directly for maximum resolution speed.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public static class Resolve");
+        sb.AppendLine("    {");
+
+        // Track generated method names to avoid duplicates
+        var generatedMethods = new HashSet<string>();
+
+        foreach (var reg in registrations)
+        {
+            // Generate a unique method name from service type
+            var methodName = GetResolverMethodName(reg.ServiceTypeFullName);
+            if (!generatedMethods.Add(methodName))
+                continue; // Skip duplicates
+
+            var serviceType = reg.ServiceTypeFullName;
+
+            sb.AppendLine(
+                $"        /// <summary>Resolves {reg.ServiceTypeName} with direct factory call.</summary>"
+            );
+            sb.AppendLine(
+                $"        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]"
+            );
+            sb.AppendLine(
+                $"        public static {serviceType} {methodName}(global::Pico.DI.Abs.ISvcScope scope)"
+            );
+            sb.AppendLine("        {");
+
+            // Generate resolution based on lifetime
+            switch (reg.Lifetime)
+            {
+                case "Transient":
+                    // Direct inline construction for transient
+                    var transientFactory = GenerateInlinedFactory(reg, registrationLookup, [], 0);
+                    sb.AppendLine($"            return {transientFactory};");
+                    break;
+
+                case "Singleton":
+                    // Use cache helper for singleton
+                    sb.AppendLine(
+                        $"            return SingletonCache<{serviceType}>.GetOrCreate(scope, static s =>"
+                    );
+                    var singletonFactory = GenerateInlinedFactory(reg, registrationLookup, [], 0);
+                    sb.AppendLine($"                {singletonFactory});");
+                    break;
+
+                case "Scoped":
+                    // Use scope's GetService for scoped (needs scope-level caching)
+                    sb.AppendLine(
+                        $"            return ({serviceType})scope.GetService(typeof({serviceType}));"
+                    );
+                    break;
+            }
+
+            sb.AppendLine("        }");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("    }");
+        sb.AppendLine();
+
+        // Generate singleton cache helper class
+        sb.AppendLine(
+            "    /// <summary>Thread-safe singleton cache using static generic class pattern.</summary>"
+        );
+        sb.AppendLine("    private static class SingletonCache<T> where T : class");
+        sb.AppendLine("    {");
+        sb.AppendLine("        private static T? _instance;");
+        sb.AppendLine("        private static object? _lock;");
+        sb.AppendLine();
+        sb.AppendLine(
+            "        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]"
+        );
+        sb.AppendLine(
+            "        public static T GetOrCreate(global::Pico.DI.Abs.ISvcScope scope, global::System.Func<global::Pico.DI.Abs.ISvcScope, T> factory)"
+        );
+        sb.AppendLine("        {");
+        sb.AppendLine(
+            "            var instance = global::System.Threading.Volatile.Read(ref _instance);"
+        );
+        sb.AppendLine("            if (instance != null) return instance;");
+        sb.AppendLine("            return GetOrCreateSlow(scope, factory);");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine(
+            "        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]"
+        );
+        sb.AppendLine(
+            "        private static T GetOrCreateSlow(global::Pico.DI.Abs.ISvcScope scope, global::System.Func<global::Pico.DI.Abs.ISvcScope, T> factory)"
+        );
+        sb.AppendLine("        {");
+        sb.AppendLine("            _lock ??= new object();");
+        sb.AppendLine("            lock (_lock)");
+        sb.AppendLine("            {");
+        sb.AppendLine(
+            "                var instance = global::System.Threading.Volatile.Read(ref _instance);"
+        );
+        sb.AppendLine("                if (instance != null) return instance;");
+        sb.AppendLine("                instance = factory(scope);");
+        sb.AppendLine(
+            "                global::System.Threading.Volatile.Write(ref _instance, instance);"
+        );
+        sb.AppendLine("                return instance;");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+    }
+
+    /// <summary>
+    /// Gets a valid C# method name from a service type full name.
+    /// </summary>
+    private static string GetResolverMethodName(string serviceTypeFullName)
+    {
+        // Remove global:: prefix
+        var name = serviceTypeFullName.Replace("global::", "");
+
+        // Handle generic types: ILogger<UserService> -> ILogger_UserService
+        name = name.Replace("<", "_").Replace(">", "").Replace(",", "_").Replace(" ", "");
+
+        // Replace dots with underscores for namespaces
+        name = name.Replace(".", "_");
+
+        return name;
     }
 
     /// <summary>
