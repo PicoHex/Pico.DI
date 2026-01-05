@@ -8,10 +8,19 @@ public sealed class SvcScope : ISvcScope
 {
     private readonly FrozenDictionary<Type, SvcDescriptor[]>? _descriptorCache;
     private readonly ConcurrentDictionary<Type, SvcDescriptor[]>? _concurrentDescriptorCache;
-    private readonly ConcurrentDictionary<SvcDescriptor, object> _scopedInstances = new();
-    private readonly ConcurrentBag<SvcScope> _childScopes = new();
+
+    // Use lazy initialization to avoid allocation overhead when scopes are short-lived
+    private ConcurrentDictionary<SvcDescriptor, object>? _scopedInstances;
+    private ConcurrentBag<SvcScope>? _childScopes;
+
     private static readonly ConcurrentDictionary<SvcDescriptor, object> SingletonLocks = new();
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
+
+    // Lazy property accessors to delay allocation
+    private ConcurrentDictionary<SvcDescriptor, object> ScopedInstances =>
+        _scopedInstances ??= new ConcurrentDictionary<SvcDescriptor, object>();
+
+    private ConcurrentBag<SvcScope> ChildScopes => _childScopes ??= new ConcurrentBag<SvcScope>();
 
     /// <summary>
     /// Initializes a new instance of <see cref="SvcScope"/> with a frozen (optimized) descriptor cache.
@@ -45,7 +54,7 @@ public sealed class SvcScope : ISvcScope
                 ? new SvcScope(_descriptorCache)
                 : new SvcScope(_concurrentDescriptorCache!);
 
-        _childScopes.Add(childScope);
+        ChildScopes.Add(childScope);
         return childScope;
     }
 
@@ -144,17 +153,23 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private object GetOrCreateSingleton(Type serviceType, SvcDescriptor resolver)
     {
-        // Fast path: volatile read to check if already created
-        var instance = Volatile.Read(ref resolver.SingleInstance);
+        // Fast path: check if already created (most common case after warmup)
+        var instance = resolver.SingleInstance;
         if (instance != null)
             return instance;
 
         // Slow path: use lock to ensure single creation
+        return GetOrCreateSingletonSlow(serviceType, resolver);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private object GetOrCreateSingletonSlow(Type serviceType, SvcDescriptor resolver)
+    {
         var lockObj = SingletonLocks.GetOrAdd(resolver, static _ => new object());
         lock (lockObj)
         {
             // Double-check after acquiring lock
-            instance = Volatile.Read(ref resolver.SingleInstance);
+            var instance = resolver.SingleInstance;
             if (instance != null)
                 return instance;
 
@@ -166,7 +181,7 @@ public sealed class SvcScope : ISvcScope
                             + "Use Pico.DI.Gen source generator or register with a factory delegate."
                     );
 
-            Volatile.Write(ref resolver.SingleInstance, instance);
+            resolver.SingleInstance = instance;
             return instance;
         }
     }
@@ -192,7 +207,7 @@ public sealed class SvcScope : ISvcScope
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private object GetOrAddScopedInstance(SvcDescriptor resolver) =>
-        _scopedInstances.GetOrAdd(
+        ScopedInstances.GetOrAdd(
             resolver,
             static (desc, scope) =>
                 desc.Factory != null
@@ -212,18 +227,24 @@ public sealed class SvcScope : ISvcScope
             return;
 
         // Dispose child scopes first (depth-first disposal)
-        while (_childScopes.TryTake(out var childScope))
+        if (_childScopes != null)
         {
-            childScope.Dispose();
+            while (_childScopes.TryTake(out var childScope))
+            {
+                childScope.Dispose();
+            }
         }
 
         // Then dispose scoped instances owned by this scope
-        foreach (var svc in _scopedInstances.Values)
+        if (_scopedInstances != null)
         {
-            if (svc is IDisposable disposable)
-                disposable.Dispose();
+            foreach (var svc in _scopedInstances.Values)
+            {
+                if (svc is IDisposable disposable)
+                    disposable.Dispose();
+            }
+            _scopedInstances.Clear();
         }
-        _scopedInstances.Clear();
     }
 
     /// <inheritdoc />
@@ -234,24 +255,30 @@ public sealed class SvcScope : ISvcScope
             return;
 
         // Dispose child scopes first (depth-first disposal)
-        while (_childScopes.TryTake(out var childScope))
+        if (_childScopes != null)
         {
-            await childScope.DisposeAsync();
+            while (_childScopes.TryTake(out var childScope))
+            {
+                await childScope.DisposeAsync();
+            }
         }
 
         // Then dispose scoped instances owned by this scope
-        foreach (var svc in _scopedInstances.Values)
+        if (_scopedInstances != null)
         {
-            switch (svc)
+            foreach (var svc in _scopedInstances.Values)
             {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
+                switch (svc)
+                {
+                    case IAsyncDisposable asyncDisposable:
+                        await asyncDisposable.DisposeAsync();
+                        break;
+                    case IDisposable disposable:
+                        disposable.Dispose();
+                        break;
+                }
             }
+            _scopedInstances.Clear();
         }
-        _scopedInstances.Clear();
     }
 }
