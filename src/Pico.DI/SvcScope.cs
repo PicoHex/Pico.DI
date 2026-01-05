@@ -9,18 +9,28 @@ public sealed class SvcScope : ISvcScope
     private readonly FrozenDictionary<Type, SvcDescriptor[]>? _descriptorCache;
     private readonly ConcurrentDictionary<Type, SvcDescriptor[]>? _concurrentDescriptorCache;
 
-    // Use lazy initialization to avoid allocation overhead when scopes are short-lived
-    private ConcurrentDictionary<SvcDescriptor, object>? _scopedInstances;
+    // Scoped instances: use Dictionary + lock for better single-thread performance (most common case)
+    private Dictionary<SvcDescriptor, object>? _scopedInstances;
+    private object? _scopedLock; // Lazy-initialized lock object for scoped instances
     private ConcurrentBag<SvcScope>? _childScopes;
 
-    private static readonly ConcurrentDictionary<SvcDescriptor, object> SingletonLocks = new();
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
-    // Lazy property accessors to delay allocation
-    private ConcurrentDictionary<SvcDescriptor, object> ScopedInstances =>
-        _scopedInstances ??= new ConcurrentDictionary<SvcDescriptor, object>();
-
+    // Lazy accessors
     private ConcurrentBag<SvcScope> ChildScopes => _childScopes ??= new ConcurrentBag<SvcScope>();
+    private object ScopedLock => _scopedLock ??= new object();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ThrowIfDisposed()
+    {
+        if (_disposed != 0)
+            ThrowObjectDisposedException();
+    }
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void ThrowObjectDisposedException() =>
+        throw new ObjectDisposedException(nameof(SvcScope));
 
     /// <summary>
     /// Initializes a new instance of <see cref="SvcScope"/> with a frozen (optimized) descriptor cache.
@@ -46,7 +56,7 @@ public sealed class SvcScope : ISvcScope
     /// <inheritdoc />
     public ISvcScope CreateScope()
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
+        ThrowIfDisposed();
 
         // Create child scope and track it for automatic disposal when parent is disposed
         var childScope =
@@ -62,23 +72,43 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object GetService(Type serviceType)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
+        ThrowIfDisposed();
 
-        // Prefer frozen cache when available
-        if (!TryGetResolvers(serviceType, out var resolvers))
+        // Fast path: inline frozen cache lookup (most common after Build())
+        SvcDescriptor[]? resolvers;
+        if (_descriptorCache != null)
         {
-            // Check for open generic
-            if (!serviceType.IsGenericType)
-                throw new PicoDiException(
-                    $"Service type '{serviceType.FullName}' is not registered."
-                );
+            if (!_descriptorCache.TryGetValue(serviceType, out resolvers))
+                return HandleServiceNotFound(serviceType);
+        }
+        else if (!_concurrentDescriptorCache!.TryGetValue(serviceType, out resolvers))
+        {
+            return HandleServiceNotFound(serviceType);
+        }
+
+        // Get last registered descriptor (override pattern)
+        var resolver = resolvers[resolvers.Length - 1];
+
+        // Inline lifetime dispatch for hot path
+        return resolver.Lifetime switch
+        {
+            SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
+            SvcLifetime.Transient => ResolveTransient(serviceType, resolver),
+            SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+            _ => ThrowUnknownLifetime(resolver.Lifetime)
+        };
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private object HandleServiceNotFound(Type serviceType)
+    {
+        // Check for open generic
+        if (serviceType.IsGenericType)
+        {
             var openGenericType = serviceType.GetGenericTypeDefinition();
             if (
-                (_descriptorCache != null && _descriptorCache.ContainsKey(openGenericType))
-                || (
-                    _concurrentDescriptorCache != null
-                    && _concurrentDescriptorCache.ContainsKey(openGenericType)
-                )
+                (_descriptorCache?.ContainsKey(openGenericType) ?? false)
+                || (_concurrentDescriptorCache?.ContainsKey(openGenericType) ?? false)
             )
             {
                 throw new PicoDiException(
@@ -88,30 +118,23 @@ public sealed class SvcScope : ISvcScope
                         + "or register a factory manually."
                 );
             }
-            throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
         }
-
-        // Get last registered descriptor (override pattern) - array access is very fast
-        var resolver = resolvers![^1];
-
-        return resolver.Lifetime switch
-        {
-            SvcLifetime.Transient => ResolveTransient(serviceType, resolver),
-            SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-            SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-            _
-                => throw new ArgumentOutOfRangeException(
-                    nameof(SvcLifetime),
-                    resolver.Lifetime,
-                    $"Unknown service lifetime '{resolver.Lifetime}'."
-                )
-        };
+        throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
     }
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static object ThrowUnknownLifetime(SvcLifetime lifetime) =>
+        throw new ArgumentOutOfRangeException(
+            nameof(SvcLifetime),
+            lifetime,
+            $"Unknown service lifetime '{lifetime}'."
+        );
 
     /// <inheritdoc />
     public IEnumerable<object> GetServices(Type serviceType)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
+        ThrowIfDisposed();
         if (!TryGetResolvers(serviceType, out var resolvers))
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
@@ -165,11 +188,11 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.NoInlining)]
     private object GetOrCreateSingletonSlow(Type serviceType, SvcDescriptor resolver)
     {
-        var lockObj = SingletonLocks.GetOrAdd(resolver, static _ => new object());
-        lock (lockObj)
+        // Use the descriptor itself as lock object (safe since SvcDescriptor is a reference type)
+        lock (resolver)
         {
             // Double-check after acquiring lock
-            var instance = resolver.SingleInstance;
+            var instance = Volatile.Read(ref resolver.SingleInstance);
             if (instance != null)
                 return instance;
 
@@ -181,7 +204,7 @@ public sealed class SvcScope : ISvcScope
                             + "Use Pico.DI.Gen source generator or register with a factory delegate."
                     );
 
-            resolver.SingleInstance = instance;
+            Volatile.Write(ref resolver.SingleInstance, instance);
             return instance;
         }
     }
@@ -206,18 +229,38 @@ public sealed class SvcScope : ISvcScope
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private object GetOrAddScopedInstance(SvcDescriptor resolver) =>
-        ScopedInstances.GetOrAdd(
-            resolver,
-            static (desc, scope) =>
-                desc.Factory != null
-                    ? desc.Factory(scope)
+    private object GetOrAddScopedInstance(SvcDescriptor resolver)
+    {
+        // Fast path: check without lock (most common case after first resolution)
+        var instances = _scopedInstances;
+        if (instances != null && instances.TryGetValue(resolver, out var existing))
+            return existing;
+
+        return GetOrAddScopedInstanceSlow(resolver);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private object GetOrAddScopedInstanceSlow(SvcDescriptor resolver)
+    {
+        lock (ScopedLock)
+        {
+            _scopedInstances ??= new Dictionary<SvcDescriptor, object>();
+
+            if (_scopedInstances.TryGetValue(resolver, out var existing))
+                return existing;
+
+            var instance =
+                resolver.Factory != null
+                    ? resolver.Factory(this)
                     : throw new PicoDiException(
-                        $"No factory registered for scoped service '{desc.ServiceType.FullName}'. "
+                        $"No factory registered for scoped service '{resolver.ServiceType.FullName}'. "
                             + "Use Pico.DI.Gen source generator or register with a factory delegate."
-                    ),
-            this
-        );
+                    );
+
+            _scopedInstances[resolver] = instance;
+            return instance;
+        }
+    }
 
     /// <inheritdoc />
     public void Dispose()
@@ -236,14 +279,14 @@ public sealed class SvcScope : ISvcScope
         }
 
         // Then dispose scoped instances owned by this scope
-        if (_scopedInstances != null)
+        var instances = _scopedInstances;
+        if (instances != null)
         {
-            foreach (var svc in _scopedInstances.Values)
+            foreach (var svc in instances.Values)
             {
-                if (svc is IDisposable disposable)
-                    disposable.Dispose();
+                (svc as IDisposable)?.Dispose();
             }
-            _scopedInstances.Clear();
+            instances.Clear();
         }
     }
 
@@ -264,9 +307,10 @@ public sealed class SvcScope : ISvcScope
         }
 
         // Then dispose scoped instances owned by this scope
-        if (_scopedInstances != null)
+        var instances = _scopedInstances;
+        if (instances != null)
         {
-            foreach (var svc in _scopedInstances.Values)
+            foreach (var svc in instances.Values)
             {
                 switch (svc)
                 {
@@ -278,7 +322,7 @@ public sealed class SvcScope : ISvcScope
                         break;
                 }
             }
-            _scopedInstances.Clear();
+            instances.Clear();
         }
     }
 }
