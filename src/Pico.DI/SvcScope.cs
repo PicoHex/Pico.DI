@@ -12,13 +12,19 @@ public sealed class SvcScope : ISvcScope
     // Scoped instances: use Dictionary + lock for better single-thread performance (most common case)
     private Dictionary<SvcDescriptor, object>? _scopedInstances;
     private object? _scopedLock; // Lazy-initialized lock object for scoped instances
-    private ConcurrentBag<SvcScope>? _childScopes;
+
+    // Child scopes linked list - lower overhead than ConcurrentBag
+    private SvcScope? _firstChild;
+    private object? _childLock;
+
+    // For container's root scope tracking (linked list)
+    internal SvcScope? NextSibling;
 
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
     // Lazy accessors
-    private ConcurrentBag<SvcScope> ChildScopes => _childScopes ??= new ConcurrentBag<SvcScope>();
     private object ScopedLock => _scopedLock ??= new object();
+    private object ChildLock => _childLock ??= new object();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
@@ -58,13 +64,18 @@ public sealed class SvcScope : ISvcScope
     {
         ThrowIfDisposed();
 
-        // Create child scope and track it for automatic disposal when parent is disposed
+        // Create child scope
         var childScope =
             _descriptorCache != null
                 ? new SvcScope(_descriptorCache)
                 : new SvcScope(_concurrentDescriptorCache!);
 
-        ChildScopes.Add(childScope);
+        // Track it for automatic disposal using linked list
+        lock (ChildLock)
+        {
+            childScope.NextSibling = _firstChild;
+            _firstChild = childScope;
+        }
         return childScope;
     }
 
@@ -269,14 +280,15 @@ public sealed class SvcScope : ISvcScope
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
 
-        // Dispose child scopes first (depth-first disposal)
-        if (_childScopes != null)
+        // Dispose child scopes first (depth-first disposal) using linked list
+        var child = _firstChild;
+        while (child != null)
         {
-            while (_childScopes.TryTake(out var childScope))
-            {
-                childScope.Dispose();
-            }
+            var next = child.NextSibling;
+            child.Dispose();
+            child = next;
         }
+        _firstChild = null;
 
         // Then dispose scoped instances owned by this scope
         var instances = _scopedInstances;
@@ -297,14 +309,15 @@ public sealed class SvcScope : ISvcScope
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
 
-        // Dispose child scopes first (depth-first disposal)
-        if (_childScopes != null)
+        // Dispose child scopes first (depth-first disposal) using linked list
+        var child = _firstChild;
+        while (child != null)
         {
-            while (_childScopes.TryTake(out var childScope))
-            {
-                await childScope.DisposeAsync();
-            }
+            var next = child.NextSibling;
+            await child.DisposeAsync();
+            child = next;
         }
+        _firstChild = null;
 
         // Then dispose scoped instances owned by this scope
         var instances = _scopedInstances;

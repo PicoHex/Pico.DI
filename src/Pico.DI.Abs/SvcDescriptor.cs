@@ -8,7 +8,7 @@
 /// <param name="serviceType">The service type (interface or base class) being registered.</param>
 /// <param name="implementationType">The concrete implementation type (optional, for open generics).</param>
 /// <param name="lifetime">The service lifetime (Transient, Scoped, or Singleton).</param>
-public class SvcDescriptor(
+public sealed class SvcDescriptor(
     Type serviceType,
     Type? implementationType,
     SvcLifetime lifetime = SvcLifetime.Singleton

@@ -7,7 +7,11 @@
 public sealed class SvcContainer : ISvcContainer
 {
     private readonly ConcurrentDictionary<Type, SvcDescriptor[]> _descriptorCache = new();
-    private readonly ConcurrentBag<SvcScope> _rootScopes = [];
+
+    // Use simple linked list for root scopes - lower overhead than ConcurrentBag
+    private SvcScope? _firstRootScope;
+    private object? _rootScopeLock;
+    private object RootScopeLock => _rootScopeLock ??= new object();
 
     /// <summary>
     /// Frozen (optimized) descriptor cache after Build() is called.
@@ -15,7 +19,18 @@ public sealed class SvcContainer : ISvcContainer
     private FrozenDictionary<Type, SvcDescriptor[]>? _frozenCache;
 
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
-    private bool _isBuilt;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ThrowIfDisposed()
+    {
+        if (_disposed != 0)
+            ThrowObjectDisposedException();
+    }
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void ThrowObjectDisposedException() =>
+        throw new ObjectDisposedException(nameof(SvcContainer));
 
     /// <summary>
     /// Creates a new instance of <see cref="SvcContainer"/>.
@@ -37,9 +52,9 @@ public sealed class SvcContainer : ISvcContainer
     /// <inheritdoc />
     public ISvcContainer Register(SvcDescriptor descriptor)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
+        ThrowIfDisposed();
 
-        if (_isBuilt)
+        if (_frozenCache != null)
             throw new InvalidOperationException(
                 "Cannot register services after Build() has been called. "
                     + "Register all services before calling Build()."
@@ -69,26 +84,31 @@ public sealed class SvcContainer : ISvcContainer
     /// <returns>The container instance for method chaining.</returns>
     public SvcContainer Build()
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
+        ThrowIfDisposed();
 
-        if (_isBuilt)
+        if (_frozenCache != null)
             return this;
 
         _frozenCache = _descriptorCache.ToFrozenDictionary();
-        _isBuilt = true;
         return this;
     }
 
     /// <inheritdoc />
     public ISvcScope CreateScope()
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
+        ThrowIfDisposed();
 
-        // Create scope and track it for automatic disposal when container is disposed
+        // Create scope - use frozen cache after Build() for maximum performance
+        var frozenCache = _frozenCache;
         var scope =
-            _frozenCache != null ? new SvcScope(_frozenCache) : new SvcScope(_descriptorCache);
+            frozenCache != null ? new SvcScope(frozenCache) : new SvcScope(_descriptorCache);
 
-        _rootScopes.Add(scope);
+        // Track for automatic disposal using simple linked list
+        lock (RootScopeLock)
+        {
+            scope.NextSibling = _firstRootScope;
+            _firstRootScope = scope;
+        }
         return scope;
     }
 
@@ -100,20 +120,21 @@ public sealed class SvcContainer : ISvcContainer
             return;
 
         // Dispose all root scopes first (which will recursively dispose their child scopes)
-        while (_rootScopes.TryTake(out var scope))
+        var scope = _firstRootScope;
+        while (scope != null)
         {
+            var next = scope.NextSibling;
             scope.Dispose();
+            scope = next;
         }
+        _firstRootScope = null;
 
         // Then dispose singleton instances owned by the container
         foreach (var keyValuePair in _descriptorCache)
         {
             foreach (var svc in keyValuePair.Value)
             {
-                if (svc.SingleInstance is IDisposable disposable)
-                {
-                    disposable.Dispose();
-                }
+                (svc.SingleInstance as IDisposable)?.Dispose();
             }
         }
         _descriptorCache.Clear();
@@ -127,27 +148,29 @@ public sealed class SvcContainer : ISvcContainer
             return;
 
         // Dispose all root scopes first (which will recursively dispose their child scopes)
-        while (_rootScopes.TryTake(out var scope))
+        var scope = _firstRootScope;
+        while (scope != null)
         {
+            var next = scope.NextSibling;
             await scope.DisposeAsync();
+            scope = next;
         }
+        _firstRootScope = null;
 
         // Then dispose singleton instances owned by the container
-        foreach (
-            var svc in _descriptorCache
-                .SelectMany(p => p.Value)
-                .Select(p => p.SingleInstance)
-                .Where(p => p is not null)
-        )
+        foreach (var keyValuePair in _descriptorCache)
         {
-            switch (svc)
+            foreach (var svc in keyValuePair.Value)
             {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
+                switch (svc.SingleInstance)
+                {
+                    case IAsyncDisposable asyncDisposable:
+                        await asyncDisposable.DisposeAsync();
+                        break;
+                    case IDisposable disposable:
+                        disposable.Dispose();
+                        break;
+                }
             }
         }
         _descriptorCache.Clear();
