@@ -16,10 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Pico.DI.Abs\Pico.DI.Abs.csproj" />
     <ProjectReference Include="..\..\src\Pico.DI\Pico.DI.csproj" />
-    <!-- Add generator as an analyzer so it runs during build -->
-    <ProjectReference Include="..\..\src\Pico.DI.Gen\Pico.DI.Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <Target Name="PublishAotIfRequested" BeforeTargets="Run" Condition="'$(PublishAotOnRun)'=='true'">

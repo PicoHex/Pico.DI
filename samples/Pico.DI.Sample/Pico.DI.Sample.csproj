@@ -16,14 +16,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\Pico.DI.Abs\Pico.DI.Abs.csproj" />
       <ProjectReference Include="..\..\src\Pico.DI\Pico.DI.csproj" />
       <ProjectReference Include="..\Pico.DI.Sample.Services\Pico.DI.Sample.Services.csproj" />
-    </ItemGroup>
-
-    <!-- Source Generator reference -->
-    <ItemGroup>
-      <ProjectReference Include="..\..\src\Pico.DI.Gen\Pico.DI.Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
   <Target Name="PublishAotIfRequested" BeforeTargets="Run" Condition="'$(PublishAotOnRun)'=='true'">

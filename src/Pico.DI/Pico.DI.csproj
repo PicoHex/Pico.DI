@@ -21,7 +21,7 @@
         <PackageTags>DI;IoC;AOT;Dependency Injection;Container;Source Generator</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         
-        <!-- Include Source Generator in this package -->
+        <!-- Mark as development dependency (analyzers don't need runtime reference) -->
         <DevelopmentDependency>true</DevelopmentDependency>
     </PropertyGroup>
 
@@ -37,7 +37,11 @@
                           ReferenceOutputAssembly="false" />
     </ItemGroup>
 
-    <!-- Pack the Source Generator DLL into analyzers folder -->
+    <!-- 
+        Pack the Source Generator DLL into analyzers folder.
+        NuGet automatically loads DLLs from analyzers/dotnet/cs as Roslyn analyzers.
+        No .props or .targets files needed for this to work.
+    -->
     <ItemGroup>
         <None Include="..\Pico.DI.Gen\bin\$(Configuration)\netstandard2.0\Pico.DI.Gen.dll" 
               Pack="true" 

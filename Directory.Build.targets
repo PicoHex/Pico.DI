@@ -1,0 +1,18 @@
+<Project>
+  <!-- 
+    Auto-import Pico.DI.Gen source generator for projects that reference Pico.DI.
+    The generator will only produce output when it detects Pico.DI registration patterns.
+    This ensures the generator runs automatically without explicit reference to Pico.DI.Gen.
+    
+    Note: This only applies to projects in this workspace (local development).
+    For NuGet consumers, the analyzer is included in the package via .props/.targets files.
+  -->
+  
+  <!-- Only add analyzer if it exists AND the project is not Pico.DI.Gen itself AND not the abstractions -->
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)src\Pico.DI.Gen\bin\$(Configuration)\netstandard2.0\Pico.DI.Gen.dll')">
+    <Analyzer Include="$(MSBuildThisFileDirectory)src\Pico.DI.Gen\bin\$(Configuration)\netstandard2.0\Pico.DI.Gen.dll"
+              Condition="'$(MSBuildProjectName)' != 'Pico.DI.Gen' AND '$(MSBuildProjectName)' != 'Pico.DI.Abs' AND '$(MSBuildProjectName)' != 'Pico.DI.Sample.Services'" />
+  </ItemGroup>
+</Project>
+
+
