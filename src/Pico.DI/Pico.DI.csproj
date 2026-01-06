@@ -25,10 +25,6 @@
         <DevelopmentDependency>true</DevelopmentDependency>
     </PropertyGroup>
 
-    <ItemGroup>
-        <None Include="../../README.md" Pack="true" PackagePath="/" />
-    </ItemGroup>
-
     <!-- Reference to Abstractions - will become a NuGet dependency -->
     <ItemGroup>
         <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj" />
