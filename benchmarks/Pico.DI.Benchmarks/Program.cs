@@ -1,9 +1,4 @@
-﻿using System.Diagnostics;
-using Microsoft.Extensions.DependencyInjection;
-using Pico.DI;
-using Pico.DI.Abs;
-
-namespace Pico.DI.Benchmarks;
+﻿namespace Pico.DI.Benchmarks;
 
 #region Test Services
 
@@ -532,18 +527,16 @@ public static class Program
 
             foreach (var lifetime in lifetimes)
             {
-                var picoResult = results.First(
-                    r =>
-                        r.Scenario == scenario
-                        && r.Lifetime == lifetime
-                        && r.Container == ContainerType.PicoDI
+                var picoResult = results.First(r =>
+                    r.Scenario == scenario
+                    && r.Lifetime == lifetime
+                    && r.Container == ContainerType.PicoDI
                 );
 
-                var msResult = results.First(
-                    r =>
-                        r.Scenario == scenario
-                        && r.Lifetime == lifetime
-                        && r.Container == ContainerType.MsDI
+                var msResult = results.First(r =>
+                    r.Scenario == scenario
+                    && r.Lifetime == lifetime
+                    && r.Container == ContainerType.MsDI
                 );
 
                 var diff = picoResult.AvgNs - msResult.AvgNs;
@@ -583,17 +576,15 @@ public static class Program
         {
             foreach (var lifetime in lifetimes)
             {
-                var pico = results.First(
-                    r =>
-                        r.Scenario == scenario
-                        && r.Lifetime == lifetime
-                        && r.Container == ContainerType.PicoDI
+                var pico = results.First(r =>
+                    r.Scenario == scenario
+                    && r.Lifetime == lifetime
+                    && r.Container == ContainerType.PicoDI
                 );
-                var ms = results.First(
-                    r =>
-                        r.Scenario == scenario
-                        && r.Lifetime == lifetime
-                        && r.Container == ContainerType.MsDI
+                var ms = results.First(r =>
+                    r.Scenario == scenario
+                    && r.Lifetime == lifetime
+                    && r.Container == ContainerType.MsDI
                 );
 
                 if (pico.AvgNs < ms.AvgNs)
