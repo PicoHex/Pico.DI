@@ -1,6 +1,6 @@
 namespace Pico.DI.Sample.Services;
 
-public class GreetingService(IGreeter greeter, ILogger logger)
+public class GreetingService(IGreeter greeter, ILogger<GreetingService> logger)
 {
     public void SayHello(string name)
     {

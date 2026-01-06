@@ -1,6 +1,6 @@
 namespace Pico.DI.Sample.Services;
 
-public class ConsoleLogger : ILogger
+public class ConsoleLogger<T> : ILogger<T>
 {
-    public void Log(string message) => Console.WriteLine($"[LOG] {message}");
+    public void Log(string message) => Console.WriteLine($"{typeof(T)} [LOG] {message}");
 }
