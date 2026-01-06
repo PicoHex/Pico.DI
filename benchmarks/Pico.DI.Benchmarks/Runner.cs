@@ -1,6 +1,4 @@
-﻿using System.Runtime.InteropServices;
-
-namespace Pico.DI.Benchmarks;
+﻿namespace Pico.DI.Benchmarks;
 
 public static class Runner
 {
@@ -18,8 +16,7 @@ public static class Runner
 
     public static Summary Time(string name, int iteration, Action action)
     {
-        if (iteration <= 0)
-            throw new ArgumentOutOfRangeException(nameof(iteration));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(iteration);
         ArgumentNullException.ThrowIfNull(action);
 
         // 1.

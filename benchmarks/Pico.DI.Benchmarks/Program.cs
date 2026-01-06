@@ -235,14 +235,16 @@ public static class BenchmarkRunner
                 ExecuteScopeCreation(container, lifetime);
                 break;
             case TestScenario.SingleResolution:
-                ExecuteSingleResolution(container, lifetime);
+                ExecuteSingleResolution(container);
                 break;
             case TestScenario.MultipleResolutions:
-                ExecuteMultipleResolutions(container, lifetime);
+                ExecuteMultipleResolutions(container);
                 break;
             case TestScenario.DeepDependencyChain:
-                ExecuteDeepDependencyChain(container, lifetime);
+                ExecuteDeepDependencyChain(container);
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(scenario), scenario, null);
         }
     }
 
@@ -280,7 +282,7 @@ public static class BenchmarkRunner
         }
     }
 
-    private static void ExecuteSingleResolution(ContainerType container, LifetimeType lifetime)
+    private static void ExecuteSingleResolution(ContainerType container)
     {
         if (container == ContainerType.PicoDI)
         {
@@ -294,7 +296,7 @@ public static class BenchmarkRunner
         }
     }
 
-    private static void ExecuteMultipleResolutions(ContainerType container, LifetimeType lifetime)
+    private static void ExecuteMultipleResolutions(ContainerType container)
     {
         if (container == ContainerType.PicoDI)
         {
@@ -310,7 +312,7 @@ public static class BenchmarkRunner
         }
     }
 
-    private static void ExecuteDeepDependencyChain(ContainerType container, LifetimeType lifetime)
+    private static void ExecuteDeepDependencyChain(ContainerType container)
     {
         if (container == ContainerType.PicoDI)
         {
@@ -366,6 +368,8 @@ public static class BenchmarkRunner
                 services.AddSingleton<IRepository, Repository>();
                 services.AddSingleton<IService, ServiceC>();
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, null);
         }
     }
 
@@ -412,6 +416,8 @@ public static class BenchmarkRunner
                 services.AddSingleton<ILevel4, Level4>();
                 services.AddSingleton<ILevel5, Level5>();
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, null);
         }
     }
 
@@ -430,7 +436,7 @@ public static class Program
             "╔══════════════════════════════════════════════════════════════════════════════╗"
         );
         Console.WriteLine(
-            "║            Pico.DI vs Microsoft.DI - Stopwatch Comparison Benchmark          ║"
+            "║           Pico.DI vs Microsoft.DI - Code Runner Comparison Benchmark         ║"
         );
         Console.WriteLine(
             "╚══════════════════════════════════════════════════════════════════════════════╝"
