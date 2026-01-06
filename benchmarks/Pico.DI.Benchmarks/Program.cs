@@ -113,7 +113,9 @@ public record BenchmarkResult(
     double TotalMs,
     double AvgNs,
     double MinNs,
-    double MaxNs
+    double MaxNs,
+    ulong CpuCycles,
+    IReadOnlyList<GenCount> GcGenDeltas
 );
 
 public static class BenchmarkRunner
@@ -150,27 +152,29 @@ public static class BenchmarkRunner
         for (var i = 0; i < WarmupIterations; i++)
             ExecuteScenario(containerType, scenario, lifetime);
 
-        // Collect individual timings
-        var timings = new double[iterations];
-        var sw = new Stopwatch();
+        // Batch timing via Runner.Time (AOT-friendly, captures GC deltas + CPU cycles)
+        var summaryName = $"{containerType}/{scenario}/{lifetime}";
+        var summary = Runner.Time(
+            summaryName,
+            iterations,
+            () => ExecuteScenario(containerType, scenario, lifetime)
+        );
 
-        for (var i = 0; i < iterations; i++)
-        {
-            sw.Restart();
-            ExecuteScenario(containerType, scenario, lifetime);
-            sw.Stop();
-            timings[i] = sw.Elapsed.TotalNanoseconds;
-        }
+        var totalNs = summary.ElapsedNanoseconds;
+        var avgNs = totalNs / iterations;
 
+        // Runner.Time measures the whole batch; Min/Max are not sampled per-iteration here.
         return new BenchmarkResult(
             containerType,
             scenario,
             lifetime,
             iterations,
-            timings.Sum() / 1_000_000,
-            timings.Average(),
-            timings.Min(),
-            timings.Max()
+            totalNs / 1_000_000d,
+            avgNs,
+            avgNs,
+            avgNs,
+            summary.CpuCycle,
+            summary.GenCounts
         );
     }
 
@@ -433,6 +437,8 @@ public static class Program
         );
         Console.WriteLine();
 
+        Runner.Initialize();
+
         var results = new List<BenchmarkResult>();
 
         // Matrix: Container × Scenario × Lifetime
@@ -474,7 +480,14 @@ public static class Program
                     var result = BenchmarkRunner.Run(container, scenario, lifetime);
                     results.Add(result);
 
-                    Console.WriteLine($"{result.AvgNs, 10:F1} ns/op");
+                    var cyclesPerOp =
+                        result.CpuCycles == 0
+                            ? "n/a"
+                            : (result.CpuCycles / (double)result.Iterations).ToString("N0");
+
+                    Console.WriteLine(
+                        $"{result.AvgNs, 10:F1} ns/op | cycles/op: {cyclesPerOp, 7} | GCΔ: {FormatGcDeltasAllGens(result.GcGenDeltas)}"
+                    );
                 }
             }
             Console.WriteLine();
@@ -500,63 +513,182 @@ public static class Program
         );
         Console.WriteLine();
 
-        var scenarios = results.Select(r => r.Scenario).Distinct();
+        const int caseW = 20;
+        const int timeW = 11;
+        const int cpuW = 11;
+        const int gcW = 14;
+        const int speedW = 8;
 
-        foreach (var scenario in scenarios)
+        var segments = new[] { caseW + 2, timeW + 2, cpuW + 2, gcW + 2, speedW + 2 };
+
+        static string Line(char left, char mid, char right, int[] segs)
         {
-            Console.WriteLine(
-                $"┌─────────────────────────────────────────────────────────────────────────────┐"
-            );
-            Console.WriteLine($"│ {scenario, -75} │");
-            Console.WriteLine(
-                $"├────────────┬────────────┬────────────┬────────────┬────────────┬───────────┤"
-            );
-            Console.WriteLine(
-                $"│ {"Lifetime", -10} │ {"Pico.DI", -10} │ {"Ms.DI", -10} │ {"Diff", -10} │ {"Ratio", -10} │ {"Winner", -9} │"
-            );
-            Console.WriteLine(
-                $"├────────────┼────────────┼────────────┼────────────┼────────────┼───────────┤"
-            );
+            var parts = segs.Select(s => new string('─', s));
+            return left + string.Join(mid, parts) + right;
+        }
 
-            var lifetimes = new[]
-            {
-                LifetimeType.Transient,
-                LifetimeType.Scoped,
-                LifetimeType.Singleton
-            };
+        static string Truncate(string value, int width)
+        {
+            if (value.Length <= width)
+                return value;
+            if (width <= 3)
+                return value[..width];
+            return value[..(width - 3)] + "...";
+        }
 
-            foreach (var lifetime in lifetimes)
+        var byScenario = results.GroupBy(r => r.Scenario).OrderBy(g => g.Key).ToList();
+
+        foreach (var scenarioGroup in byScenario)
+        {
+            Console.WriteLine($"▶ Scenario: {scenarioGroup.Key}");
+
+            Console.WriteLine(Line('┌', '┬', '┐', segments));
+            Console.WriteLine(
+                $"│ {"Test case", -caseW} │ {"Time(ns)", -timeW} │ {"CPU(cy)", -cpuW} │ {"GC", -gcW} │ {"Pico x", -speedW} │"
+            );
+            Console.WriteLine(Line('├', '┼', '┤', segments));
+
+            foreach (
+                var lifetime in new[]
+                {
+                    LifetimeType.Transient,
+                    LifetimeType.Scoped,
+                    LifetimeType.Singleton
+                }
+            )
             {
-                var picoResult = results.First(r =>
-                    r.Scenario == scenario
-                    && r.Lifetime == lifetime
-                    && r.Container == ContainerType.PicoDI
+                var pico = scenarioGroup.First(r =>
+                    r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
+                );
+                var ms = scenarioGroup.First(r =>
+                    r.Lifetime == lifetime && r.Container == ContainerType.MsDI
                 );
 
-                var msResult = results.First(r =>
-                    r.Scenario == scenario
-                    && r.Lifetime == lifetime
-                    && r.Container == ContainerType.MsDI
-                );
+                var picoTime = pico.AvgNs;
+                var msTime = ms.AvgNs;
+                var speedup = picoTime <= 0 ? "n/a" : (msTime / picoTime).ToString("0.00") + "x";
 
-                var diff = picoResult.AvgNs - msResult.AvgNs;
-                var ratio = picoResult.AvgNs / msResult.AvgNs;
-                var winner = picoResult.AvgNs < msResult.AvgNs ? "Pico.DI" : "Ms.DI";
-                var winnerColor = winner == "Pico.DI" ? "✓" : " ";
+                var picoCpu = CpuCyclesPerOpString(pico);
+                var msCpu = CpuCyclesPerOpString(ms);
+
+                var picoGc = Truncate(FormatGcDeltasAllGens(pico.GcGenDeltas), gcW);
+                var msGc = Truncate(FormatGcDeltasAllGens(ms.GcGenDeltas), gcW);
+
+                var picoCase = Truncate($"{ContainerType.PicoDI} × {lifetime}", caseW);
+                var msCase = Truncate($"{ContainerType.MsDI} × {lifetime}", caseW);
 
                 Console.WriteLine(
-                    $"│ {lifetime, -10} │ {picoResult.AvgNs, 8:F1} ns │ {msResult.AvgNs, 8:F1} ns │ {diff, +8:F1} ns │ {ratio, 9:F2}x │ {winnerColor}{winner, -8} │"
+                    $"│ {picoCase, -caseW} │ {picoTime, timeW:F1} │ {Truncate(picoCpu, cpuW), -cpuW} │ {picoGc, -gcW} │ {Truncate(speedup, speedW), -speedW} │"
+                );
+                Console.WriteLine(
+                    $"│ {msCase, -caseW} │ {msTime, timeW:F1} │ {Truncate(msCpu, cpuW), -cpuW} │ {msGc, -gcW} │ {"", -speedW} │"
                 );
             }
 
-            Console.WriteLine(
-                $"└────────────┴────────────┴────────────┴────────────┴────────────┴───────────┘"
-            );
+            Console.WriteLine(Line('└', '┴', '┘', segments));
             Console.WriteLine();
         }
 
-        // Summary
+        PrintTotalsComparison(results);
+
+        // Summary (wins count)
         PrintSummary(results);
+    }
+
+    private static void PrintTotalsComparison(List<BenchmarkResult> results)
+    {
+        Console.WriteLine(
+            "╔══════════════════════════════════════════════════════════════════════════════╗"
+        );
+        Console.WriteLine(
+            "║                                   TOTALS                                     ║"
+        );
+        Console.WriteLine(
+            "╚══════════════════════════════════════════════════════════════════════════════╝"
+        );
+        Console.WriteLine();
+
+        var picoCases = results.Where(r => r.Container == ContainerType.PicoDI).ToList();
+        var msCases = results.Where(r => r.Container == ContainerType.MsDI).ToList();
+
+        var picoAvgNs = picoCases.Average(r => r.AvgNs);
+        var msAvgNs = msCases.Average(r => r.AvgNs);
+        var timeSpeedup = picoAvgNs <= 0 ? double.NaN : msAvgNs / picoAvgNs;
+
+        var picoAvgCy = picoCases.All(r => r.CpuCycles == 0)
+            ? (double?)null
+            : picoCases.Average(r => r.CpuCycles / (double)r.Iterations);
+        var msAvgCy = msCases.All(r => r.CpuCycles == 0)
+            ? (double?)null
+            : msCases.Average(r => r.CpuCycles / (double)r.Iterations);
+        var cpuSpeedup =
+            picoAvgCy is null || msAvgCy is null || picoAvgCy <= 0
+                ? (double?)null
+                : msAvgCy / picoAvgCy;
+
+        var picoGcTotals = SumGcAllGens(picoCases);
+        var msGcTotals = SumGcAllGens(msCases);
+        var picoGcSum = picoGcTotals.Values.Sum();
+        var msGcSum = msGcTotals.Values.Sum();
+        var gcReduction = picoGcSum == 0 ? (double?)null : msGcSum / picoGcSum;
+
+        Console.WriteLine(
+            $"Time (avg ns/op): Pico {picoAvgNs:F1} | Ms {msAvgNs:F1} | Pico x {timeSpeedup:0.00}x"
+        );
+        Console.WriteLine(
+            $"CPU  (avg cy/op):  Pico {FormatNumber(picoAvgCy, "N0")} | Ms {FormatNumber(msAvgCy, "N0")} | Pico x {FormatRatio(cpuSpeedup)}"
+        );
+        Console.WriteLine(
+            $"GC   (sum):        Pico {FormatGcTotals(picoGcTotals)} | Ms {FormatGcTotals(msGcTotals)} | Pico x {FormatRatio(gcReduction)}"
+        );
+        Console.WriteLine();
+    }
+
+    private static string CpuCyclesPerOpString(BenchmarkResult r)
+    {
+        if (r.CpuCycles == 0)
+            return "n/a";
+        return (r.CpuCycles / (double)r.Iterations).ToString("N0");
+    }
+
+    private static Dictionary<int, int> SumGcAllGens(List<BenchmarkResult> cases)
+    {
+        var totals = new Dictionary<int, int>();
+        foreach (var r in cases)
+        {
+            foreach (var d in r.GcGenDeltas)
+            {
+                totals.TryGetValue(d.Gen, out var existing);
+                totals[d.Gen] = existing + d.Count;
+            }
+        }
+
+        return totals;
+    }
+
+    private static string FormatGcTotals(Dictionary<int, int> totals)
+    {
+        if (totals.Count == 0)
+            return "n/a";
+
+        return string.Join(
+            " ",
+            totals.OrderBy(kvp => kvp.Key).Select(kvp => $"G{kvp.Key}:{kvp.Value}")
+        );
+    }
+
+    private static string FormatNumber(double? value, string format)
+    {
+        if (value is null || double.IsNaN(value.Value) || double.IsInfinity(value.Value))
+            return "n/a";
+        return value.Value.ToString(format);
+    }
+
+    private static string FormatRatio(double? value)
+    {
+        if (value is null || double.IsNaN(value.Value) || double.IsInfinity(value.Value))
+            return "n/a";
+        return value.Value.ToString("0.00") + "x";
     }
 
     private static void PrintSummary(List<BenchmarkResult> results)
@@ -594,24 +726,57 @@ public static class Program
             }
         }
 
-        Console.WriteLine(
-            "╔══════════════════════════════════════════════════════════════════════════════╗"
-        );
-        Console.WriteLine(
-            "║                                  SUMMARY                                     ║"
-        );
-        Console.WriteLine(
-            "╠══════════════════════════════════════════════════════════════════════════════╣"
-        );
-        Console.WriteLine(
-            $"║  Pico.DI wins: {picoWins, 3} / {picoWins + msWins, -3}                                                        ║"
-        );
-        Console.WriteLine(
-            $"║  Ms.DI wins:   {msWins, 3} / {picoWins + msWins, -3}                                                        ║"
-        );
-        Console.WriteLine(
-            "╚══════════════════════════════════════════════════════════════════════════════╝"
-        );
+        const int innerW = 78;
+
+        static string Center(string text, int width)
+        {
+            if (text.Length >= width)
+                return text[..width];
+            var left = (width - text.Length) / 2;
+            return new string(' ', left) + text + new string(' ', width - left - text.Length);
+        }
+
+        static void WriteRow(string content, int width) =>
+            Console.WriteLine($"║{content.PadRight(width)}║");
+
+        Console.WriteLine($"╔{new string('═', innerW)}╗");
+        WriteRow(Center("SUMMARY", innerW), innerW);
+        Console.WriteLine($"╠{new string('═', innerW)}╣");
+
+        var total = picoWins + msWins;
+        WriteRow($"  Pico.DI wins: {picoWins, 3} / {total, 3}", innerW);
+        WriteRow($"  Ms.DI wins:   {msWins, 3} / {total, 3}", innerW);
+
+        Console.WriteLine($"╚{new string('═', innerW)}╝");
+    }
+
+    private static string FormatGcDeltas(IReadOnlyList<GenCount> deltas)
+    {
+        if (deltas.Count == 0)
+            return "n/a";
+
+        var parts = deltas.Where(d => d.Count != 0).Select(d => $"Gen{d.Gen}+{d.Count}").ToArray();
+
+        return parts.Length == 0 ? "0" : string.Join(" ", parts);
+    }
+
+    private static string FormatGcDeltasShort(IReadOnlyList<GenCount> deltas)
+    {
+        if (deltas.Count == 0)
+            return "n/a";
+
+        var parts = deltas.Where(d => d.Count != 0).Select(d => $"G{d.Gen}+{d.Count}").ToArray();
+
+        return parts.Length == 0 ? "0" : string.Join(" ", parts);
+    }
+
+    private static string FormatGcDeltasAllGens(IReadOnlyList<GenCount> deltas)
+    {
+        if (deltas.Count == 0)
+            return "n/a";
+
+        // Include all generations, even if count is 0.
+        return string.Join(" ", deltas.Select(d => $"G{d.Gen}:{d.Count}"));
     }
 }
 

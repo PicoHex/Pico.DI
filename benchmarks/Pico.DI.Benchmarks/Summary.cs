@@ -3,7 +3,9 @@
 public class Summary
 {
     public string Name { get; set; } = string.Empty;
-    public long ElapsedMilliseconds { get; set; }
+    public double ElapsedMilliseconds { get; set; }
+    public long ElapsedTicks { get; set; }
+    public double ElapsedNanoseconds { get; set; }
     public ulong CpuCycle { get; set; }
     public List<GenCount> GenCounts { get; set; } = new();
 
@@ -11,7 +13,7 @@ public class Summary
         $"""
 
             Name:   {Name}
-            Time Elapsed:   {ElapsedMilliseconds:N0}ms
+            Time Elapsed:   {ElapsedMilliseconds:N3}ms
             CPU Cycles: {CpuCycle:N0}
             {string.Join(
                 "\r\n",

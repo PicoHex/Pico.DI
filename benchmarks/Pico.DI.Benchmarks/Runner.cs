@@ -6,15 +6,21 @@ public static class Runner
 {
     public static void Initialize()
     {
-        Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
-        Thread.CurrentThread.Priority = ThreadPriority.Highest;
-        Time("", 1, () => { });
+        if (OperatingSystem.IsWindows())
+        {
+            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
+            Thread.CurrentThread.Priority = ThreadPriority.Highest;
+        }
+
+        // Warm-up: touch Stopwatch/GC/cycle APIs once.
+        Time("_warmup", 1, static () => { });
     }
 
     public static Summary Time(string name, int iteration, Action action)
     {
-        if (string.IsNullOrEmpty(name))
-            return new Summary();
+        if (iteration <= 0)
+            throw new ArgumentOutOfRangeException(nameof(iteration));
+        ArgumentNullException.ThrowIfNull(action);
 
         // 1.
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
@@ -31,11 +37,16 @@ public static class Runner
         watch.Stop();
         var cpuCycles = GetCycleCount() - cycleCount;
 
+        var elapsedTicks = watch.ElapsedTicks;
+        var elapsedNs = elapsedTicks * (1_000_000_000d / Stopwatch.Frequency);
+
         // 3.
         return new Summary
         {
             Name = name,
-            ElapsedMilliseconds = watch.ElapsedMilliseconds,
+            ElapsedMilliseconds = watch.Elapsed.TotalMilliseconds,
+            ElapsedTicks = elapsedTicks,
+            ElapsedNanoseconds = elapsedNs,
             CpuCycle = cpuCycles,
             GenCounts = Enumerable
                 .Range(0, GC.MaxGeneration + 1)
@@ -46,6 +57,9 @@ public static class Runner
 
     private static ulong GetCycleCount()
     {
+        if (!OperatingSystem.IsWindows())
+            return 0;
+
         ulong cycleCount = 0;
         QueryThreadCycleTime(GetCurrentThread(), ref cycleCount);
         return cycleCount;
