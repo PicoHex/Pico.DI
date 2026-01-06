@@ -10,8 +10,7 @@ public sealed class SvcContainer : ISvcContainer
 
     // Use simple linked list for root scopes - lower overhead than ConcurrentBag
     private SvcScope? _firstRootScope;
-    private object? _rootScopeLock;
-    private object RootScopeLock => _rootScopeLock ??= new object();
+    private object RootScopeLock => field ??= new object();
 
     /// <summary>
     /// Frozen (optimized) descriptor cache after Build() is called.

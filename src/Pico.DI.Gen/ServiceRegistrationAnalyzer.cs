@@ -7,10 +7,10 @@ namespace Pico.DI.Gen;
 public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
 {
     // Diagnostic IDs
-    public const string UnregisteredDependencyId = "PICO001";
-    public const string CircularDependencyId = "PICO002";
-    public const string AbstractTypeRegistrationId = "PICO003";
-    public const string MissingPublicConstructorId = "PICO004";
+    private const string UnregisteredDependencyId = "PICO001";
+    private const string CircularDependencyId = "PICO002";
+    private const string AbstractTypeRegistrationId = "PICO003";
+    private const string MissingPublicConstructorId = "PICO004";
 
     private static readonly DiagnosticDescriptor UnregisteredDependencyRule =
         new(

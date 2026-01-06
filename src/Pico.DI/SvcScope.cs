@@ -11,11 +11,9 @@ public sealed class SvcScope : ISvcScope
 
     // Scoped instances: use Dictionary + lock for better single-thread performance (most common case)
     private Dictionary<SvcDescriptor, object>? _scopedInstances;
-    private object? _scopedLock; // Lazy-initialized lock object for scoped instances
 
     // Child scopes linked list - lower overhead than ConcurrentBag
     private SvcScope? _firstChild;
-    private object? _childLock;
 
     // For container's root scope tracking (linked list)
     internal SvcScope? NextSibling;
@@ -23,8 +21,8 @@ public sealed class SvcScope : ISvcScope
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
     // Lazy accessors
-    private object ScopedLock => _scopedLock ??= new object();
-    private object ChildLock => _childLock ??= new object();
+    private object ScopedLock => field ??= new object();
+    private object ChildLock => field ??= new object();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
@@ -35,7 +33,7 @@ public sealed class SvcScope : ISvcScope
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private void ThrowObjectDisposedException() =>
+    private static void ThrowObjectDisposedException() =>
         throw new ObjectDisposedException(nameof(SvcScope));
 
     /// <summary>
@@ -98,7 +96,7 @@ public sealed class SvcScope : ISvcScope
         }
 
         // Get last registered descriptor (override pattern)
-        var resolver = resolvers[resolvers.Length - 1];
+        var resolver = resolvers[^1];
 
         // Inline lifetime dispatch for hot path
         return resolver.Lifetime switch
@@ -114,21 +112,20 @@ public sealed class SvcScope : ISvcScope
     private object HandleServiceNotFound(Type serviceType)
     {
         // Check for open generic
-        if (serviceType.IsGenericType)
+        if (!serviceType.IsGenericType)
+            throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
+        var openGenericType = serviceType.GetGenericTypeDefinition();
+        if (
+            (_descriptorCache?.ContainsKey(openGenericType) ?? false)
+            || (_concurrentDescriptorCache?.ContainsKey(openGenericType) ?? false)
+        )
         {
-            var openGenericType = serviceType.GetGenericTypeDefinition();
-            if (
-                (_descriptorCache?.ContainsKey(openGenericType) ?? false)
-                || (_concurrentDescriptorCache?.ContainsKey(openGenericType) ?? false)
-            )
-            {
-                throw new PicoDiException(
-                    $"Open generic type '{openGenericType.FullName}' is registered, but closed type "
-                        + $"'{serviceType.FullName}' was not detected at compile time. "
-                        + "Ensure you call GetService<T> with this specific closed generic type in your code, "
-                        + "or register a factory manually."
-                );
-            }
+            throw new PicoDiException(
+                $"Open generic type '{openGenericType.FullName}' is registered, but closed type "
+                    + $"'{serviceType.FullName}' was not detected at compile time. "
+                    + "Ensure you call GetService<T> with this specific closed generic type in your code, "
+                    + "or register a factory manually."
+            );
         }
         throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
     }
@@ -140,7 +137,12 @@ public sealed class SvcScope : ISvcScope
             nameof(SvcLifetime),
             lifetime,
             $"Unknown service lifetime '{lifetime}'."
-        );
+        )
+        {
+            HelpLink = null,
+            HResult = 0,
+            Source = null
+        };
 
     /// <inheritdoc />
     public IEnumerable<object> GetServices(Type serviceType)
@@ -189,11 +191,10 @@ public sealed class SvcScope : ISvcScope
     {
         // Fast path: check if already created (most common case after warmup)
         var instance = resolver.SingleInstance;
-        if (instance != null)
-            return instance;
-
-        // Slow path: use lock to ensure single creation
-        return GetOrCreateSingletonSlow(serviceType, resolver);
+        return instance
+            ??
+            // Slow path: use lock to ensure single creation
+            GetOrCreateSingletonSlow(serviceType, resolver);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -292,14 +293,13 @@ public sealed class SvcScope : ISvcScope
 
         // Then dispose scoped instances owned by this scope
         var instances = _scopedInstances;
-        if (instances != null)
+        if (instances == null)
+            return;
+        foreach (var svc in instances.Values)
         {
-            foreach (var svc in instances.Values)
-            {
-                (svc as IDisposable)?.Dispose();
-            }
-            instances.Clear();
+            (svc as IDisposable)?.Dispose();
         }
+        instances.Clear();
     }
 
     /// <inheritdoc />
