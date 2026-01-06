@@ -492,7 +492,7 @@ public static class Program
                             : (result.CpuCycles / (double)result.Iterations).ToString("N0");
 
                     Console.WriteLine(
-                        $"{result.AvgNs, 10:F1} ns/op | cycles/op: {cyclesPerOp, 7} | GCΔ: {FormatGcDeltasAllGens(result.GcGenDeltas)}"
+                        $"{result.AvgNs, 10:F1} ns/op | cycles/op: {cyclesPerOp, 7} | GCΔ: {FormatGcDeltas(result.GcGenDeltas)}"
                     );
                 }
             }
@@ -527,12 +527,6 @@ public static class Program
 
         var segments = new[] { caseW + 2, timeW + 2, cpuW + 2, gcW + 2, speedW + 2 };
 
-        static string Line(char left, char mid, char right, int[] segs)
-        {
-            var parts = segs.Select(s => new string('─', s));
-            return left + string.Join(mid, parts) + right;
-        }
-
         static string Truncate(string value, int width)
         {
             if (value.Length <= width)
@@ -563,11 +557,11 @@ public static class Program
                 }
             )
             {
-                var pico = scenarioGroup.First(r =>
-                    r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
+                var pico = scenarioGroup.First(
+                    r => r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
                 );
-                var ms = scenarioGroup.First(r =>
-                    r.Lifetime == lifetime && r.Container == ContainerType.MsDI
+                var ms = scenarioGroup.First(
+                    r => r.Lifetime == lifetime && r.Container == ContainerType.MsDI
                 );
 
                 var picoTime = pico.AvgNs;
@@ -599,6 +593,13 @@ public static class Program
 
         // Summary (wins count)
         PrintSummary(results);
+        return;
+
+        static string Line(char left, char mid, char right, int[] segs)
+        {
+            var parts = segs.Select(s => new string('─', s));
+            return left + string.Join(mid, parts) + right;
+        }
     }
 
     private static void PrintTotalsComparison(List<BenchmarkResult> results)
@@ -642,31 +643,26 @@ public static class Program
             $"Time (avg ns/op): Pico {picoAvgNs:F1} | Ms {msAvgNs:F1} | Pico x {timeSpeedup:0.00}x"
         );
         Console.WriteLine(
-            $"CPU  (avg cy/op):  Pico {FormatNumber(picoAvgCy, "N0")} | Ms {FormatNumber(msAvgCy, "N0")} | Pico x {FormatRatio(cpuSpeedup)}"
+            $"CPU  (avg cy/op): Pico {FormatNumber(picoAvgCy, "N0")} | Ms {FormatNumber(msAvgCy, "N0")} | Pico x {FormatRatio(cpuSpeedup)}"
         );
         Console.WriteLine(
-            $"GC   (sum):        Pico {FormatGcTotals(picoGcTotals)} | Ms {FormatGcTotals(msGcTotals)} | Pico x {FormatRatio(gcReduction)}"
+            $"GC   (sum):       Pico {FormatGcTotals(picoGcTotals)} | Ms {FormatGcTotals(msGcTotals)} | Pico x {FormatRatio(gcReduction)}"
         );
         Console.WriteLine();
     }
 
     private static string CpuCyclesPerOpString(BenchmarkResult r)
     {
-        if (r.CpuCycles == 0)
-            return "n/a";
-        return (r.CpuCycles / (double)r.Iterations).ToString("N0");
+        return r.CpuCycles == 0 ? "n/a" : (r.CpuCycles / (double)r.Iterations).ToString("N0");
     }
 
     private static Dictionary<int, int> SumGcAllGens(List<BenchmarkResult> cases)
     {
         var totals = new Dictionary<int, int>();
-        foreach (var r in cases)
+        foreach (var d in cases.SelectMany(r => r.GcGenDeltas))
         {
-            foreach (var d in r.GcGenDeltas)
-            {
-                totals.TryGetValue(d.Gen, out var existing);
-                totals[d.Gen] = existing + d.Count;
-            }
+            totals.TryGetValue(d.Gen, out var existing);
+            totals[d.Gen] = existing + d.Count;
         }
 
         return totals;
@@ -675,12 +671,15 @@ public static class Program
     private static string FormatGcTotals(Dictionary<int, int> totals)
     {
         if (totals.Count == 0)
-            return "n/a";
+            return "0";
 
-        return string.Join(
-            " ",
-            totals.OrderBy(kvp => kvp.Key).Select(kvp => $"G{kvp.Key}:{kvp.Value}")
-        );
+        var parts = totals
+            .OrderBy(kvp => kvp.Key)
+            .Where(kvp => kvp.Value != 0)
+            .Select(kvp => $"Gen{kvp.Key}+{kvp.Value}")
+            .ToArray();
+
+        return parts.Length == 0 ? "0" : string.Join(" ", parts);
     }
 
     private static string FormatNumber(double? value, string format)
@@ -714,15 +713,17 @@ public static class Program
         {
             foreach (var lifetime in lifetimes)
             {
-                var pico = results.First(r =>
-                    r.Scenario == scenario
-                    && r.Lifetime == lifetime
-                    && r.Container == ContainerType.PicoDI
+                var pico = results.First(
+                    r =>
+                        r.Scenario == scenario
+                        && r.Lifetime == lifetime
+                        && r.Container == ContainerType.PicoDI
                 );
-                var ms = results.First(r =>
-                    r.Scenario == scenario
-                    && r.Lifetime == lifetime
-                    && r.Container == ContainerType.MsDI
+                var ms = results.First(
+                    r =>
+                        r.Scenario == scenario
+                        && r.Lifetime == lifetime
+                        && r.Container == ContainerType.MsDI
                 );
 
                 if (pico.AvgNs < ms.AvgNs)
@@ -756,22 +757,16 @@ public static class Program
         Console.WriteLine($"╚{new string('═', innerW)}╝");
     }
 
-    private static string FormatGcDeltas(IReadOnlyList<GenCount> deltas)
+    private static string FormatGcDeltas(IReadOnlyList<GenCount> deltas, bool verbose = false)
     {
         if (deltas.Count == 0)
             return "n/a";
 
-        var parts = deltas.Where(d => d.Count != 0).Select(d => $"Gen{d.Gen}+{d.Count}").ToArray();
-
-        return parts.Length == 0 ? "0" : string.Join(" ", parts);
-    }
-
-    private static string FormatGcDeltasShort(IReadOnlyList<GenCount> deltas)
-    {
-        if (deltas.Count == 0)
-            return "n/a";
-
-        var parts = deltas.Where(d => d.Count != 0).Select(d => $"G{d.Gen}+{d.Count}").ToArray();
+        var prefix = verbose ? "Gen" : "G";
+        var parts = deltas
+            .Where(d => d.Count != 0)
+            .Select(d => $"{prefix}{d.Gen}+{d.Count}")
+            .ToArray();
 
         return parts.Length == 0 ? "0" : string.Join(" ", parts);
     }
