@@ -29,7 +29,7 @@ public sealed class SvcContainer : ISvcContainer
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private void ThrowObjectDisposedException() =>
+    private static void ThrowObjectDisposedException() =>
         throw new ObjectDisposedException(nameof(SvcContainer));
 
     /// <summary>
@@ -97,14 +97,14 @@ public sealed class SvcContainer : ISvcContainer
     /// You do not need to call it manually unless you are registering services without using the source generator.
     /// </summary>
     /// <returns>The container instance for method chaining.</returns>
-    public SvcContainer Build()
+    public void Build()
     {
         ThrowIfDisposed();
 
         lock (SyncRoot)
         {
             if (_frozenCache != null)
-                return this;
+                return;
 
             var cache = _descriptorCache ?? new Dictionary<Type, SvcDescriptor[]>();
             _frozenCache = cache.ToFrozenDictionary();
@@ -113,7 +113,6 @@ public sealed class SvcContainer : ISvcContainer
             // Drop the registration cache to reduce memory overhead.
             _descriptorCache = null;
         }
-        return this;
     }
 
     /// <inheritdoc />
@@ -162,12 +161,9 @@ public sealed class SvcContainer : ISvcContainer
         var frozenCache = _frozenCache;
         if (frozenCache != null)
         {
-            foreach (var keyValuePair in frozenCache)
+            foreach (var svc in frozenCache.SelectMany(keyValuePair => keyValuePair.Value))
             {
-                foreach (var svc in keyValuePair.Value)
-                {
-                    (svc.SingleInstance as IDisposable)?.Dispose();
-                }
+                (svc.SingleInstance as IDisposable)?.Dispose();
             }
         }
         else
@@ -175,13 +171,11 @@ public sealed class SvcContainer : ISvcContainer
             var cache = _descriptorCache;
             if (cache != null)
             {
-                foreach (var keyValuePair in cache)
+                foreach (var svc in cache.SelectMany(keyValuePair => keyValuePair.Value))
                 {
-                    foreach (var svc in keyValuePair.Value)
-                    {
-                        (svc.SingleInstance as IDisposable)?.Dispose();
-                    }
+                    (svc.SingleInstance as IDisposable)?.Dispose();
                 }
+
                 cache.Clear();
             }
         }
@@ -210,9 +204,25 @@ public sealed class SvcContainer : ISvcContainer
         var frozenCache = _frozenCache;
         if (frozenCache != null)
         {
-            foreach (var keyValuePair in frozenCache)
+            foreach (var svc in frozenCache.SelectMany(keyValuePair => keyValuePair.Value))
             {
-                foreach (var svc in keyValuePair.Value)
+                switch (svc.SingleInstance)
+                {
+                    case IAsyncDisposable asyncDisposable:
+                        await asyncDisposable.DisposeAsync();
+                        break;
+                    case IDisposable disposable:
+                        disposable.Dispose();
+                        break;
+                }
+            }
+        }
+        else
+        {
+            var cache = _descriptorCache;
+            if (cache != null)
+            {
+                foreach (var svc in cache.SelectMany(keyValuePair => keyValuePair.Value))
                 {
                     switch (svc.SingleInstance)
                     {
@@ -224,28 +234,7 @@ public sealed class SvcContainer : ISvcContainer
                             break;
                     }
                 }
-            }
-        }
-        else
-        {
-            var cache = _descriptorCache;
-            if (cache != null)
-            {
-                foreach (var keyValuePair in cache)
-                {
-                    foreach (var svc in keyValuePair.Value)
-                    {
-                        switch (svc.SingleInstance)
-                        {
-                            case IAsyncDisposable asyncDisposable:
-                                await asyncDisposable.DisposeAsync();
-                                break;
-                            case IDisposable disposable:
-                                disposable.Dispose();
-                                break;
-                        }
-                    }
-                }
+
                 cache.Clear();
             }
         }
