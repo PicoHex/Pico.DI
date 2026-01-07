@@ -6,8 +6,7 @@ namespace Pico.DI;
 /// </summary>
 public sealed class SvcScope : ISvcScope
 {
-    private readonly FrozenDictionary<Type, SvcDescriptor[]>? _descriptorCache;
-    private readonly ConcurrentDictionary<Type, SvcDescriptor[]>? _concurrentDescriptorCache;
+    private readonly FrozenDictionary<Type, SvcDescriptor[]> _descriptorCache;
 
     // Scoped instances: use Dictionary + lock for better single-thread performance (most common case)
     private Dictionary<SvcDescriptor, object>? _scopedInstances;
@@ -40,22 +39,8 @@ public sealed class SvcScope : ISvcScope
     /// Initializes a new instance of <see cref="SvcScope"/> with a frozen (optimized) descriptor cache.
     /// </summary>
     /// <param name="descriptorCache">The frozen dictionary containing service descriptors.</param>
-    public SvcScope(FrozenDictionary<Type, SvcDescriptor[]> descriptorCache)
-    {
+    public SvcScope(FrozenDictionary<Type, SvcDescriptor[]> descriptorCache) =>
         _descriptorCache = descriptorCache;
-        _concurrentDescriptorCache = null;
-    }
-
-    /// <summary>
-    /// Initializes a new instance of <see cref="SvcScope"/> with a concurrent descriptor cache.
-    /// Used when the container has not been built yet.
-    /// </summary>
-    /// <param name="descriptorCache">The concurrent dictionary containing service descriptors.</param>
-    public SvcScope(ConcurrentDictionary<Type, SvcDescriptor[]> descriptorCache)
-    {
-        _concurrentDescriptorCache = descriptorCache;
-        _descriptorCache = null;
-    }
 
     /// <inheritdoc />
     public ISvcScope CreateScope()
@@ -63,10 +48,7 @@ public sealed class SvcScope : ISvcScope
         ThrowIfDisposed();
 
         // Create child scope
-        var childScope =
-            _descriptorCache != null
-                ? new SvcScope(_descriptorCache)
-                : new SvcScope(_concurrentDescriptorCache!);
+        var childScope = new SvcScope(_descriptorCache);
 
         // Track it for automatic disposal using linked list
         lock (ChildLock)
@@ -83,17 +65,9 @@ public sealed class SvcScope : ISvcScope
     {
         ThrowIfDisposed();
 
-        // Fast path: inline frozen cache lookup (most common after Build())
-        SvcDescriptor[]? resolvers;
-        if (_descriptorCache != null)
-        {
-            if (!_descriptorCache.TryGetValue(serviceType, out resolvers))
-                return HandleServiceNotFound(serviceType);
-        }
-        else if (!_concurrentDescriptorCache!.TryGetValue(serviceType, out resolvers))
-        {
+        // Fast path: inline frozen cache lookup
+        if (!_descriptorCache.TryGetValue(serviceType, out var resolvers))
             return HandleServiceNotFound(serviceType);
-        }
 
         // Get last registered descriptor (override pattern)
         var resolver = resolvers[^1];
@@ -115,10 +89,7 @@ public sealed class SvcScope : ISvcScope
         if (!serviceType.IsGenericType)
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
         var openGenericType = serviceType.GetGenericTypeDefinition();
-        if (
-            (_descriptorCache?.ContainsKey(openGenericType) ?? false)
-            || (_concurrentDescriptorCache?.ContainsKey(openGenericType) ?? false)
-        )
+        if (_descriptorCache.ContainsKey(openGenericType))
         {
             throw new PicoDiException(
                 $"Open generic type '{openGenericType.FullName}' is registered, but closed type "
@@ -152,25 +123,24 @@ public sealed class SvcScope : ISvcScope
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
         return resolvers!
-            .Select(
-                resolver =>
-                    resolver.Lifetime switch
-                    {
-                        SvcLifetime.Transient
-                            => resolver.Factory != null
-                                ? resolver.Factory(this)
-                                : throw new PicoDiException(
-                                    $"No factory registered for transient service '{serviceType.FullName}'."
-                                ),
-                        SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-                        SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-                        _
-                            => throw new ArgumentOutOfRangeException(
-                                nameof(SvcLifetime),
-                                resolver.Lifetime,
-                                $"Unknown service lifetime '{resolver.Lifetime}'."
-                            )
-                    }
+            .Select(resolver =>
+                resolver.Lifetime switch
+                {
+                    SvcLifetime.Transient
+                        => resolver.Factory != null
+                            ? resolver.Factory(this)
+                            : throw new PicoDiException(
+                                $"No factory registered for transient service '{serviceType.FullName}'."
+                            ),
+                    SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
+                    SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+                    _
+                        => throw new ArgumentOutOfRangeException(
+                            nameof(SvcLifetime),
+                            resolver.Lifetime,
+                            $"Unknown service lifetime '{resolver.Lifetime}'."
+                        )
+                }
             )
             .ToArray();
     }
@@ -223,19 +193,8 @@ public sealed class SvcScope : ISvcScope
 
     private bool TryGetResolvers(Type serviceType, out SvcDescriptor[]? resolvers)
     {
-        if (_descriptorCache != null)
-        {
-            if (_descriptorCache.TryGetValue(serviceType, out resolvers))
-                return true;
-            resolvers = null;
-            return false;
-        }
-
-        if (_concurrentDescriptorCache != null)
-        {
-            return _concurrentDescriptorCache.TryGetValue(serviceType, out resolvers);
-        }
-
+        if (_descriptorCache.TryGetValue(serviceType, out resolvers))
+            return true;
         resolvers = null;
         return false;
     }
