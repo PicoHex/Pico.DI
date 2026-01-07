@@ -12,10 +12,11 @@ public sealed class SvcScope : ISvcScope
     private Dictionary<SvcDescriptor, object>? _scopedInstances;
 
     // Child scopes linked list - lower overhead than ConcurrentBag
-    private SvcScope? _firstChild;
+    private SvcScope? _firstChildScope;
 
-    // For container's root scope tracking (linked list)
-    internal SvcScope? NextSibling;
+    // Linked list next pointer.
+    // Used for: (1) child scopes under a parent scope, and (2) container root scope tracking.
+    internal SvcScope? NextInList;
 
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
@@ -53,8 +54,8 @@ public sealed class SvcScope : ISvcScope
         // Track it for automatic disposal using linked list
         lock (ChildLock)
         {
-            childScope.NextSibling = _firstChild;
-            _firstChild = childScope;
+            childScope.NextInList = _firstChildScope;
+            _firstChildScope = childScope;
         }
         return childScope;
     }
@@ -241,14 +242,14 @@ public sealed class SvcScope : ISvcScope
             return;
 
         // Dispose child scopes first (depth-first disposal) using linked list
-        var child = _firstChild;
+        var child = _firstChildScope;
         while (child != null)
         {
-            var next = child.NextSibling;
+            var next = child.NextInList;
             child.Dispose();
             child = next;
         }
-        _firstChild = null;
+        _firstChildScope = null;
 
         // Then dispose scoped instances owned by this scope
         var instances = _scopedInstances;
@@ -269,14 +270,14 @@ public sealed class SvcScope : ISvcScope
             return;
 
         // Dispose child scopes first (depth-first disposal) using linked list
-        var child = _firstChild;
+        var child = _firstChildScope;
         while (child != null)
         {
-            var next = child.NextSibling;
+            var next = child.NextInList;
             await child.DisposeAsync();
             child = next;
         }
-        _firstChild = null;
+        _firstChildScope = null;
 
         // Then dispose scoped instances owned by this scope
         var instances = _scopedInstances;

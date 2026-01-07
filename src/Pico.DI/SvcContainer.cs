@@ -134,7 +134,7 @@ public sealed class SvcContainer : ISvcContainer
         // Track for automatic disposal using simple linked list
         lock (RootScopeLock)
         {
-            scope.NextSibling = _firstRootScope;
+            scope.NextInList = _firstRootScope;
             _firstRootScope = scope;
         }
         return scope;
@@ -151,7 +151,7 @@ public sealed class SvcContainer : ISvcContainer
         var scope = _firstRootScope;
         while (scope != null)
         {
-            var next = scope.NextSibling;
+            var next = scope.NextInList;
             scope.Dispose();
             scope = next;
         }
@@ -194,7 +194,7 @@ public sealed class SvcContainer : ISvcContainer
         var scope = _firstRootScope;
         while (scope != null)
         {
-            var next = scope.NextSibling;
+            var next = scope.NextInList;
             await scope.DisposeAsync();
             scope = next;
         }
