@@ -260,7 +260,7 @@ public static class BenchmarkRunner
         _msProvider?.Dispose();
 
         // Create new containers
-        _picoContainer = new SvcContainer(autoConfigureFromGenerator: false);
+        _picoContainer = new SvcContainer();
         var services = new ServiceCollection();
 
         if (deep)
@@ -321,7 +321,7 @@ public static class BenchmarkRunner
     {
         if (container == ContainerType.PicoDI)
         {
-            using var c = new SvcContainer(autoConfigureFromGenerator: false);
+            using var c = new SvcContainer();
             RegisterPicoDI(c, lifetime);
         }
         else
@@ -336,7 +336,7 @@ public static class BenchmarkRunner
     {
         if (container == ContainerType.PicoDI)
         {
-            using var c = new SvcContainer(autoConfigureFromGenerator: false);
+            using var c = new SvcContainer();
             RegisterPicoDI(c, lifetime);
             using var scope = c.CreateScope();
         }
@@ -399,21 +399,26 @@ public static class BenchmarkRunner
 
     private static void RegisterPicoDI(ISvcContainer c, LifetimeType lifetime)
     {
-        var lt = lifetime switch
+        switch (lifetime)
         {
-            LifetimeType.Transient => SvcLifetime.Transient,
-            LifetimeType.Scoped => SvcLifetime.Scoped,
-            LifetimeType.Singleton => SvcLifetime.Singleton,
-            _ => throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, null)
-        };
-
-        // Use factory-based registration for fair comparison with runtime lifetime
-        c.Register<ILogger>(_ => new ConsoleLogger(), lt);
-        c.Register<IRepository>(_ => new Repository(), lt);
-        c.Register<IService>(
-            sp => new ServiceC(sp.GetService<ILogger>(), sp.GetService<IRepository>()),
-            lt
-        );
+            case LifetimeType.Transient:
+                c.RegisterTransient<ILogger, ConsoleLogger>();
+                c.RegisterTransient<IRepository, Repository>();
+                c.RegisterTransient<IService, ServiceC>();
+                break;
+            case LifetimeType.Scoped:
+                c.RegisterScoped<ILogger, ConsoleLogger>();
+                c.RegisterScoped<IRepository, Repository>();
+                c.RegisterScoped<IService, ServiceC>();
+                break;
+            case LifetimeType.Singleton:
+                c.RegisterSingleton<ILogger, ConsoleLogger>();
+                c.RegisterSingleton<IRepository, Repository>();
+                c.RegisterSingleton<IService, ServiceC>();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, null);
+        }
     }
 
     private static void RegisterMsDI(ServiceCollection services, LifetimeType lifetime)
@@ -442,20 +447,32 @@ public static class BenchmarkRunner
 
     private static void RegisterDeepPicoDI(ISvcContainer c, LifetimeType lifetime)
     {
-        var lt = lifetime switch
+        switch (lifetime)
         {
-            LifetimeType.Transient => SvcLifetime.Transient,
-            LifetimeType.Scoped => SvcLifetime.Scoped,
-            LifetimeType.Singleton => SvcLifetime.Singleton,
-            _ => throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, null)
-        };
-
-        // Use factory-based registration for deep dependency chain
-        c.Register<ILevel1>(_ => new Level1(), lt);
-        c.Register<ILevel2>(sp => new Level2(sp.GetService<ILevel1>()), lt);
-        c.Register<ILevel3>(sp => new Level3(sp.GetService<ILevel2>()), lt);
-        c.Register<ILevel4>(sp => new Level4(sp.GetService<ILevel3>()), lt);
-        c.Register<ILevel5>(sp => new Level5(sp.GetService<ILevel4>()), lt);
+            case LifetimeType.Transient:
+                c.RegisterTransient<ILevel1, Level1>();
+                c.RegisterTransient<ILevel2, Level2>();
+                c.RegisterTransient<ILevel3, Level3>();
+                c.RegisterTransient<ILevel4, Level4>();
+                c.RegisterTransient<ILevel5, Level5>();
+                break;
+            case LifetimeType.Scoped:
+                c.RegisterScoped<ILevel1, Level1>();
+                c.RegisterScoped<ILevel2, Level2>();
+                c.RegisterScoped<ILevel3, Level3>();
+                c.RegisterScoped<ILevel4, Level4>();
+                c.RegisterScoped<ILevel5, Level5>();
+                break;
+            case LifetimeType.Singleton:
+                c.RegisterSingleton<ILevel1, Level1>();
+                c.RegisterSingleton<ILevel2, Level2>();
+                c.RegisterSingleton<ILevel3, Level3>();
+                c.RegisterSingleton<ILevel4, Level4>();
+                c.RegisterSingleton<ILevel5, Level5>();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, null);
+        }
     }
 
     private static void RegisterDeepMsDI(ServiceCollection services, LifetimeType lifetime)

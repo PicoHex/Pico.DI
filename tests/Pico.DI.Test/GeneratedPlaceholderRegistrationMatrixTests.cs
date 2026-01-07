@@ -434,55 +434,6 @@ public sealed class GeneratedPlaceholderRegistrationMatrixTests
 
     private static void _PicoDiGen_ScannedRegistrations(ISvcContainer container)
     {
-        // Register_Generic (lifetime varies)
-        container.Register<IGenRegisterTransientOne, GenRegisterA>(SvcLifetime.Transient);
-        container.Register<IGenRegisterTransientTwo, GenRegisterA>(SvcLifetime.Transient);
-        container.Register<IGenRegisterTransientTwo, GenRegisterB>(SvcLifetime.Transient);
-
-        container.Register<IGenRegisterScopedOne, GenRegisterA>(SvcLifetime.Scoped);
-        container.Register<IGenRegisterScopedTwo, GenRegisterA>(SvcLifetime.Scoped);
-        container.Register<IGenRegisterScopedTwo, GenRegisterB>(SvcLifetime.Scoped);
-
-        container.Register<IGenRegisterSingletonOne, GenRegisterA>(SvcLifetime.Singleton);
-        container.Register<IGenRegisterSingletonTwo, GenRegisterA>(SvcLifetime.Singleton);
-        container.Register<IGenRegisterSingletonTwo, GenRegisterB>(SvcLifetime.Singleton);
-
-        // Register_Self (lifetime varies)
-        container.Register<GenSelfRegisterTransient>(SvcLifetime.Transient);
-        container.Register<GenSelfRegisterScoped>(SvcLifetime.Scoped);
-        container.Register<GenSelfRegisterSingleton>(SvcLifetime.Singleton);
-
-        // Register_GenericWithImplementType (lifetime varies)
-        container.Register<IGenRegisterTypeTransientOne>(
-            typeof(GenRegisterTypeA),
-            SvcLifetime.Transient
-        );
-        container.Register<IGenRegisterTypeTransientTwo>(
-            typeof(GenRegisterTypeA),
-            SvcLifetime.Transient
-        );
-        container.Register<IGenRegisterTypeTransientTwo>(
-            typeof(GenRegisterTypeB),
-            SvcLifetime.Transient
-        );
-
-        container.Register<IGenRegisterTypeScopedOne>(typeof(GenRegisterTypeA), SvcLifetime.Scoped);
-        container.Register<IGenRegisterTypeScopedTwo>(typeof(GenRegisterTypeA), SvcLifetime.Scoped);
-        container.Register<IGenRegisterTypeScopedTwo>(typeof(GenRegisterTypeB), SvcLifetime.Scoped);
-
-        container.Register<IGenRegisterTypeSingletonOne>(
-            typeof(GenRegisterTypeA),
-            SvcLifetime.Singleton
-        );
-        container.Register<IGenRegisterTypeSingletonTwo>(
-            typeof(GenRegisterTypeA),
-            SvcLifetime.Singleton
-        );
-        container.Register<IGenRegisterTypeSingletonTwo>(
-            typeof(GenRegisterTypeB),
-            SvcLifetime.Singleton
-        );
-
         // RegisterTransient_*
         container.RegisterTransient<IGenTransientOne, GenTransientA>();
         container.RegisterTransient<IGenTransientTwo, GenTransientA>();

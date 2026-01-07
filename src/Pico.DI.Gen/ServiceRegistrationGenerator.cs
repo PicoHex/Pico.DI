@@ -1409,7 +1409,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                     sb.AppendLine(
                         $"            return SingletonCache<{serviceType}>.GetOrCreate(scope, static s =>"
                     );
-                    var singletonFactory = GenerateInlinedFactory(reg, registrationLookup, [], 0);
+                    var singletonFactory = GenerateInlinedFactory(
+                        reg,
+                        registrationLookup,
+                        [],
+                        0,
+                        "s"
+                    );
                     sb.AppendLine($"                {singletonFactory});");
                     break;
 
@@ -1501,7 +1507,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         ServiceRegistration reg,
         Dictionary<string, ServiceRegistration> registrationLookup,
         HashSet<string> visitedTypes,
-        int indentLevel
+        int indentLevel,
+        string scopeVariableName = "scope"
     )
     {
         if (reg.ConstructorParameters.IsEmpty)
@@ -1516,7 +1523,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                         paramTypeFullName,
                         registrationLookup,
                         visitedTypes,
-                        indentLevel + 1
+                        indentLevel + 1,
+                        scopeVariableName
                     )
             )
             .ToList();
@@ -1555,25 +1563,32 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         string paramTypeFullName,
         Dictionary<string, ServiceRegistration> registrationLookup,
         HashSet<string> visitedTypes,
-        int indentLevel
+        int indentLevel,
+        string scopeVariableName = "scope"
     )
     {
         // Check if we have a registration for this type
         if (!registrationLookup.TryGetValue(paramTypeFullName, out var depReg))
-            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+            return $"({paramTypeFullName}){scopeVariableName}.GetService(typeof({paramTypeFullName}))";
         // Only inline Transient dependencies to avoid breaking singleton/scoped semantics
         if (depReg.Lifetime != "Transient")
-            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+            return $"({paramTypeFullName}){scopeVariableName}.GetService(typeof({paramTypeFullName}))";
         // Check for circular dependency
         if (visitedTypes.Contains(paramTypeFullName))
         {
             // Fall back to GetService for circular references
-            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+            return $"({paramTypeFullName}){scopeVariableName}.GetService(typeof({paramTypeFullName}))";
         }
 
         // Mark as visited and recursively inline
         var newVisited = new HashSet<string>(visitedTypes) { paramTypeFullName };
-        return GenerateInlinedFactory(depReg, registrationLookup, newVisited, indentLevel);
+        return GenerateInlinedFactory(
+            depReg,
+            registrationLookup,
+            newVisited,
+            indentLevel,
+            scopeVariableName
+        );
 
         // For Singleton, Scoped, or unknown dependencies, use GetService
     }

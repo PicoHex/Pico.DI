@@ -55,8 +55,6 @@ public sealed class SvcLifetimeMatrixTests
 
         RegisterThing(container, registration, requestedLifetime, multipleRegistrations);
 
-        RegisterConsumersIfNeeded(container, resolution);
-
         await using var scope1 = container.CreateScope();
         await using var scope2 = container.CreateScope();
 
@@ -101,18 +99,6 @@ public sealed class SvcLifetimeMatrixTests
                     container.Register(
                         new SvcDescriptor(typeof(IThing), _ => factory(), requestedLifetime)
                     );
-                    break;
-
-                case RegistrationApi.RegisterFactory_NonGeneric:
-                    container.Register(typeof(IThing), _ => factory(), requestedLifetime);
-                    break;
-
-                case RegistrationApi.RegisterFactory_Generic:
-                    container.Register<IThing>(_ => factory(), requestedLifetime);
-                    break;
-
-                case RegistrationApi.RegisterFactory_GenericImpl:
-                    container.Register<IThing, IThing>(_ => (IThing)factory(), requestedLifetime);
                     break;
 
                 case RegistrationApi.RegisterRange:
@@ -193,27 +179,6 @@ public sealed class SvcLifetimeMatrixTests
             : null;
 
         RegisterOnce(CreateB, implType, instanceB);
-    }
-
-    private static void RegisterConsumersIfNeeded(ISvcContainer container, ResolutionApi resolution)
-    {
-        switch (resolution)
-        {
-            case ResolutionApi.CtorInject_Single:
-                container.Register(
-                    typeof(SingleConsumer),
-                    scope => new SingleConsumer(scope.GetService<IThing>()),
-                    SvcLifetime.Transient
-                );
-                break;
-            case ResolutionApi.CtorInject_IEnumerable:
-                container.Register(
-                    typeof(EnumerableConsumer),
-                    scope => new EnumerableConsumer(scope.GetServices<IThing>()),
-                    SvcLifetime.Transient
-                );
-                break;
-        }
     }
 
     private static object Resolve(ISvcScope scope, ResolutionApi resolution)

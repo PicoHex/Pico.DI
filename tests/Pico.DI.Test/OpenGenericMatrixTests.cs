@@ -287,55 +287,6 @@ public sealed class OpenGenericMatrixTests
 
     private static void _PicoDiGen_ScannedRegistrations(ISvcContainer container)
     {
-        // Register_ByLifetime
-        container.Register(
-            typeof(IGenByLifetimeTransientOne<>),
-            typeof(GenBoxA<>),
-            SvcLifetime.Transient
-        );
-        container.Register(
-            typeof(IGenByLifetimeTransientTwo<>),
-            typeof(GenBoxA<>),
-            SvcLifetime.Transient
-        );
-        container.Register(
-            typeof(IGenByLifetimeTransientTwo<>),
-            typeof(GenBoxB<>),
-            SvcLifetime.Transient
-        );
-
-        container.Register(
-            typeof(IGenByLifetimeScopedOne<>),
-            typeof(GenBoxA<>),
-            SvcLifetime.Scoped
-        );
-        container.Register(
-            typeof(IGenByLifetimeScopedTwo<>),
-            typeof(GenBoxA<>),
-            SvcLifetime.Scoped
-        );
-        container.Register(
-            typeof(IGenByLifetimeScopedTwo<>),
-            typeof(GenBoxB<>),
-            SvcLifetime.Scoped
-        );
-
-        container.Register(
-            typeof(IGenByLifetimeSingletonOne<>),
-            typeof(GenBoxA<>),
-            SvcLifetime.Singleton
-        );
-        container.Register(
-            typeof(IGenByLifetimeSingletonTwo<>),
-            typeof(GenBoxA<>),
-            SvcLifetime.Singleton
-        );
-        container.Register(
-            typeof(IGenByLifetimeSingletonTwo<>),
-            typeof(GenBoxB<>),
-            SvcLifetime.Singleton
-        );
-
         // RegisterTransient
         container.RegisterTransient(typeof(IGenByTransientOne<>), typeof(GenBoxA<>));
         container.RegisterTransient(typeof(IGenByTransientTwo<>), typeof(GenBoxA<>));
