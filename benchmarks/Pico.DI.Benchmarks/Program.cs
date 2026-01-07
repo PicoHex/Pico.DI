@@ -211,7 +211,7 @@ public static class BenchmarkRunner
             PercentileSorted(nsPerOpSamples, 0.95),
             PercentileSorted(nsPerOpSamples, 0.99),
             totalCpuCycles,
-            lastGcDeltas ?? Array.Empty<GenCount>()
+            lastGcDeltas ?? []
         );
     }
 
@@ -219,15 +219,21 @@ public static class BenchmarkRunner
     // p in [0..1].
     private static double PercentileSorted(double[] sorted, double p)
     {
-        if (sorted.Length == 0)
-            return double.NaN;
-        if (sorted.Length == 1)
-            return sorted[0];
+        switch (sorted.Length)
+        {
+            case 0:
+                return double.NaN;
+            case 1:
+                return sorted[0];
+        }
 
-        if (p <= 0)
-            return sorted[0];
-        if (p >= 1)
-            return sorted[^1];
+        switch (p)
+        {
+            case <= 0:
+                return sorted[0];
+            case >= 1:
+                return sorted[^1];
+        }
 
         var pos = (sorted.Length - 1) * p;
         var lo = (int)Math.Floor(pos);
@@ -650,11 +656,11 @@ public static class Program
                 }
             )
             {
-                var pico = scenarioGroup.First(r =>
-                    r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
+                var pico = scenarioGroup.First(
+                    r => r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
                 );
-                var ms = scenarioGroup.First(r =>
-                    r.Lifetime == lifetime && r.Container == ContainerType.MsDI
+                var ms = scenarioGroup.First(
+                    r => r.Lifetime == lifetime && r.Container == ContainerType.MsDI
                 );
 
                 var picoTime = pico.AvgNs;
@@ -838,15 +844,6 @@ public static class Program
         for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i];
-            static int NextInt(string[] a, ref int idx, string name)
-            {
-                if (idx + 1 >= a.Length)
-                    throw new ArgumentException($"Missing value for '{name}'.");
-                idx++;
-                if (!int.TryParse(a[idx], out var v) || v <= 0)
-                    throw new ArgumentException($"Invalid value for '{name}': '{a[idx]}'.");
-                return v;
-            }
 
             switch (arg)
             {
@@ -865,6 +862,18 @@ public static class Program
                 case "--multi":
                     multi = NextInt(args, ref i, arg);
                     break;
+            }
+
+            continue;
+
+            static int NextInt(string[] a, ref int idx, string name)
+            {
+                if (idx + 1 >= a.Length)
+                    throw new ArgumentException($"Missing value for '{name}'.");
+                idx++;
+                if (!int.TryParse(a[idx], out var v) || v <= 0)
+                    throw new ArgumentException($"Invalid value for '{name}': '{a[idx]}'.");
+                return v;
             }
         }
 
@@ -935,15 +944,17 @@ public static class Program
         {
             foreach (var lifetime in lifetimes)
             {
-                var pico = results.First(r =>
-                    r.Scenario == scenario
-                    && r.Lifetime == lifetime
-                    && r.Container == ContainerType.PicoDI
+                var pico = results.First(
+                    r =>
+                        r.Scenario == scenario
+                        && r.Lifetime == lifetime
+                        && r.Container == ContainerType.PicoDI
                 );
-                var ms = results.First(r =>
-                    r.Scenario == scenario
-                    && r.Lifetime == lifetime
-                    && r.Container == ContainerType.MsDI
+                var ms = results.First(
+                    r =>
+                        r.Scenario == scenario
+                        && r.Lifetime == lifetime
+                        && r.Container == ContainerType.MsDI
                 );
 
                 if (pico.AvgNs < ms.AvgNs)
@@ -955,17 +966,6 @@ public static class Program
 
         const int innerW = 78;
 
-        static string Center(string text, int width)
-        {
-            if (text.Length >= width)
-                return text[..width];
-            var left = (width - text.Length) / 2;
-            return new string(' ', left) + text + new string(' ', width - left - text.Length);
-        }
-
-        static void WriteRow(string content, int width) =>
-            Console.WriteLine($"║{content.PadRight(width)}║");
-
         Console.WriteLine($"╔{new string('═', innerW)}╗");
         WriteRow(Center("SUMMARY", innerW), innerW);
         Console.WriteLine($"╠{new string('═', innerW)}╣");
@@ -975,6 +975,18 @@ public static class Program
         WriteRow($"  Ms.DI wins:   {msWins, 3} / {total, 3}", innerW);
 
         Console.WriteLine($"╚{new string('═', innerW)}╝");
+        return;
+
+        static void WriteRow(string content, int width) =>
+            Console.WriteLine($"║{content.PadRight(width)}║");
+
+        static string Center(string text, int width)
+        {
+            if (text.Length >= width)
+                return text[..width];
+            var left = (width - text.Length) / 2;
+            return new string(' ', left) + text + new string(' ', width - left - text.Length);
+        }
     }
 
     private static string FormatGcDeltas(IReadOnlyList<GenCount> deltas, bool verbose = false)
@@ -993,11 +1005,9 @@ public static class Program
 
     private static string FormatGcDeltasAllGens(IReadOnlyList<GenCount> deltas)
     {
-        if (deltas.Count == 0)
-            return "0";
-
-        // Include all generations, even if count is 0.
-        return string.Join(" ", deltas.Select(d => $"G{d.Gen}:{d.Count}"));
+        return deltas.Count == 0
+            ? "0"
+            : string.Join(" ", deltas.Select(d => $"G{d.Gen}:{d.Count}")); // Include all generations, even if count is 0.
     }
 }
 
