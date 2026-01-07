@@ -109,19 +109,39 @@ public record BenchmarkResult(
     ContainerType Container,
     TestScenario Scenario,
     LifetimeType Lifetime,
-    int Iterations,
+    int Samples,
+    int IterationsPerSample,
     double TotalMs,
     double AvgNs,
-    double MinNs,
-    double MaxNs,
+    double P50Ns,
+    double P90Ns,
+    double P95Ns,
+    double P99Ns,
     ulong CpuCycles,
     IReadOnlyList<GenCount> GcGenDeltas
 );
 
 public static class BenchmarkRunner
 {
-    private const int WarmupIterations = 1000;
+    private const int DefaultWarmupIterations = 1000;
     private const int DefaultIterations = 10000;
+    private const int DefaultSamples = 25;
+    private const int DefaultMultipleResolutionsInnerLoop = 100;
+
+    private static int _warmupIterations = DefaultWarmupIterations;
+    private static int _samples = DefaultSamples;
+    private static int _multipleResolutionsInnerLoop = DefaultMultipleResolutionsInnerLoop;
+
+    public static void Configure(
+        int warmupIterations = DefaultWarmupIterations,
+        int samples = DefaultSamples,
+        int multipleResolutionsInnerLoop = DefaultMultipleResolutionsInnerLoop
+    )
+    {
+        _warmupIterations = warmupIterations;
+        _samples = samples;
+        _multipleResolutionsInnerLoop = multipleResolutionsInnerLoop;
+    }
 
     // Pre-built containers for resolution tests (avoid container creation overhead)
     private static SvcContainer? _picoContainer;
@@ -133,7 +153,7 @@ public static class BenchmarkRunner
         ContainerType containerType,
         TestScenario scenario,
         LifetimeType lifetime,
-        int iterations = DefaultIterations
+        int iterationsPerSample = DefaultIterations
     )
     {
         // For resolution tests, pre-build containers
@@ -149,33 +169,74 @@ public static class BenchmarkRunner
         }
 
         // Warmup
-        for (var i = 0; i < WarmupIterations; i++)
+        for (var i = 0; i < _warmupIterations; i++)
             ExecuteScenario(containerType, scenario, lifetime);
 
-        // Batch timing via Runner.Time (AOT-friendly, captures GC deltas + CPU cycles)
-        var summaryName = $"{containerType}/{scenario}/{lifetime}";
-        var summary = Runner.Time(
-            summaryName,
-            iterations,
-            () => ExecuteScenario(containerType, scenario, lifetime)
-        );
+        // Sampled timing: run N batches and compute distribution over ns/op.
+        // This provides meaningful p50/p90/p95/p99 per test case.
+        var nsPerOpSamples = new double[_samples];
+        var totalNs = 0d;
+        ulong totalCpuCycles = 0;
+        IReadOnlyList<GenCount>? lastGcDeltas = null;
 
-        var totalNs = summary.ElapsedNanoseconds;
-        var avgNs = totalNs / iterations;
+        for (var s = 0; s < _samples; s++)
+        {
+            var summaryName = $"{containerType}/{scenario}/{lifetime}/s{s + 1}";
+            var summary = Runner.Time(
+                summaryName,
+                iterationsPerSample,
+                () => ExecuteScenario(containerType, scenario, lifetime)
+            );
 
-        // Runner.Time measures the whole batch; Min/Max are not sampled per-iteration here.
+            totalNs += summary.ElapsedNanoseconds;
+            totalCpuCycles += summary.CpuCycle;
+            lastGcDeltas = summary.GenCounts;
+
+            nsPerOpSamples[s] = summary.ElapsedNanoseconds / iterationsPerSample;
+        }
+
+        Array.Sort(nsPerOpSamples);
+        var avgNs = nsPerOpSamples.Average();
+
         return new BenchmarkResult(
             containerType,
             scenario,
             lifetime,
-            iterations,
+            _samples,
+            iterationsPerSample,
             totalNs / 1_000_000d,
             avgNs,
-            avgNs,
-            avgNs,
-            summary.CpuCycle,
-            summary.GenCounts
+            PercentileSorted(nsPerOpSamples, 0.50),
+            PercentileSorted(nsPerOpSamples, 0.90),
+            PercentileSorted(nsPerOpSamples, 0.95),
+            PercentileSorted(nsPerOpSamples, 0.99),
+            totalCpuCycles,
+            lastGcDeltas ?? Array.Empty<GenCount>()
         );
+    }
+
+    // Linear interpolation between closest ranks on the sorted array.
+    // p in [0..1].
+    private static double PercentileSorted(double[] sorted, double p)
+    {
+        if (sorted.Length == 0)
+            return double.NaN;
+        if (sorted.Length == 1)
+            return sorted[0];
+
+        if (p <= 0)
+            return sorted[0];
+        if (p >= 1)
+            return sorted[^1];
+
+        var pos = (sorted.Length - 1) * p;
+        var lo = (int)Math.Floor(pos);
+        var hi = (int)Math.Ceiling(pos);
+        if (lo == hi)
+            return sorted[lo];
+
+        var frac = pos - lo;
+        return sorted[lo] + (sorted[hi] - sorted[lo]) * frac;
     }
 
     private static void EnsureContainersBuilt(LifetimeType lifetime, bool deep)
@@ -301,13 +362,13 @@ public static class BenchmarkRunner
         if (container == ContainerType.PicoDI)
         {
             using var scope = _picoContainer!.CreateScope();
-            for (var i = 0; i < 100; i++)
+            for (var i = 0; i < _multipleResolutionsInnerLoop; i++)
                 _ = scope.GetService<IService>();
         }
         else
         {
             using var scope = _msProvider!.CreateScope();
-            for (var i = 0; i < 100; i++)
+            for (var i = 0; i < _multipleResolutionsInnerLoop; i++)
                 _ = scope.ServiceProvider.GetRequiredService<IService>();
         }
     }
@@ -337,7 +398,7 @@ public static class BenchmarkRunner
             LifetimeType.Transient => SvcLifetime.Transient,
             LifetimeType.Scoped => SvcLifetime.Scoped,
             LifetimeType.Singleton => SvcLifetime.Singleton,
-            _ => throw new ArgumentOutOfRangeException()
+            _ => throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, null)
         };
 
         // Use factory-based registration for fair comparison with runtime lifetime
@@ -380,7 +441,7 @@ public static class BenchmarkRunner
             LifetimeType.Transient => SvcLifetime.Transient,
             LifetimeType.Scoped => SvcLifetime.Scoped,
             LifetimeType.Singleton => SvcLifetime.Singleton,
-            _ => throw new ArgumentOutOfRangeException()
+            _ => throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, null)
         };
 
         // Use factory-based registration for deep dependency chain
@@ -430,8 +491,15 @@ public static class BenchmarkRunner
 
 public static class Program
 {
-    public static void Main()
+    public static void Main(string[] args)
     {
+        var cfg = ParseArgs(args);
+        BenchmarkRunner.Configure(
+            warmupIterations: cfg.Warmup,
+            samples: cfg.Samples,
+            multipleResolutionsInnerLoop: cfg.MultipleResolutionsInnerLoop
+        );
+
         Console.WriteLine(
             "╔══════════════════════════════════════════════════════════════════════════════╗"
         );
@@ -483,16 +551,23 @@ public static class Program
                         $"  [{currentTest}/{totalTests}] {container, -8} × {lifetime, -10}... "
                     );
 
-                    var result = BenchmarkRunner.Run(container, scenario, lifetime);
+                    var result = BenchmarkRunner.Run(
+                        container,
+                        scenario,
+                        lifetime,
+                        iterationsPerSample: cfg.IterationsPerSample
+                    );
                     results.Add(result);
 
                     var cyclesPerOp =
                         result.CpuCycles == 0
                             ? "n/a"
-                            : (result.CpuCycles / (double)result.Iterations).ToString("N0");
+                            : (result.CpuCycles / (double)result.IterationsPerSample).ToString(
+                                "N0"
+                            );
 
                     Console.WriteLine(
-                        $"{result.AvgNs, 10:F1} ns/op | cycles/op: {cyclesPerOp, 7} | GCΔ: {FormatGcDeltas(result.GcGenDeltas)}"
+                        $"avg {result.AvgNs, 8:F1} ns/op | p50 {result.P50Ns, 8:F1} ns/op | cycles/op: {cyclesPerOp, 7} | GCΔ: {FormatGcDeltas(result.GcGenDeltas)}"
                     );
                 }
             }
@@ -520,12 +595,27 @@ public static class Program
         Console.WriteLine();
 
         const int caseW = 20;
-        const int timeW = 11;
+        const int avgW = 11;
+        const int p50W = 11;
+        const int p90W = 11;
+        const int p95W = 11;
+        const int p99W = 11;
         const int cpuW = 11;
         const int gcW = 14;
         const int speedW = 8;
 
-        var segments = new[] { caseW + 2, timeW + 2, cpuW + 2, gcW + 2, speedW + 2 };
+        var segments = new[]
+        {
+            caseW + 2,
+            avgW + 2,
+            p50W + 2,
+            p90W + 2,
+            p95W + 2,
+            p99W + 2,
+            cpuW + 2,
+            gcW + 2,
+            speedW + 2
+        };
 
         static string Truncate(string value, int width)
         {
@@ -540,11 +630,14 @@ public static class Program
 
         foreach (var scenarioGroup in byScenario)
         {
-            Console.WriteLine($"▶ Scenario: {scenarioGroup.Key}");
+            var first = scenarioGroup.First();
+            Console.WriteLine(
+                $"▶ Scenario: {scenarioGroup.Key} (samples={first.Samples}, iterationsPerSample={first.IterationsPerSample})"
+            );
 
             Console.WriteLine(Line('┌', '┬', '┐', segments));
             Console.WriteLine(
-                $"│ {"Test case", -caseW} │ {"Time(ns)", -timeW} │ {"CPU(cy)", -cpuW} │ {"GC", -gcW} │ {"Pico x", -speedW} │"
+                $"│ {"Test case", -caseW} │ {"Avg(ns/op)", avgW} │ {"P50(ns/op)", p50W} │ {"P90(ns/op)", p90W} │ {"P95(ns/op)", p95W} │ {"P99(ns/op)", p99W} │ {"CPU(cy)", -cpuW} │ {"GC", -gcW} │ {"Pico x", -speedW} │"
             );
             Console.WriteLine(Line('├', '┼', '┤', segments));
 
@@ -557,11 +650,11 @@ public static class Program
                 }
             )
             {
-                var pico = scenarioGroup.First(
-                    r => r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
+                var pico = scenarioGroup.First(r =>
+                    r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
                 );
-                var ms = scenarioGroup.First(
-                    r => r.Lifetime == lifetime && r.Container == ContainerType.MsDI
+                var ms = scenarioGroup.First(r =>
+                    r.Lifetime == lifetime && r.Container == ContainerType.MsDI
                 );
 
                 var picoTime = pico.AvgNs;
@@ -571,21 +664,24 @@ public static class Program
                 var picoCpu = CpuCyclesPerOpString(pico);
                 var msCpu = CpuCyclesPerOpString(ms);
 
-                var picoGc = Truncate(FormatGcDeltasAllGens(pico.GcGenDeltas), gcW);
-                var msGc = Truncate(FormatGcDeltasAllGens(ms.GcGenDeltas), gcW);
+                var picoGc = Truncate(FormatGcDeltas(pico.GcGenDeltas), gcW);
+                var msGc = Truncate(FormatGcDeltas(ms.GcGenDeltas), gcW);
 
                 var picoCase = Truncate($"{ContainerType.PicoDI} × {lifetime}", caseW);
                 var msCase = Truncate($"{ContainerType.MsDI} × {lifetime}", caseW);
 
                 Console.WriteLine(
-                    $"│ {picoCase, -caseW} │ {picoTime, timeW:F1} │ {Truncate(picoCpu, cpuW), -cpuW} │ {picoGc, -gcW} │ {Truncate(speedup, speedW), -speedW} │"
+                    $"│ {picoCase, -caseW} │ {pico.AvgNs, avgW:F1} │ {pico.P50Ns, p50W:F1} │ {pico.P90Ns, p90W:F1} │ {pico.P95Ns, p95W:F1} │ {pico.P99Ns, p99W:F1} │ {Truncate(picoCpu, cpuW), -cpuW} │ {picoGc, -gcW} │ {Truncate(speedup, speedW), -speedW} │"
                 );
                 Console.WriteLine(
-                    $"│ {msCase, -caseW} │ {msTime, timeW:F1} │ {Truncate(msCpu, cpuW), -cpuW} │ {msGc, -gcW} │ {"", -speedW} │"
+                    $"│ {msCase, -caseW} │ {ms.AvgNs, avgW:F1} │ {ms.P50Ns, p50W:F1} │ {ms.P90Ns, p90W:F1} │ {ms.P95Ns, p95W:F1} │ {ms.P99Ns, p99W:F1} │ {Truncate(msCpu, cpuW), -cpuW} │ {msGc, -gcW} │ {"", -speedW} │"
                 );
             }
 
             Console.WriteLine(Line('└', '┴', '┘', segments));
+
+            PrintScenarioTotalsComparison(scenarioGroup.ToList());
+
             Console.WriteLine();
         }
 
@@ -600,6 +696,105 @@ public static class Program
             var parts = segs.Select(s => new string('─', s));
             return left + string.Join(mid, parts) + right;
         }
+    }
+
+    private sealed record TotalsAgg(
+        double AvgNs,
+        double P50Ns,
+        double P90Ns,
+        double P95Ns,
+        double P99Ns,
+        double? CpuCyclesPerOp,
+        Dictionary<int, int> GcTotals
+    );
+
+    private static TotalsAgg ComputeAgg(List<BenchmarkResult> cases)
+    {
+        var cpu = cases.All(r => r.CpuCycles == 0)
+            ? (double?)null
+            : cases.Average(r => r.CpuCycles / (double)r.IterationsPerSample);
+
+        return new TotalsAgg(
+            AvgNs: cases.Average(r => r.AvgNs),
+            P50Ns: cases.Average(r => r.P50Ns),
+            P90Ns: cases.Average(r => r.P90Ns),
+            P95Ns: cases.Average(r => r.P95Ns),
+            P99Ns: cases.Average(r => r.P99Ns),
+            CpuCyclesPerOp: cpu,
+            GcTotals: SumGcAllGens(cases)
+        );
+    }
+
+    private static double? Ratio(double numerator, double denominator)
+    {
+        if (double.IsNaN(numerator) || double.IsNaN(denominator))
+            return null;
+        if (double.IsInfinity(numerator) || double.IsInfinity(denominator))
+            return null;
+        if (denominator <= 0)
+            return null;
+        return numerator / denominator;
+    }
+
+    private static void PrintTotalsBlock(string label, TotalsAgg pico, TotalsAgg ms)
+    {
+        var picoGcSum = pico.GcTotals.Values.Sum();
+        var msGcSum = ms.GcTotals.Values.Sum();
+
+        const int timeW = 9;
+        const int cpuW = 11;
+        const int gcW = 14;
+
+        static string Truncate(string value, int width)
+        {
+            if (value.Length <= width)
+                return value;
+            if (width <= 3)
+                return value[..width];
+            return value[..(width - 3)] + "...";
+        }
+
+        static string FTime(double v) => v.ToString("0.0");
+
+        static string FormatGcRatio(int msSum, int picoSum)
+        {
+            if (picoSum == 0)
+                return msSum == 0 ? "1.00x" : "inf";
+            return (msSum / (double)picoSum).ToString("0.00") + "x";
+        }
+
+        var picoCpu = FormatNumber(pico.CpuCyclesPerOp, "N0");
+        var msCpu = FormatNumber(ms.CpuCyclesPerOp, "N0");
+        var picoGc = Truncate(FormatGcTotals(pico.GcTotals), gcW);
+        var msGc = Truncate(FormatGcTotals(ms.GcTotals), gcW);
+
+        var cpuRatio =
+            pico.CpuCyclesPerOp is null || ms.CpuCyclesPerOp is null
+                ? null
+                : Ratio(ms.CpuCyclesPerOp.Value, pico.CpuCyclesPerOp.Value);
+
+        Console.WriteLine($"{label}: (avg across cases)");
+        Console.WriteLine(
+            $"  {"Pico", -6} | Avg {FTime(pico.AvgNs), timeW} | P50 {FTime(pico.P50Ns), timeW} | P90 {FTime(pico.P90Ns), timeW} | P95 {FTime(pico.P95Ns), timeW} | P99 {FTime(pico.P99Ns), timeW} | CPU {picoCpu, cpuW} | GC {picoGc, -gcW}"
+        );
+        Console.WriteLine(
+            $"  {"Ms", -6} | Avg {FTime(ms.AvgNs), timeW} | P50 {FTime(ms.P50Ns), timeW} | P90 {FTime(ms.P90Ns), timeW} | P95 {FTime(ms.P95Ns), timeW} | P99 {FTime(ms.P99Ns), timeW} | CPU {msCpu, cpuW} | GC {msGc, -gcW}"
+        );
+        Console.WriteLine(
+            $"  {"Pico x", -6} | Avg {FormatRatio(Ratio(ms.AvgNs, pico.AvgNs)), timeW} | P50 {FormatRatio(Ratio(ms.P50Ns, pico.P50Ns)), timeW} | P90 {FormatRatio(Ratio(ms.P90Ns, pico.P90Ns)), timeW} | P95 {FormatRatio(Ratio(ms.P95Ns, pico.P95Ns)), timeW} | P99 {FormatRatio(Ratio(ms.P99Ns, pico.P99Ns)), timeW} | CPU {FormatRatio(cpuRatio), cpuW} | GC {FormatGcRatio(msGcSum, picoGcSum), gcW}"
+        );
+    }
+
+    private static void PrintScenarioTotalsComparison(List<BenchmarkResult> scenarioResults)
+    {
+        var picoCases = scenarioResults.Where(r => r.Container == ContainerType.PicoDI).ToList();
+        var msCases = scenarioResults.Where(r => r.Container == ContainerType.MsDI).ToList();
+
+        var picoAgg = ComputeAgg(picoCases);
+        var msAgg = ComputeAgg(msCases);
+
+        Console.WriteLine();
+        PrintTotalsBlock("Totals", picoAgg, msAgg);
     }
 
     private static void PrintTotalsComparison(List<BenchmarkResult> results)
@@ -618,42 +813,69 @@ public static class Program
         var picoCases = results.Where(r => r.Container == ContainerType.PicoDI).ToList();
         var msCases = results.Where(r => r.Container == ContainerType.MsDI).ToList();
 
-        var picoAvgNs = picoCases.Average(r => r.AvgNs);
-        var msAvgNs = msCases.Average(r => r.AvgNs);
-        var timeSpeedup = picoAvgNs <= 0 ? double.NaN : msAvgNs / picoAvgNs;
+        var picoAgg = ComputeAgg(picoCases);
+        var msAgg = ComputeAgg(msCases);
 
-        var picoAvgCy = picoCases.All(r => r.CpuCycles == 0)
-            ? (double?)null
-            : picoCases.Average(r => r.CpuCycles / (double)r.Iterations);
-        var msAvgCy = msCases.All(r => r.CpuCycles == 0)
-            ? (double?)null
-            : msCases.Average(r => r.CpuCycles / (double)r.Iterations);
-        var cpuSpeedup =
-            picoAvgCy is null || msAvgCy is null || picoAvgCy <= 0
-                ? (double?)null
-                : msAvgCy / picoAvgCy;
-
-        var picoGcTotals = SumGcAllGens(picoCases);
-        var msGcTotals = SumGcAllGens(msCases);
-        var picoGcSum = picoGcTotals.Values.Sum();
-        var msGcSum = msGcTotals.Values.Sum();
-        var gcReduction = picoGcSum == 0 ? (double?)null : msGcSum / picoGcSum;
-
-        Console.WriteLine(
-            $"Time (avg ns/op): Pico {picoAvgNs:F1} | Ms {msAvgNs:F1} | Pico x {timeSpeedup:0.00}x"
-        );
-        Console.WriteLine(
-            $"CPU  (avg cy/op): Pico {FormatNumber(picoAvgCy, "N0")} | Ms {FormatNumber(msAvgCy, "N0")} | Pico x {FormatRatio(cpuSpeedup)}"
-        );
-        Console.WriteLine(
-            $"GC   (sum):       Pico {FormatGcTotals(picoGcTotals)} | Ms {FormatGcTotals(msGcTotals)} | Pico x {FormatRatio(gcReduction)}"
-        );
+        PrintTotalsBlock("Totals", picoAgg, msAgg);
         Console.WriteLine();
+    }
+
+    private sealed record BenchmarkConfig(
+        int Samples,
+        int IterationsPerSample,
+        int Warmup,
+        int MultipleResolutionsInnerLoop
+    );
+
+    private static BenchmarkConfig ParseArgs(string[] args)
+    {
+        // Keep these defaults in sync with BenchmarkRunner defaults.
+        var samples = 25;
+        var iterationsPerSample = 10000;
+        var warmup = 1000;
+        var multi = 100;
+
+        for (var i = 0; i < args.Length; i++)
+        {
+            var arg = args[i];
+            static int NextInt(string[] a, ref int idx, string name)
+            {
+                if (idx + 1 >= a.Length)
+                    throw new ArgumentException($"Missing value for '{name}'.");
+                idx++;
+                if (!int.TryParse(a[idx], out var v) || v <= 0)
+                    throw new ArgumentException($"Invalid value for '{name}': '{a[idx]}'.");
+                return v;
+            }
+
+            switch (arg)
+            {
+                case "--samples":
+                case "-s":
+                    samples = NextInt(args, ref i, arg);
+                    break;
+                case "--iterations":
+                case "-i":
+                    iterationsPerSample = NextInt(args, ref i, arg);
+                    break;
+                case "--warmup":
+                case "-w":
+                    warmup = NextInt(args, ref i, arg);
+                    break;
+                case "--multi":
+                    multi = NextInt(args, ref i, arg);
+                    break;
+            }
+        }
+
+        return new BenchmarkConfig(samples, iterationsPerSample, warmup, multi);
     }
 
     private static string CpuCyclesPerOpString(BenchmarkResult r)
     {
-        return r.CpuCycles == 0 ? "n/a" : (r.CpuCycles / (double)r.Iterations).ToString("N0");
+        return r.CpuCycles == 0
+            ? "n/a"
+            : (r.CpuCycles / (double)r.IterationsPerSample).ToString("N0");
     }
 
     private static Dictionary<int, int> SumGcAllGens(List<BenchmarkResult> cases)
@@ -674,8 +896,8 @@ public static class Program
             return "0";
 
         var parts = totals
-            .OrderBy(kvp => kvp.Key)
             .Where(kvp => kvp.Value != 0)
+            .OrderBy(kvp => kvp.Key)
             .Select(kvp => $"Gen{kvp.Key}+{kvp.Value}")
             .ToArray();
 
@@ -713,17 +935,15 @@ public static class Program
         {
             foreach (var lifetime in lifetimes)
             {
-                var pico = results.First(
-                    r =>
-                        r.Scenario == scenario
-                        && r.Lifetime == lifetime
-                        && r.Container == ContainerType.PicoDI
+                var pico = results.First(r =>
+                    r.Scenario == scenario
+                    && r.Lifetime == lifetime
+                    && r.Container == ContainerType.PicoDI
                 );
-                var ms = results.First(
-                    r =>
-                        r.Scenario == scenario
-                        && r.Lifetime == lifetime
-                        && r.Container == ContainerType.MsDI
+                var ms = results.First(r =>
+                    r.Scenario == scenario
+                    && r.Lifetime == lifetime
+                    && r.Container == ContainerType.MsDI
                 );
 
                 if (pico.AvgNs < ms.AvgNs)
@@ -760,7 +980,7 @@ public static class Program
     private static string FormatGcDeltas(IReadOnlyList<GenCount> deltas, bool verbose = false)
     {
         if (deltas.Count == 0)
-            return "n/a";
+            return "0";
 
         var prefix = verbose ? "Gen" : "G";
         var parts = deltas
@@ -774,7 +994,7 @@ public static class Program
     private static string FormatGcDeltasAllGens(IReadOnlyList<GenCount> deltas)
     {
         if (deltas.Count == 0)
-            return "n/a";
+            return "0";
 
         // Include all generations, even if count is 0.
         return string.Join(" ", deltas.Select(d => $"G{d.Gen}:{d.Count}"));
