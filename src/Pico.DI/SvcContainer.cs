@@ -9,9 +9,16 @@ public sealed class SvcContainer : ISvcContainer
     private Dictionary<Type, SvcDescriptor[]>? _descriptorCache = new();
     private object SyncRoot => field ??= new object();
 
+    // Sentinel object to mark the linked list as "disposed" - prevents new scopes from being added
+    // Using a special marker value instead of null to distinguish "empty list" from "disposed list"
+    private static readonly SvcScope DisposedSentinel = CreateSentinel();
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static SvcScope CreateSentinel() => new(null!);
+
     // Use simple linked list for root scopes - lower overhead than ConcurrentBag
+    // Lock-free prepend using CAS; disposal uses Exchange to atomically acquire and seal the list
     private SvcScope? _firstRootScope;
-    private object RootScopeLock => field ??= new object();
 
     /// <summary>
     /// Frozen (optimized) descriptor cache after Build() is called.
@@ -131,12 +138,16 @@ public sealed class SvcContainer : ISvcContainer
 
         var scope = new SvcScope(frozenCache);
 
-        // Track for automatic disposal using simple linked list
-        lock (RootScopeLock)
+        // Lock-free prepend using CAS with sentinel check for 100% disposal safety
+        SvcScope? current;
+        do
         {
-            scope.NextInList = _firstRootScope;
-            _firstRootScope = scope;
-        }
+            current = Volatile.Read(ref _firstRootScope);
+            if (ReferenceEquals(current, DisposedSentinel))
+                ThrowObjectDisposedException(); // Container is disposing, reject new scopes
+            scope.NextInList = current;
+        } while (Interlocked.CompareExchange(ref _firstRootScope, scope, current) != current);
+
         return scope;
     }
 
@@ -147,15 +158,18 @@ public sealed class SvcContainer : ISvcContainer
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
 
-        // Dispose all root scopes first (which will recursively dispose their child scopes)
-        var scope = _firstRootScope;
-        while (scope != null)
+        // Atomically acquire the linked list and set sentinel to block new scope creation
+        // This guarantees no scope can be added after this point (they'll see DisposedSentinel and throw)
+        var head = Interlocked.Exchange(ref _firstRootScope, DisposedSentinel);
+
+        // Dispose all root scopes (which will recursively dispose their child scopes)
+        var scope = head;
+        while (scope != null && !ReferenceEquals(scope, DisposedSentinel))
         {
             var next = scope.NextInList;
             scope.Dispose();
             scope = next;
         }
-        _firstRootScope = null;
 
         // Then dispose singleton instances owned by the container
         var frozenCache = _frozenCache;
@@ -190,15 +204,17 @@ public sealed class SvcContainer : ISvcContainer
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
 
-        // Dispose all root scopes first (which will recursively dispose their child scopes)
-        var scope = _firstRootScope;
-        while (scope != null)
+        // Atomically acquire the linked list and set sentinel to block new scope creation
+        var head = Interlocked.Exchange(ref _firstRootScope, DisposedSentinel);
+
+        // Dispose all root scopes (which will recursively dispose their child scopes)
+        var scope = head;
+        while (scope != null && !ReferenceEquals(scope, DisposedSentinel))
         {
             var next = scope.NextInList;
             await scope.DisposeAsync();
             scope = next;
         }
-        _firstRootScope = null;
 
         // Then dispose singleton instances owned by the container
         var frozenCache = _frozenCache;
