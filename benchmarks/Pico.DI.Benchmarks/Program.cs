@@ -156,11 +156,17 @@ public static class BenchmarkRunner
         int iterationsPerSample = DefaultIterations
     )
     {
+        var operationsPerOuterIteration =
+            scenario == TestScenario.MultipleResolutions ? _multipleResolutionsInnerLoop : 1;
+
+        var operationsPerSample = checked(iterationsPerSample * operationsPerOuterIteration);
+
         // For resolution tests, pre-build containers
         var needsDeep = scenario == TestScenario.DeepDependencyChain;
         if (
             scenario
-            is TestScenario.SingleResolution
+            is TestScenario.ScopeCreation
+                or TestScenario.SingleResolution
                 or TestScenario.MultipleResolutions
                 or TestScenario.DeepDependencyChain
         )
@@ -169,8 +175,20 @@ public static class BenchmarkRunner
         }
 
         // Warmup
-        for (var i = 0; i < _warmupIterations; i++)
-            ExecuteScenario(containerType, scenario, lifetime);
+        if (
+            scenario
+            is TestScenario.SingleResolution
+                or TestScenario.MultipleResolutions
+                or TestScenario.DeepDependencyChain
+        )
+        {
+            WarmupResolution(containerType, scenario);
+        }
+        else
+        {
+            for (var i = 0; i < _warmupIterations; i++)
+                ExecuteScenario(containerType, scenario, lifetime);
+        }
 
         // Sampled timing: run N batches and compute distribution over ns/op.
         // This provides meaningful p50/p90/p95/p99 per test case.
@@ -182,17 +200,23 @@ public static class BenchmarkRunner
         for (var s = 0; s < _samples; s++)
         {
             var summaryName = $"{containerType}/{scenario}/{lifetime}/s{s + 1}";
-            var summary = Runner.Time(
-                summaryName,
-                iterationsPerSample,
-                () => ExecuteScenario(containerType, scenario, lifetime)
-            );
+
+            var summary = scenario
+                is TestScenario.SingleResolution
+                    or TestScenario.MultipleResolutions
+                    or TestScenario.DeepDependencyChain
+                ? TimeResolutionSample(summaryName, iterationsPerSample, containerType, scenario)
+                : Runner.Time(
+                    summaryName,
+                    iterationsPerSample,
+                    () => ExecuteScenario(containerType, scenario, lifetime)
+                );
 
             totalNs += summary.ElapsedNanoseconds;
             totalCpuCycles += summary.CpuCycle;
             lastGcDeltas = summary.GenCounts;
 
-            nsPerOpSamples[s] = summary.ElapsedNanoseconds / iterationsPerSample;
+            nsPerOpSamples[s] = summary.ElapsedNanoseconds / operationsPerSample;
         }
 
         Array.Sort(nsPerOpSamples);
@@ -203,7 +227,7 @@ public static class BenchmarkRunner
             scenario,
             lifetime,
             _samples,
-            iterationsPerSample,
+            operationsPerSample,
             totalNs / 1_000_000d,
             avgNs,
             PercentileSorted(nsPerOpSamples, 0.50),
@@ -213,6 +237,103 @@ public static class BenchmarkRunner
             totalCpuCycles,
             lastGcDeltas ?? []
         );
+    }
+
+    private static void WarmupResolution(ContainerType container, TestScenario scenario)
+    {
+        if (container == ContainerType.PicoDI)
+        {
+            using var scope = _picoContainer!.CreateScope();
+            for (var i = 0; i < _warmupIterations; i++)
+                ExecuteResolutionBody(scope, scenario);
+            return;
+        }
+
+        using var msScope = _msProvider!.CreateScope();
+        for (var i = 0; i < _warmupIterations; i++)
+            ExecuteResolutionBody(msScope.ServiceProvider, scenario);
+    }
+
+    private static Summary TimeResolutionSample(
+        string summaryName,
+        int iterationsPerSample,
+        ContainerType container,
+        TestScenario scenario
+    )
+    {
+        if (container == ContainerType.PicoDI)
+        {
+            ISvcScope? scope = null;
+            return Runner.Time(
+                summaryName,
+                iterationsPerSample,
+                action: () => ExecuteResolutionBody(scope!, scenario),
+                setup: () => scope = _picoContainer!.CreateScope(),
+                teardown: () =>
+                {
+                    scope?.Dispose();
+                    scope = null;
+                }
+            );
+        }
+        else
+        {
+            IServiceScope? scope = null;
+            return Runner.Time(
+                summaryName,
+                iterationsPerSample,
+                action: () => ExecuteResolutionBody(scope!.ServiceProvider, scenario),
+                setup: () => scope = _msProvider!.CreateScope(),
+                teardown: () =>
+                {
+                    scope?.Dispose();
+                    scope = null;
+                }
+            );
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void ExecuteResolutionBody(ISvcScope scope, TestScenario scenario)
+    {
+        switch (scenario)
+        {
+            case TestScenario.SingleResolution:
+                _ = scope.GetService<IService>();
+                return;
+            case TestScenario.MultipleResolutions:
+                for (var i = 0; i < _multipleResolutionsInnerLoop; i++)
+                    _ = scope.GetService<IService>();
+                return;
+            case TestScenario.DeepDependencyChain:
+                _ = scope.GetService<ILevel5>();
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(scenario), scenario, null);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void ExecuteResolutionBody(
+        IServiceProvider serviceProvider,
+        TestScenario scenario
+    )
+    {
+        switch (scenario)
+        {
+            case TestScenario.SingleResolution:
+                _ = serviceProvider.GetRequiredService<IService>();
+                return;
+            case TestScenario.MultipleResolutions:
+                for (var i = 0; i < _multipleResolutionsInnerLoop; i++)
+                    _ = serviceProvider.GetRequiredService<IService>();
+                return;
+            case TestScenario.DeepDependencyChain:
+                _ = serviceProvider.GetRequiredService<ILevel5>();
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(scenario), scenario, null);
+        }
     }
 
     // Linear interpolation between closest ranks on the sorted array.
@@ -336,16 +457,11 @@ public static class BenchmarkRunner
     {
         if (container == ContainerType.PicoDI)
         {
-            using var c = new SvcContainer();
-            RegisterPicoDI(c, lifetime);
-            using var scope = c.CreateScope();
+            using var scope = _picoContainer!.CreateScope();
         }
         else
         {
-            var services = new ServiceCollection();
-            RegisterMsDI(services, lifetime);
-            using var sp = services.BuildServiceProvider();
-            using var scope = sp.CreateScope();
+            using var scope = _msProvider!.CreateScope();
         }
     }
 
@@ -542,7 +658,6 @@ public static class Program
         var containers = new[] { ContainerType.PicoDI, ContainerType.MsDI };
         var scenarios = new[]
         {
-            TestScenario.ContainerSetup,
             TestScenario.ScopeCreation,
             TestScenario.SingleResolution,
             TestScenario.MultipleResolutions,
@@ -673,11 +788,11 @@ public static class Program
                 }
             )
             {
-                var pico = scenarioGroup.First(
-                    r => r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
+                var pico = scenarioGroup.First(r =>
+                    r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
                 );
-                var ms = scenarioGroup.First(
-                    r => r.Lifetime == lifetime && r.Container == ContainerType.MsDI
+                var ms = scenarioGroup.First(r =>
+                    r.Lifetime == lifetime && r.Container == ContainerType.MsDI
                 );
 
                 var picoTime = pico.AvgNs;
@@ -961,17 +1076,15 @@ public static class Program
         {
             foreach (var lifetime in lifetimes)
             {
-                var pico = results.First(
-                    r =>
-                        r.Scenario == scenario
-                        && r.Lifetime == lifetime
-                        && r.Container == ContainerType.PicoDI
+                var pico = results.First(r =>
+                    r.Scenario == scenario
+                    && r.Lifetime == lifetime
+                    && r.Container == ContainerType.PicoDI
                 );
-                var ms = results.First(
-                    r =>
-                        r.Scenario == scenario
-                        && r.Lifetime == lifetime
-                        && r.Container == ContainerType.MsDI
+                var ms = results.First(r =>
+                    r.Scenario == scenario
+                    && r.Lifetime == lifetime
+                    && r.Container == ContainerType.MsDI
                 );
 
                 if (pico.AvgNs < ms.AvgNs)

@@ -14,7 +14,16 @@ public static class Runner
         Time("_warmup", 1, static () => { });
     }
 
-    public static Summary Time(string name, int iteration, Action action)
+    public static Summary Time(string name, int iteration, Action action) =>
+        Time(name, iteration, action, setup: null, teardown: null);
+
+    public static Summary Time(
+        string name,
+        int iteration,
+        Action action,
+        Action? setup,
+        Action? teardown
+    )
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(iteration);
         ArgumentNullException.ThrowIfNull(action);
@@ -29,8 +38,12 @@ public static class Runner
         // 2.
         var watch = Stopwatch.StartNew();
         var cycleCount = GetCycleCount();
+
+        setup?.Invoke();
         for (var i = 0; i < iteration; i++)
             action();
+
+        teardown?.Invoke();
         watch.Stop();
         var cpuCycles = GetCycleCount() - cycleCount;
 
