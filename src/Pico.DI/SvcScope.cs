@@ -169,12 +169,10 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private object GetOrCreateSingleton(Type serviceType, SvcDescriptor resolver)
     {
-        // Fast path: check if already created (most common case after warmup)
-        var instance = resolver.SingleInstance;
-        return instance
-            ??
-            // Slow path: use lock to ensure single creation
-            GetOrCreateSingletonSlow(serviceType, resolver);
+        // Fast path: Volatile.Read ensures visibility of writes from other threads
+        // and prevents JIT from caching the field read across iterations
+        return Volatile.Read(ref resolver.SingleInstance)
+            ?? GetOrCreateSingletonSlow(serviceType, resolver);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
