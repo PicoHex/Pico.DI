@@ -7,7 +7,7 @@
 public sealed class SvcContainer : ISvcContainer
 {
     private Dictionary<Type, SvcDescriptor[]>? _descriptorCache = new();
-    private Lock SyncRoot => field ??= new();
+    private Lock RegistrationLock => field ??= new();
 
     // Sentinel object to mark the linked list as "disposed" - prevents new scopes from being added
     // Using a special marker value instead of null to distinguish "empty list" from "disposed list"
@@ -61,7 +61,7 @@ public sealed class SvcContainer : ISvcContainer
     {
         ThrowIfDisposed();
 
-        lock (SyncRoot)
+        lock (RegistrationLock)
         {
             if (_frozenCache != null)
                 throw new InvalidOperationException(
@@ -108,7 +108,7 @@ public sealed class SvcContainer : ISvcContainer
     {
         ThrowIfDisposed();
 
-        lock (SyncRoot)
+        lock (RegistrationLock)
         {
             if (_frozenCache != null)
                 return;
