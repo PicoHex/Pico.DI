@@ -788,11 +788,11 @@ public static class Program
                 }
             )
             {
-                var pico = scenarioGroup.First(r =>
-                    r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
+                var pico = scenarioGroup.First(
+                    r => r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
                 );
-                var ms = scenarioGroup.First(r =>
-                    r.Lifetime == lifetime && r.Container == ContainerType.MsDI
+                var ms = scenarioGroup.First(
+                    r => r.Lifetime == lifetime && r.Container == ContainerType.MsDI
                 );
 
                 var picoTime = pico.AvgNs;
@@ -1076,15 +1076,17 @@ public static class Program
         {
             foreach (var lifetime in lifetimes)
             {
-                var pico = results.First(r =>
-                    r.Scenario == scenario
-                    && r.Lifetime == lifetime
-                    && r.Container == ContainerType.PicoDI
+                var pico = results.First(
+                    r =>
+                        r.Scenario == scenario
+                        && r.Lifetime == lifetime
+                        && r.Container == ContainerType.PicoDI
                 );
-                var ms = results.First(r =>
-                    r.Scenario == scenario
-                    && r.Lifetime == lifetime
-                    && r.Container == ContainerType.MsDI
+                var ms = results.First(
+                    r =>
+                        r.Scenario == scenario
+                        && r.Lifetime == lifetime
+                        && r.Container == ContainerType.MsDI
                 );
 
                 if (pico.AvgNs < ms.AvgNs)
