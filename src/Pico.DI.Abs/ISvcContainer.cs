@@ -24,6 +24,127 @@ public interface ISvcContainer : IDisposable, IAsyncDisposable
 /// </summary>
 public static class SvcContainerExtensions
 {
+    extension(ISvcContainer container)
+    {
+        /// <summary>
+        /// Registers a service with the specified implementation type and lifetime.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="implementType">The implementation type.</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        /// <exception cref="SourceGeneratorRequiredException">Thrown when source generator registration is required but not available.</exception>
+        public ISvcContainer Register(Type serviceType, Type implementType, SvcLifetime lifetime)
+        {
+            // Automatically detect and handle open generic types
+            if (serviceType.IsGenericTypeDefinition && implementType.IsGenericTypeDefinition)
+            {
+                return container.Register(new SvcDescriptor(
+                    serviceType,
+                    implementType,
+                    lifetime));
+            }
+
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        }
+
+        /// <summary>
+        /// Registers a service type as its own implementation with the specified lifetime.
+        /// </summary>
+        /// <param name="serviceType">The service type to register (also used as implementation).</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        /// <exception cref="SourceGeneratorRequiredException">Thrown when source generator registration is required but not available.</exception>
+        public ISvcContainer Register(Type serviceType, SvcLifetime lifetime)
+        {
+            // Automatically detect and handle open generic types
+            if (serviceType.IsGenericTypeDefinition)
+            {
+                return container.Register(new SvcDescriptor(
+                    serviceType,
+                    serviceType,
+                    lifetime));
+            }
+
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        }
+
+        /// <summary>
+        /// Registers a service with the specified implementation type and lifetime.
+        /// This is a placeholder for source generator to provide the actual implementation.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <typeparam name="TImplementation">The implementation type.</typeparam>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        public ISvcContainer Register<TService, TImplementation>(SvcLifetime lifetime)
+            where TImplementation : TService => container;
+
+        /// <summary>
+        /// Registers a service type as its own implementation with the specified lifetime.
+        /// This is a placeholder for source generator to provide the actual implementation.
+        /// </summary>
+        /// <typeparam name="TService">The service type (also used as implementation).</typeparam>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        public ISvcContainer Register<TService>(SvcLifetime lifetime)
+            where TService : class => container;
+
+        /// <summary>
+        /// Registers a service with the specified implementation type and lifetime.
+        /// This is a placeholder for source generator to provide the actual implementation.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="implementType">The implementation type.</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        public ISvcContainer Register<TService>(Type implementType, SvcLifetime lifetime)
+            where TService : class => container;
+    }
+
+    // Add by factory
+    extension(ISvcContainer container)
+    {
+        /// <summary>
+        /// Registers a service with a factory function and specified lifetime.
+        /// </summary>
+        /// <param name="serviceType">The service type to register.</param>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        public ISvcContainer Register(Type serviceType,
+            Func<ISvcScope, object> factory, SvcLifetime lifetime) =>
+            container.Register(new SvcDescriptor(serviceType, factory, lifetime));
+
+        /// <summary>
+        /// Registers a service with a factory function and specified lifetime.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        public ISvcContainer Register<TService>(Func<ISvcScope, TService> factory, SvcLifetime lifetime)
+            where TService : class =>
+            container.Register(new SvcDescriptor(typeof(TService), factory, lifetime));
+
+        /// <summary>
+        /// Registers a service with a factory function and specified lifetime.
+        /// </summary>
+        /// <typeparam name="TService">The service type.</typeparam>
+        /// <typeparam name="TImplementation">The implementation type returned by the factory.</typeparam>
+        /// <param name="factory">The factory function to create service instances.</param>
+        /// <param name="lifetime">The service lifetime.</param>
+        /// <returns>The container instance for method chaining.</returns>
+        public ISvcContainer Register<TService, TImplementation>(Func<ISvcScope, TImplementation> factory, SvcLifetime lifetime)
+            where TService : class
+            where TImplementation : class =>
+            container.Register(new SvcDescriptor(typeof(TService), factory, lifetime));
+    }
+
     // Transient
     extension(ISvcContainer container)
     {
