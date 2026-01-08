@@ -41,18 +41,4 @@ internal static class PicoDiNames
         RegisterScoped,
         RegisterSingleton
     ];
-
-    // External service patterns (cannot use nameof - external dependencies)
-    public static readonly string[] ServiceAssociatedGenericPatterns =
-    [
-        "ILogger<>",
-        "Logger<>",
-        "IOptions<>",
-        "IOptionsSnapshot<>",
-        "IOptionsMonitor<>",
-        "IConfiguration<>",
-        "Lazy<>",
-        "IValidator<>",
-        "Validator<>"
-    ];
 }

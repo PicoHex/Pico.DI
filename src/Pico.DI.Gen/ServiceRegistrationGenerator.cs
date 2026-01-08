@@ -488,13 +488,6 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             closedUsages.Add(cu);
         }
 
-        // Auto-infer service-associated generics (e.g., ILogger<ServiceType> for each registered service)
-        var inferredServiceGenerics = InferServiceAssociatedGenerics(registrations, openGenerics);
-        foreach (var ig in inferredServiceGenerics.Where(ig => !closedUsages.Contains(ig)))
-        {
-            closedUsages.Add(ig);
-        }
-
         // Generate closed generic registrations from open generic + usages
         var generatedClosedGenerics = GenerateClosedGenericRegistrations(
             openGenerics,
@@ -533,67 +526,6 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             isEnabledByDefault: true,
             description: "A circular dependency chain was detected which will cause a runtime exception. Fix the dependency cycle."
         );
-
-    /// <summary>
-    /// Auto-infers service-associated generic usages.
-    /// For patterns like ILogger&lt;T&gt;, automatically generates ILogger&lt;ServiceType&gt;
-    /// for each registered service type.
-    /// </summary>
-    private static List<ClosedGenericUsage> InferServiceAssociatedGenerics(
-        List<ServiceRegistration> registrations,
-        List<OpenGenericRegistration> openGenerics
-    )
-    {
-        var inferred = new List<ClosedGenericUsage>();
-
-        foreach (var og in openGenerics)
-        {
-            // Check if this open generic matches a service-associated pattern
-            var simpleName = GetSimpleName(og.OpenServiceTypeFullName) + "<>";
-            if (!PicoDiNames.ServiceAssociatedGenericPatterns.Contains(simpleName))
-                continue;
-
-            // Only process single type parameter generics for auto-inference
-            if (og.TypeParameterCount != 1)
-                continue;
-
-            // For each registered service, generate a closed generic usage
-            foreach (var reg in registrations)
-            {
-                // Use implementation type as the type argument (e.g., ILogger<UserService>)
-                var closedServiceType = BuildClosedGenericTypeName(
-                    og.OpenServiceTypeFullName,
-                    [reg.ImplementationTypeFullName]
-                );
-
-                inferred.Add(
-                    new ClosedGenericUsage(
-                        closedServiceType,
-                        og.OpenServiceTypeFullName,
-                        [reg.ImplementationTypeFullName]
-                    )
-                );
-
-                // Also generate for service type if different (e.g., ILogger<IUserService>)
-                if (reg.ServiceTypeFullName == reg.ImplementationTypeFullName)
-                    continue;
-                var closedForServiceInterface = BuildClosedGenericTypeName(
-                    og.OpenServiceTypeFullName,
-                    [reg.ServiceTypeFullName]
-                );
-
-                inferred.Add(
-                    new ClosedGenericUsage(
-                        closedForServiceInterface,
-                        og.OpenServiceTypeFullName,
-                        [reg.ServiceTypeFullName]
-                    )
-                );
-            }
-        }
-
-        return inferred.Distinct().ToList();
-    }
 
     /// <summary>
     /// Detects circular dependencies at compile-time by analyzing the dependency graph.
