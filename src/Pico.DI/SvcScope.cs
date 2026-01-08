@@ -27,7 +27,7 @@ public sealed class SvcScope : ISvcScope
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
     // Lazy accessor for scoped instances lock (still needed for scoped instance cache)
-    private object ScopedLock => field ??= new object();
+    private Lock ScopedLock => field ??= new();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()

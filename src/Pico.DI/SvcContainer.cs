@@ -7,7 +7,7 @@
 public sealed class SvcContainer : ISvcContainer
 {
     private Dictionary<Type, SvcDescriptor[]>? _descriptorCache = new();
-    private object SyncRoot => field ??= new object();
+    private Lock SyncRoot => field ??= new();
 
     // Sentinel object to mark the linked list as "disposed" - prevents new scopes from being added
     // Using a special marker value instead of null to distinguish "empty list" from "disposed list"
