@@ -12,8 +12,8 @@ internal static class PicoDiNames
     public const string SvcContainer = "SvcContainer";
     public const string ISvcContainer = "ISvcContainer";
     public const string SvcLifetime = "SvcLifetime";
-    public const string Func = "Func";
-    public const string Type = "Type";
+    public const string Func = nameof(Func);
+    public const string Type = nameof(System.Type);
 
     // Method names
     public const string Register = "Register";
@@ -29,9 +29,9 @@ internal static class PicoDiNames
     public const string Singleton = "Singleton";
 
     // Namespace prefixes
-    public const string SystemNamespace = "System";
+    public const string SystemNamespace = nameof(System);
     public const string GlobalPrefix = "global::";
-    public const string GlobalSystemPrefix = "global::System";
+    public const string GlobalSystemPrefix = $"{GlobalPrefix}{nameof(System)}";
 
     // Method name collection
     public static readonly string[] RegisterMethodNames =
