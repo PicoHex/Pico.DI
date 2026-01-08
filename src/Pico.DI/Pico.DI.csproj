@@ -11,6 +11,8 @@
 
         <IsTrimmable>true</IsTrimmable>
         <IsAotCompatible>true</IsAotCompatible>
+
+        <IsPackable>true</IsPackable>
     </PropertyGroup>
 
     <!-- NuGet Package Metadata -->
@@ -20,10 +22,11 @@
         <Description>A lightweight, zero-reflection, AOT-compatible dependency injection container for .NET with compile-time source generation</Description>
         <PackageTags>DI;IoC;AOT;Dependency Injection;Container;Source Generator</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        
-        <!-- Mark as development dependency (analyzers don't need runtime reference) -->
-        <DevelopmentDependency>true</DevelopmentDependency>
     </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="" Visible="false" />
+    </ItemGroup>
 
     <!-- Reference to Abstractions - will become a NuGet dependency -->
     <ItemGroup>

@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <!-- Default: do not produce NuGet packages from every project in the repo -->
+    <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
+
+    <!-- Shared version for all Pico.DI packages -->
+    <PicoDIVersion>0.0.1</PicoDIVersion>
+  </PropertyGroup>
+
+  <!-- Common package metadata (applies to packed projects; harmless for others) -->
+  <PropertyGroup>
+    <Authors>PicoHex</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/pico-di/Pico.DI</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/pico-di/Pico.DI</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+</Project>
