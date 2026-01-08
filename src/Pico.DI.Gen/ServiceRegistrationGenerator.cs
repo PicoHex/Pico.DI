@@ -1,3 +1,5 @@
+using Pico.DI.Gen.Constants;
+
 namespace Pico.DI.Gen;
 
 /// <summary>
@@ -42,20 +44,11 @@ internal record ClosedGenericUsage(
 [Generator(LanguageNames.CSharp)]
 public class ServiceRegistrationGenerator : IIncrementalGenerator
 {
-    private static readonly string[] RegisterMethodNames =
-    [
-        "Register",
-        "RegisterTransient",
-        "RegisterScoped",
-        "RegisterSingleton"
-    ];
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Find all invocations that look like Register* method calls (regular registrations)
         var registerInvocations = context
-            .SyntaxProvider
-            .CreateSyntaxProvider(
+            .SyntaxProvider.CreateSyntaxProvider(
                 predicate: static (node, _) => IsRegisterMethodInvocation(node),
                 transform: static (ctx, _) => GetInvocationInfo(ctx)
             )
@@ -63,8 +56,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Find all open generic registrations (from both regular Register* and legacy RegisterOpenGeneric* methods)
         var openGenericRegistrations = context
-            .SyntaxProvider
-            .CreateSyntaxProvider(
+            .SyntaxProvider.CreateSyntaxProvider(
                 predicate: static (node, _) => IsOpenGenericRegisterInvocation(node),
                 transform: static (ctx, _) => GetOpenGenericInvocationInfo(ctx)
             )
@@ -72,8 +64,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Find all GetService<T> calls to detect closed generic usages
         var closedGenericUsages = context
-            .SyntaxProvider
-            .CreateSyntaxProvider(
+            .SyntaxProvider.CreateSyntaxProvider(
                 predicate: static (node, _) => IsGetServiceInvocation(node),
                 transform: static (ctx, _) => GetClosedGenericUsageInfo(ctx)
             )
@@ -82,8 +73,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         // Find closed generic types used in declarations (variables, fields, properties, parameters)
         // This helps detect entity-associated generics like IRepository<User>
         var closedGenericDeclarations = context
-            .SyntaxProvider
-            .CreateSyntaxProvider(
+            .SyntaxProvider.CreateSyntaxProvider(
                 predicate: static (node, _) => IsClosedGenericTypeDeclaration(node),
                 transform: static (ctx, _) => GetClosedGenericFromDeclaration(ctx)
             )
@@ -168,7 +158,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Skip System types
         var ns = namedType.ContainingNamespace?.ToDisplayString() ?? "";
-        return ns.StartsWith("System") ? null : namedType;
+        return ns.StartsWith(PicoDiNames.SystemNamespace) ? null : namedType;
     }
 
     /// <summary>
@@ -186,7 +176,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             _ => null
         };
 
-        return methodName is "GetService" or "GetServices";
+        return methodName is PicoDiNames.GetService or PicoDiNames.GetServices;
     }
 
     /// <summary>
@@ -206,7 +196,10 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         };
 
         // Check for Register* methods with typeof() arguments that might be open generics
-        if (methodName is null || !RegisterMethodNames.Any(m => methodName.StartsWith(m)))
+        if (
+            methodName is null
+            || !PicoDiNames.RegisterMethodNames.Any(m => methodName.StartsWith(m))
+        )
             return false;
         // Look for typeof(T<>) patterns in arguments
         foreach (var arg in invocation.ArgumentList.Arguments)
@@ -239,7 +232,10 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         };
 
         // Check if it's a regular Register* method
-        if (methodName is null || !RegisterMethodNames.Any(m => methodName.StartsWith(m)))
+        if (
+            methodName is null
+            || !PicoDiNames.RegisterMethodNames.Any(m => methodName.StartsWith(m))
+        )
             return false;
 
         // Exclude invocations with typeof(T<>) which are open generic registrations
@@ -289,19 +285,19 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         var reducedFrom = methodSymbol.ReducedFrom?.ContainingNamespace?.ToDisplayString() ?? "";
 
         var isPicoDiMethod =
-            containingType.StartsWith("Pico.DI")
-            || containingType.Contains("SvcContainer")
-            || containingType.Contains("ISvcContainer")
-            || containingNs.StartsWith("Pico.DI")
-            || receiverType.Contains("ISvcContainer")
-            || receiverType.Contains("SvcContainer")
-            || reducedFrom.StartsWith("Pico.DI");
+            containingType.StartsWith(PicoDiNames.RootNamespace)
+            || containingType.Contains(PicoDiNames.SvcContainer)
+            || containingType.Contains(PicoDiNames.ISvcContainer)
+            || containingNs.StartsWith(PicoDiNames.RootNamespace)
+            || receiverType.Contains(PicoDiNames.ISvcContainer)
+            || receiverType.Contains(PicoDiNames.SvcContainer)
+            || reducedFrom.StartsWith(PicoDiNames.RootNamespace);
 
         if (!isPicoDiMethod)
             return null;
 
         var methodName = methodSymbol.Name;
-        return !RegisterMethodNames.Contains(methodName)
+        return !PicoDiNames.RegisterMethodNames.Contains(methodName)
             ? null
             : new InvocationInfo(invocation, semanticModel);
     }
@@ -342,13 +338,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         var reducedFrom = methodSymbol.ReducedFrom?.ContainingNamespace?.ToDisplayString() ?? "";
 
         var isPicoDiMethod =
-            containingType.StartsWith("Pico.DI")
-            || containingType.Contains("SvcContainer")
-            || containingType.Contains("ISvcContainer")
-            || containingNs.StartsWith("Pico.DI")
-            || receiverType.Contains("ISvcContainer")
-            || receiverType.Contains("SvcContainer")
-            || reducedFrom.StartsWith("Pico.DI");
+            containingType.StartsWith(PicoDiNames.RootNamespace)
+            || containingType.Contains(PicoDiNames.SvcContainer)
+            || containingType.Contains(PicoDiNames.ISvcContainer)
+            || containingNs.StartsWith(PicoDiNames.RootNamespace)
+            || receiverType.Contains(PicoDiNames.ISvcContainer)
+            || receiverType.Contains(PicoDiNames.SvcContainer)
+            || reducedFrom.StartsWith(PicoDiNames.RootNamespace);
 
         if (!isPicoDiMethod)
             return null;
@@ -356,7 +352,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         var methodName = methodSymbol.Name;
 
         // Check if it's a Register* method with open generic arguments
-        if (!RegisterMethodNames.Contains(methodName))
+        if (!PicoDiNames.RegisterMethodNames.Contains(methodName))
             return null;
         // Verify it has open generic type arguments
         foreach (var arg in invocation.ArgumentList.Arguments)
@@ -386,7 +382,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             return null;
 
         // Check if it's a GetService<T> or GetServices<T> method
-        if (methodSymbol.Name is not ("GetService" or "GetServices"))
+        if (methodSymbol.Name is not (PicoDiNames.GetService or PicoDiNames.GetServices))
             return null;
 
         // Must be generic with type argument
@@ -404,7 +400,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Skip if it's IEnumerable<T> or other system types
         var ns = namedType.ContainingNamespace?.ToDisplayString() ?? "";
-        return ns.StartsWith("System") ? null : namedType;
+        return ns.StartsWith(PicoDiNames.SystemNamespace) ? null : namedType;
     }
 
     private static void Execute(
@@ -477,7 +473,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 var openFullName = $"{baseName}<{openGenericArityPlaceholder}>";
 
                 // Exclude System types
-                return baseName.StartsWith("global::System")
+                return baseName.StartsWith(PicoDiNames.GlobalSystemPrefix)
                     ? null
                     : new ClosedGenericUsage(typeFullName, openFullName, argList);
             })
@@ -532,30 +528,11 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             "PICO010",
             "Circular dependency detected",
             "Circular dependency detected at compile-time: {0}",
-            "Pico.DI",
+            PicoDiNames.RootNamespace,
             DiagnosticSeverity.Error,
             isEnabledByDefault: true,
             description: "A circular dependency chain was detected which will cause a runtime exception. Fix the dependency cycle."
         );
-
-    /// <summary>
-    /// Patterns for service-associated open generics.
-    /// These are open generic types where the type parameter is typically a service type itself.
-    /// For each registered service, we auto-generate closed generic usages for these patterns.
-    /// E.g., for ILogger&lt;&gt;, if UserService is registered, we generate ILogger&lt;UserService&gt;.
-    /// </summary>
-    private static readonly string[] ServiceAssociatedGenericPatterns =
-    [
-        "ILogger<>",
-        "Logger<>",
-        "IOptions<>",
-        "IOptionsSnapshot<>",
-        "IOptionsMonitor<>",
-        "IConfiguration<>",
-        "Lazy<>",
-        "IValidator<>",
-        "Validator<>"
-    ];
 
     /// <summary>
     /// Auto-infers service-associated generic usages.
@@ -573,7 +550,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         {
             // Check if this open generic matches a service-associated pattern
             var simpleName = GetSimpleName(og.OpenServiceTypeFullName) + "<>";
-            if (!ServiceAssociatedGenericPatterns.Contains(simpleName))
+            if (!PicoDiNames.ServiceAssociatedGenericPatterns.Contains(simpleName))
                 continue;
 
             // Only process single type parameter generics for auto-inference
@@ -634,7 +611,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             serviceTypes.Add(reg.ServiceTypeFullName);
             if (!dependencyGraph.ContainsKey(reg.ServiceTypeFullName))
             {
-                dependencyGraph[reg.ServiceTypeFullName] =  [];
+                dependencyGraph[reg.ServiceTypeFullName] = [];
             }
 
             foreach (var paramTypeFullName in reg.ConstructorParameters)
@@ -714,7 +691,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         };
 
         // Accept Register* methods
-        if (methodName is null || !RegisterMethodNames.Contains(methodName))
+        if (methodName is null || !PicoDiNames.RegisterMethodNames.Contains(methodName))
             return null;
 
         // Parse arguments: typically (typeof(IRepository<>), typeof(Repository<>), SvcLifetime.X)
@@ -724,7 +701,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         ITypeSymbol? serviceType = null;
         ITypeSymbol? implementationType = null;
-        var lifetime = "Singleton";
+        var lifetime = PicoDiNames.Singleton;
 
         foreach (var arg in args)
         {
@@ -741,25 +718,25 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             else
             {
                 var argType = semanticModel.GetTypeInfo(arg.Expression).Type;
-                if (argType?.Name == "SvcLifetime")
+                if (argType?.Name == PicoDiNames.SvcLifetime)
                 {
                     lifetime = arg.Expression.ToString() switch
                     {
-                        var s when s.Contains("Transient") => "Transient",
-                        var s when s.Contains("Scoped") => "Scoped",
-                        _ => "Singleton"
+                        var s when s.Contains(PicoDiNames.Transient) => PicoDiNames.Transient,
+                        var s when s.Contains(PicoDiNames.Scoped) => PicoDiNames.Scoped,
+                        _ => PicoDiNames.Singleton
                     };
                 }
             }
         }
 
         // Infer lifetime from method name if not explicit
-        if (methodName.Contains("Transient"))
-            lifetime = "Transient";
-        else if (methodName.Contains("Scoped"))
-            lifetime = "Scoped";
-        else if (methodName.Contains("Singleton"))
-            lifetime = "Singleton";
+        if (methodName.Contains(PicoDiNames.Transient))
+            lifetime = PicoDiNames.Transient;
+        else if (methodName.Contains(PicoDiNames.Scoped))
+            lifetime = PicoDiNames.Scoped;
+        else if (methodName.Contains(PicoDiNames.Singleton))
+            lifetime = PicoDiNames.Singleton;
 
         if (
             serviceType is not INamedTypeSymbol namedServiceType
@@ -792,8 +769,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     )
     {
         var constructors = openGenericType
-            .Constructors
-            .Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
+            .Constructors.Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
             .OrderByDescending(c => c.Parameters.Length)
             .ToList();
 
@@ -824,8 +800,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         var openType = namedType.ConstructUnboundGenericType();
         var typeArgs = namedType
-            .TypeArguments
-            .Select(t => t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+            .TypeArguments.Select(t => t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
             .ToImmutableArray();
 
         return new ClosedGenericUsage(
@@ -849,8 +824,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         foreach (var usage in closedUsages)
         {
             // Find matching open generic registration
-            var openGeneric = openGenerics.FirstOrDefault(
-                og => og.OpenServiceTypeFullName == usage.OpenServiceTypeFullName
+            var openGeneric = openGenerics.FirstOrDefault(og =>
+                og.OpenServiceTypeFullName == usage.OpenServiceTypeFullName
             );
 
             if (openGeneric is null)
@@ -876,8 +851,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
             // Generate closed type constructor parameters based on open generic constructor parameters
             var constructorParams = openGeneric
-                .ConstructorParameters
-                .Select(typeFullName => SubstituteTypeParameters(typeFullName, typeParamMap))
+                .ConstructorParameters.Select(typeFullName =>
+                    SubstituteTypeParameters(typeFullName, typeParamMap)
+                )
                 .ToImmutableArray();
 
             result.Add(
@@ -1043,7 +1019,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             _ => null
         };
 
-        if (methodName is null || !RegisterMethodNames.Contains(methodName))
+        if (methodName is null || !PicoDiNames.RegisterMethodNames.Contains(methodName))
             return null;
 
         // Check if this is a Pico.DI registration method
@@ -1061,13 +1037,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         var reducedFrom = methodSymbol.ReducedFrom?.ContainingNamespace?.ToDisplayString() ?? "";
 
         var isPicoDiMethod =
-            containingType.StartsWith("Pico.DI")
-            || containingType.Contains("SvcContainer")
-            || containingType.Contains("ISvcContainer")
-            || containingNs.StartsWith("Pico.DI")
-            || receiverType.Contains("ISvcContainer")
-            || receiverType.Contains("SvcContainer")
-            || reducedFrom.StartsWith("Pico.DI");
+            containingType.StartsWith(PicoDiNames.RootNamespace)
+            || containingType.Contains(PicoDiNames.SvcContainer)
+            || containingType.Contains(PicoDiNames.ISvcContainer)
+            || containingNs.StartsWith(PicoDiNames.RootNamespace)
+            || receiverType.Contains(PicoDiNames.ISvcContainer)
+            || receiverType.Contains(PicoDiNames.SvcContainer)
+            || reducedFrom.StartsWith(PicoDiNames.RootNamespace);
 
         if (!isPicoDiMethod)
             return null;
@@ -1075,7 +1051,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         // Extract type arguments
         ITypeSymbol? serviceType = null;
         ITypeSymbol? implementationType = null;
-        var lifetime = "Singleton";
+        var lifetime = PicoDiNames.Singleton;
         var hasFactory = false;
 
         // Check for generic type arguments
@@ -1108,7 +1084,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             var argType = semanticModel.GetTypeInfo(arg.Expression).Type;
 
             // Check if it's a Func<ISvcScope, T> (factory)
-            if (argType is INamedTypeSymbol { Name: "Func" })
+            if (argType is INamedTypeSymbol { Name: PicoDiNames.Func })
             {
                 hasFactory = true;
             }
@@ -1116,16 +1092,16 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 switch (argType?.Name)
                 {
                     // Check if it's SvcLifetime enum
-                    case "SvcLifetime":
+                    case PicoDiNames.SvcLifetime:
                         lifetime = arg.Expression.ToString() switch
                         {
-                            var s when s.Contains("Transient") => "Transient",
-                            var s when s.Contains("Scoped") => "Scoped",
-                            _ => "Singleton"
+                            var s when s.Contains(PicoDiNames.Transient) => PicoDiNames.Transient,
+                            var s when s.Contains(PicoDiNames.Scoped) => PicoDiNames.Scoped,
+                            _ => PicoDiNames.Singleton
                         };
                         break;
                     // Check if it's a Type argument (for non-generic overloads)
-                    case "Type" when arg.Expression is TypeOfExpressionSyntax typeOfExpr:
+                    case PicoDiNames.Type when arg.Expression is TypeOfExpressionSyntax typeOfExpr:
                     {
                         var typeSymbol = semanticModel.GetTypeInfo(typeOfExpr.Type).Type;
                         if (serviceType is null)
@@ -1138,12 +1114,12 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         }
 
         // Infer lifetime from method name if not explicit
-        if (methodName.Contains("Transient"))
-            lifetime = "Transient";
-        else if (methodName.Contains("Scoped"))
-            lifetime = "Scoped";
-        else if (methodName.Contains("Singleton"))
-            lifetime = "Singleton";
+        if (methodName.Contains(PicoDiNames.Transient))
+            lifetime = PicoDiNames.Transient;
+        else if (methodName.Contains(PicoDiNames.Scoped))
+            lifetime = PicoDiNames.Scoped;
+        else if (methodName.Contains(PicoDiNames.Singleton))
+            lifetime = PicoDiNames.Singleton;
 
         if (serviceType is null || implementationType is null)
             return null;
@@ -1177,8 +1153,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Find the best constructor (prefer the one with most parameters, or [ActivatorUtilitiesConstructor] if present)
         var constructors = namedType
-            .Constructors
-            .Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
+            .Constructors.Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
             .OrderByDescending(c => c.Parameters.Length)
             .ToList();
 
@@ -1398,13 +1373,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             // Generate resolution based on lifetime
             switch (reg.Lifetime)
             {
-                case "Transient":
+                case PicoDiNames.Transient:
                     // Direct inline construction for transient
                     var transientFactory = GenerateInlinedFactory(reg, registrationLookup, [], 0);
                     sb.AppendLine($"            return {transientFactory};");
                     break;
 
-                case "Singleton":
+                case PicoDiNames.Singleton:
                     // Use cache helper for singleton
                     sb.AppendLine(
                         $"            return SingletonCache<{serviceType}>.GetOrCreate(scope, static s =>"
@@ -1413,7 +1388,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                     sb.AppendLine($"                {singletonFactory});");
                     break;
 
-                case "Scoped":
+                case PicoDiNames.Scoped:
                     // Use scope's GetService for scoped (needs scope-level caching)
                     sb.AppendLine(
                         $"            return ({serviceType})scope.GetService(typeof({serviceType}));"
@@ -1509,15 +1484,14 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             return $"new {reg.ImplementationTypeFullName}()";
         }
 
-        var paramExpressions = reg.ConstructorParameters
-            .Select(
-                paramTypeFullName =>
-                    GenerateParameterExpression(
-                        paramTypeFullName,
-                        registrationLookup,
-                        visitedTypes,
-                        indentLevel + 1
-                    )
+        var paramExpressions = reg
+            .ConstructorParameters.Select(paramTypeFullName =>
+                GenerateParameterExpression(
+                    paramTypeFullName,
+                    registrationLookup,
+                    visitedTypes,
+                    indentLevel + 1
+                )
             )
             .ToList();
 
@@ -1562,7 +1536,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         if (!registrationLookup.TryGetValue(paramTypeFullName, out var depReg))
             return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
         // Only inline Transient dependencies to avoid breaking singleton/scoped semantics
-        if (depReg.Lifetime != "Transient")
+        if (depReg.Lifetime != PicoDiNames.Transient)
             return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
         // Check for circular dependency
         if (visitedTypes.Contains(paramTypeFullName))

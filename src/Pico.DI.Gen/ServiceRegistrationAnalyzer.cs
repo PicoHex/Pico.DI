@@ -1,3 +1,5 @@
+using Pico.DI.Gen.Constants;
+
 namespace Pico.DI.Gen;
 
 /// <summary>
@@ -17,7 +19,7 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
             UnregisteredDependencyId,
             "Unregistered dependency",
             "Constructor parameter '{0}' of type '{1}' may not be registered in the container",
-            "Pico.DI",
+            PicoDiNames.RootNamespace,
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true,
             description: "The constructor has a dependency that might not be registered. Consider registering this type."
@@ -28,7 +30,7 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
             CircularDependencyId,
             "Potential circular dependency",
             "Potential circular dependency detected: {0}",
-            "Pico.DI",
+            PicoDiNames.RootNamespace,
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true,
             description: "A circular dependency chain was detected which will cause a runtime exception."
@@ -39,7 +41,7 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
             AbstractTypeRegistrationId,
             "Abstract type registration",
             "Cannot register abstract type or interface '{0}' as implementation",
-            "Pico.DI",
+            PicoDiNames.RootNamespace,
             DiagnosticSeverity.Error,
             isEnabledByDefault: true,
             description: "Abstract types and interfaces cannot be instantiated. Provide a concrete implementation type."
@@ -50,14 +52,13 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
             MissingPublicConstructorId,
             "Missing public constructor",
             "Type '{0}' has no public constructor",
-            "Pico.DI",
+            PicoDiNames.RootNamespace,
             DiagnosticSeverity.Error,
             isEnabledByDefault: true,
             description: "The implementation type must have at least one public constructor for dependency injection."
         );
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-
         [
             UnregisteredDependencyRule,
             CircularDependencyRule,
@@ -96,29 +97,28 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
         var containingType = methodSymbol.ContainingType?.ToDisplayString();
         if (
             containingType == null
-            || (!containingType.StartsWith("Pico.DI") && !containingType.Contains("SvcContainer"))
+            || (
+                !containingType.StartsWith(PicoDiNames.RootNamespace)
+                && !containingType.Contains(PicoDiNames.SvcContainer)
+            )
         )
             return;
 
         // Check if it's a factory-based registration - multiple detection methods
         // 1. Check if any argument is a lambda expression or anonymous method
-        var hasLambda = invocation
-            .ArgumentList
-            .Arguments
-            .Any(
-                arg =>
-                    arg.Expression is LambdaExpressionSyntax
-                    || arg.Expression is AnonymousMethodExpressionSyntax
-                    || arg.Expression is AnonymousFunctionExpressionSyntax
-            );
+        var hasLambda = invocation.ArgumentList.Arguments.Any(arg =>
+            arg.Expression is LambdaExpressionSyntax
+            || arg.Expression is AnonymousMethodExpressionSyntax
+            || arg.Expression is AnonymousFunctionExpressionSyntax
+        );
 
         if (hasLambda)
             return;
 
         // 2. Check if the method has a Func parameter (covers delegate and method group cases)
-        var hasFactoryParameter = methodSymbol
-            .Parameters
-            .Any(p => p.Type is INamedTypeSymbol { Name: "Func" });
+        var hasFactoryParameter = methodSymbol.Parameters.Any(p =>
+            p.Type is INamedTypeSymbol { Name: PicoDiNames.Func }
+        );
 
         if (hasFactoryParameter && invocation.ArgumentList.Arguments.Count > 0)
             return;
@@ -168,9 +168,9 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
         // Check for public constructor
         if (implementationType is not INamedTypeSymbol namedType)
             return;
-        var hasPublicConstructor = namedType
-            .Constructors
-            .Any(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public);
+        var hasPublicConstructor = namedType.Constructors.Any(c =>
+            !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public
+        );
 
         if (!hasPublicConstructor && !implementationType.IsValueType)
         {
@@ -187,9 +187,9 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
     private static bool IsRegisterMethod(string methodName)
     {
         return methodName
-            is "Register"
-                or "RegisterTransient"
-                or "RegisterScoped"
-                or "RegisterSingleton";
+            is PicoDiNames.Register
+                or PicoDiNames.RegisterTransient
+                or PicoDiNames.RegisterScoped
+                or PicoDiNames.RegisterSingleton;
     }
 }
