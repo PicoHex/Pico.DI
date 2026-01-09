@@ -633,273 +633,36 @@ public static class Program
     public static void Main(string[] args)
     {
         var cfg = ParseArgs(args);
-        BenchmarkRunner.Configure(
-            warmupIterations: cfg.Warmup,
+
+        // Create and configure the benchmark session
+        var session = new BenchmarkSession(
+            title: "Pico.DI vs Microsoft.DI - Code Runner Comparison Benchmark",
             samples: cfg.Samples,
+            iterationsPerSample: cfg.IterationsPerSample,
+            warmupIterations: cfg.Warmup,
             multipleResolutionsInnerLoop: cfg.MultipleResolutionsInnerLoop
         );
 
-        ConsoleFormatter.PrintTitleBox(
-            "Pico.DI vs Microsoft.DI - Code Runner Comparison Benchmark"
-        );
-        Console.WriteLine();
-
-        Runner.Initialize();
-
-        var results = new List<BenchmarkResult>();
-
-        // Matrix: Container × Scenario × Lifetime
-        var containers = new[] { ContainerType.PicoDI, ContainerType.MsDI };
-        var scenarios = new[]
+        // Optional: Subscribe to progress events for real-time output
+        TestScenario? currentScenario = null;
+        session.OnTestCompleted += (_, result, current, total) =>
         {
-            TestScenario.ScopeCreation,
-            TestScenario.SingleResolution,
-            TestScenario.MultipleResolutions,
-            TestScenario.DeepDependencyChain
-        };
-        var lifetimes = new[]
-        {
-            LifetimeType.Transient,
-            LifetimeType.Scoped,
-            LifetimeType.Singleton
-        };
-
-        var totalTests = containers.Length * scenarios.Length * lifetimes.Length;
-        var currentTest = 0;
-
-        foreach (var scenario in scenarios)
-        {
-            Console.WriteLine($"▶ Running: {scenario}");
-
-            foreach (var lifetime in lifetimes)
+            if (currentScenario != result.Scenario)
             {
-                // Cleanup between lifetime changes to ensure fair test
-                BenchmarkRunner.CleanupContainers();
-
-                foreach (var container in containers)
-                {
-                    currentTest++;
-                    Console.Write(
-                        $"  [{currentTest}/{totalTests}] {container, -8} × {lifetime, -10}... "
-                    );
-
-                    var result = BenchmarkRunner.Run(
-                        container,
-                        scenario,
-                        lifetime,
-                        iterationsPerSample: cfg.IterationsPerSample
-                    );
-                    results.Add(result);
-
-                    var cyclesPerOp =
-                        result.CpuCycles == 0
-                            ? "n/a"
-                            : (result.CpuCycles / (double)result.IterationsPerSample).ToString(
-                                "N0"
-                            );
-
-                    Console.WriteLine(
-                        $"avg {result.AvgNs, 8:F1} ns/op | p50 {result.P50Ns, 8:F1} ns/op | cycles/op: {cyclesPerOp, 7} | GCΔ: {ConsoleFormatter.FormatGcDeltas(result.GcGenDeltas)}"
-                    );
-                }
+                if (currentScenario != null)
+                    Console.WriteLine();
+                currentScenario = result.Scenario;
+                Console.WriteLine($"▶ Running: {result.Scenario}");
             }
-            Console.WriteLine();
-        }
-
-        // Cleanup
-        BenchmarkRunner.CleanupContainers();
-
-        // Print comparison tables
-        PrintComparisonReport(results);
-    }
-
-    private static void PrintComparisonReport(List<BenchmarkResult> results)
-    {
-        ConsoleFormatter.PrintTitleBox("COMPARISON REPORT");
-        Console.WriteLine();
-
-        const int caseW = 20;
-        const int avgW = 11;
-        const int p50W = 11;
-        const int p90W = 11;
-        const int p95W = 11;
-        const int p99W = 11;
-        const int cpuW = 11;
-        const int gcW = 14;
-        const int speedW = 8;
-
-        var segments = new[]
-        {
-            caseW + 2,
-            avgW + 2,
-            p50W + 2,
-            p90W + 2,
-            p95W + 2,
-            p99W + 2,
-            cpuW + 2,
-            gcW + 2,
-            speedW + 2
+            Console.WriteLine(BenchmarkReportFormatter.FormatProgressLine(result, current, total));
         };
 
-        var byScenario = results.GroupBy(r => r.Scenario).OrderBy(g => g.Key).ToList();
-
-        foreach (var scenarioGroup in byScenario)
-        {
-            var first = scenarioGroup.First();
-            Console.WriteLine(
-                $"▶ Scenario: {scenarioGroup.Key} (samples={first.Samples}, iterationsPerSample={first.IterationsPerSample})"
-            );
-
-            Console.WriteLine(ConsoleFormatter.TopLine(segments));
-            Console.WriteLine(
-                $"│ {"Test case", -caseW} │ {"Avg(ns/op)", avgW} │ {"P50(ns/op)", p50W} │ {"P90(ns/op)", p90W} │ {"P95(ns/op)", p95W} │ {"P99(ns/op)", p99W} │ {"CPU(cy)", -cpuW} │ {"GC", -gcW} │ {"Pico x", -speedW} │"
-            );
-            Console.WriteLine(ConsoleFormatter.MiddleLine(segments));
-
-            foreach (
-                var lifetime in new[]
-                {
-                    LifetimeType.Transient,
-                    LifetimeType.Scoped,
-                    LifetimeType.Singleton
-                }
-            )
-            {
-                var pico = scenarioGroup.First(r =>
-                    r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
-                );
-                var ms = scenarioGroup.First(r =>
-                    r.Lifetime == lifetime && r.Container == ContainerType.MsDI
-                );
-
-                var picoTime = pico.AvgNs;
-                var msTime = ms.AvgNs;
-                var speedup = picoTime <= 0 ? "n/a" : (msTime / picoTime).ToString("0.00") + "x";
-
-                var picoCpu = CpuCyclesPerOpString(pico);
-                var msCpu = CpuCyclesPerOpString(ms);
-
-                var picoGc = ConsoleFormatter.Truncate(
-                    ConsoleFormatter.FormatGcDeltas(pico.GcGenDeltas),
-                    gcW
-                );
-                var msGc = ConsoleFormatter.Truncate(
-                    ConsoleFormatter.FormatGcDeltas(ms.GcGenDeltas),
-                    gcW
-                );
-
-                var picoCase = ConsoleFormatter.Truncate(
-                    $"{ContainerType.PicoDI} × {lifetime}",
-                    caseW
-                );
-                var msCase = ConsoleFormatter.Truncate($"{ContainerType.MsDI} × {lifetime}", caseW);
-
-                Console.WriteLine(
-                    $"│ {picoCase, -caseW} │ {pico.AvgNs, avgW:F1} │ {pico.P50Ns, p50W:F1} │ {pico.P90Ns, p90W:F1} │ {pico.P95Ns, p95W:F1} │ {pico.P99Ns, p99W:F1} │ {ConsoleFormatter.Truncate(picoCpu, cpuW), -cpuW} │ {picoGc, -gcW} │ {ConsoleFormatter.Truncate(speedup, speedW), -speedW} │"
-                );
-                Console.WriteLine(
-                    $"│ {msCase, -caseW} │ {ms.AvgNs, avgW:F1} │ {ms.P50Ns, p50W:F1} │ {ms.P90Ns, p90W:F1} │ {ms.P95Ns, p95W:F1} │ {ms.P99Ns, p99W:F1} │ {ConsoleFormatter.Truncate(msCpu, cpuW), -cpuW} │ {msGc, -gcW} │ {"", -speedW} │"
-                );
-            }
-
-            Console.WriteLine(ConsoleFormatter.BottomLine(segments));
-
-            PrintScenarioTotalsComparison(scenarioGroup.ToList());
-
-            Console.WriteLine();
-        }
-
-        PrintTotalsComparison(results);
-
-        // Summary (wins count)
-        PrintSummary(results);
-    }
-
-    private sealed record TotalsAgg(
-        double AvgNs,
-        double P50Ns,
-        double P90Ns,
-        double P95Ns,
-        double P99Ns,
-        double? CpuCyclesPerOp,
-        Dictionary<int, int> GcTotals
-    );
-
-    private static TotalsAgg ComputeAgg(List<BenchmarkResult> cases)
-    {
-        var cpu = cases.All(r => r.CpuCycles == 0)
-            ? (double?)null
-            : cases.Average(r => r.CpuCycles / (double)r.IterationsPerSample);
-
-        return new TotalsAgg(
-            AvgNs: cases.Average(r => r.AvgNs),
-            P50Ns: cases.Average(r => r.P50Ns),
-            P90Ns: cases.Average(r => r.P90Ns),
-            P95Ns: cases.Average(r => r.P95Ns),
-            P99Ns: cases.Average(r => r.P99Ns),
-            CpuCyclesPerOp: cpu,
-            GcTotals: SumGcAllGens(cases)
-        );
-    }
-
-    private static void PrintTotalsBlock(string label, TotalsAgg pico, TotalsAgg ms)
-    {
-        var picoGcSum = pico.GcTotals.Values.Sum();
-        var msGcSum = ms.GcTotals.Values.Sum();
-
-        const int timeW = 9;
-        const int cpuW = 11;
-        const int gcW = 14;
-
-        static string FTime(double v) => v.ToString("0.0");
-
-        var picoCpu = ConsoleFormatter.FormatNumber(pico.CpuCyclesPerOp, "N0");
-        var msCpu = ConsoleFormatter.FormatNumber(ms.CpuCyclesPerOp, "N0");
-        var picoGc = ConsoleFormatter.Truncate(ConsoleFormatter.FormatGcTotals(pico.GcTotals), gcW);
-        var msGc = ConsoleFormatter.Truncate(ConsoleFormatter.FormatGcTotals(ms.GcTotals), gcW);
-
-        var cpuRatio =
-            pico.CpuCyclesPerOp is null || ms.CpuCyclesPerOp is null
-                ? null
-                : ConsoleFormatter.Ratio(ms.CpuCyclesPerOp.Value, pico.CpuCyclesPerOp.Value);
-
-        Console.WriteLine($"{label}: (avg across cases)");
-        Console.WriteLine(
-            $"  {"Pico", -6} | Avg {FTime(pico.AvgNs), timeW} | P50 {FTime(pico.P50Ns), timeW} | P90 {FTime(pico.P90Ns), timeW} | P95 {FTime(pico.P95Ns), timeW} | P99 {FTime(pico.P99Ns), timeW} | CPU {picoCpu, cpuW} | GC {picoGc, -gcW}"
-        );
-        Console.WriteLine(
-            $"  {"Ms", -6} | Avg {FTime(ms.AvgNs), timeW} | P50 {FTime(ms.P50Ns), timeW} | P90 {FTime(ms.P90Ns), timeW} | P95 {FTime(ms.P95Ns), timeW} | P99 {FTime(ms.P99Ns), timeW} | CPU {msCpu, cpuW} | GC {msGc, -gcW}"
-        );
-        Console.WriteLine(
-            $"  {"Pico x", -6} | Avg {ConsoleFormatter.FormatRatio(ConsoleFormatter.Ratio(ms.AvgNs, pico.AvgNs)), timeW} | P50 {ConsoleFormatter.FormatRatio(ConsoleFormatter.Ratio(ms.P50Ns, pico.P50Ns)), timeW} | P90 {ConsoleFormatter.FormatRatio(ConsoleFormatter.Ratio(ms.P90Ns, pico.P90Ns)), timeW} | P95 {ConsoleFormatter.FormatRatio(ConsoleFormatter.Ratio(ms.P95Ns, pico.P95Ns)), timeW} | P99 {ConsoleFormatter.FormatRatio(ConsoleFormatter.Ratio(ms.P99Ns, pico.P99Ns)), timeW} | CPU {ConsoleFormatter.FormatRatio(cpuRatio), cpuW} | GC {ConsoleFormatter.FormatGcRatio(msGcSum, picoGcSum), gcW}"
-        );
-    }
-
-    private static void PrintScenarioTotalsComparison(List<BenchmarkResult> scenarioResults)
-    {
-        var picoCases = scenarioResults.Where(r => r.Container == ContainerType.PicoDI).ToList();
-        var msCases = scenarioResults.Where(r => r.Container == ContainerType.MsDI).ToList();
-
-        var picoAgg = ComputeAgg(picoCases);
-        var msAgg = ComputeAgg(msCases);
-
-        Console.WriteLine();
-        PrintTotalsBlock("Totals", picoAgg, msAgg);
-    }
-
-    private static void PrintTotalsComparison(List<BenchmarkResult> results)
-    {
-        ConsoleFormatter.PrintTitleBox("TOTALS");
+        // Run all benchmarks
+        session.Initialize().RunAll();
         Console.WriteLine();
 
-        var picoCases = results.Where(r => r.Container == ContainerType.PicoDI).ToList();
-        var msCases = results.Where(r => r.Container == ContainerType.MsDI).ToList();
-
-        var picoAgg = ComputeAgg(picoCases);
-        var msAgg = ComputeAgg(msCases);
-
-        PrintTotalsBlock("Totals", picoAgg, msAgg);
-        Console.WriteLine();
+        // Print the complete report with a single call
+        session.PrintReport();
     }
 
     private sealed record BenchmarkConfig(
@@ -954,74 +717,6 @@ public static class Program
         }
 
         return new BenchmarkConfig(samples, iterationsPerSample, warmup, multi);
-    }
-
-    private static string CpuCyclesPerOpString(BenchmarkResult r)
-    {
-        return r.CpuCycles == 0
-            ? "n/a"
-            : (r.CpuCycles / (double)r.IterationsPerSample).ToString("N0");
-    }
-
-    private static Dictionary<int, int> SumGcAllGens(List<BenchmarkResult> cases) =>
-        ConsoleFormatter.SumGcAllGens(cases.Select(r => r.GcGenDeltas));
-
-    private static void PrintSummary(List<BenchmarkResult> results)
-    {
-        var picoWins = 0;
-        var msWins = 0;
-
-        var lifetimes = new[]
-        {
-            LifetimeType.Transient,
-            LifetimeType.Scoped,
-            LifetimeType.Singleton
-        };
-        var scenarios = results.Select(r => r.Scenario).Distinct();
-
-        foreach (var scenario in scenarios)
-        {
-            foreach (var lifetime in lifetimes)
-            {
-                var pico = results.First(r =>
-                    r.Scenario == scenario
-                    && r.Lifetime == lifetime
-                    && r.Container == ContainerType.PicoDI
-                );
-                var ms = results.First(r =>
-                    r.Scenario == scenario
-                    && r.Lifetime == lifetime
-                    && r.Container == ContainerType.MsDI
-                );
-
-                if (pico.AvgNs < ms.AvgNs)
-                    picoWins++;
-                else
-                    msWins++;
-            }
-        }
-
-        const int innerW = 78;
-
-        Console.WriteLine(
-            $"{ConsoleFormatter.DoubleLine.TopLeft}{new string(ConsoleFormatter.DoubleLine.Horizontal, innerW)}{ConsoleFormatter.DoubleLine.TopRight}"
-        );
-        Console.WriteLine(
-            $"{ConsoleFormatter.DoubleLine.Vertical}{ConsoleFormatter.Center("SUMMARY", innerW)}{ConsoleFormatter.DoubleLine.Vertical}"
-        );
-        Console.WriteLine($"╠{new string(ConsoleFormatter.DoubleLine.Horizontal, innerW)}╣");
-
-        var total = picoWins + msWins;
-        Console.WriteLine(
-            $"{ConsoleFormatter.DoubleLine.Vertical}{ConsoleFormatter.Left($"  Pico.DI wins: {picoWins, 3} / {total, 3}", innerW)}{ConsoleFormatter.DoubleLine.Vertical}"
-        );
-        Console.WriteLine(
-            $"{ConsoleFormatter.DoubleLine.Vertical}{ConsoleFormatter.Left($"  Ms.DI wins:   {msWins, 3} / {total, 3}", innerW)}{ConsoleFormatter.DoubleLine.Vertical}"
-        );
-
-        Console.WriteLine(
-            $"{ConsoleFormatter.DoubleLine.BottomLeft}{new string(ConsoleFormatter.DoubleLine.Horizontal, innerW)}{ConsoleFormatter.DoubleLine.BottomRight}"
-        );
     }
 }
 
