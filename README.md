@@ -274,6 +274,62 @@ var plugin = scope.GetService<IPlugin>();   // PluginC
 - **.NET 10.0+** (uses C# 14 extension types)
 - **Roslyn 4.x+** (for source generation)
 
+## ⚠️ Important: Understanding `autoConfigureFromGenerator`
+
+### The Two Registration Modes
+
+```csharp
+// Mode 1: Auto-configuration (default)
+var container = new SvcContainer();  // autoConfigureFromGenerator = true
+
+// Mode 2: Manual configuration
+var container = new SvcContainer(autoConfigureFromGenerator: false);
+```
+
+### How Registration Actually Works
+
+**Placeholder methods** (depend on Source Generator):
+```csharp
+container.RegisterTransient<IFoo, Foo>();      // ⚠️ This is a PLACEHOLDER!
+container.RegisterScoped<IBar, Bar>();         // ⚠️ Actually does nothing at runtime
+container.RegisterSingleton<IBaz, Baz>();      // ⚠️ Source Generator intercepts these
+```
+
+**Factory methods** (real runtime registration):
+```csharp
+container.RegisterTransient<IFoo>(sp => new Foo());      // ✅ Real registration
+container.RegisterScoped<IBar>(sp => new Bar());         // ✅ Works without Source Generator
+container.RegisterSingleton<IBaz>(sp => new Baz());      // ✅ Always works
+container.RegisterSingle<IConfig>(new Config());         // ✅ Instance registration
+```
+
+### The Limitation
+
+| `autoConfigureFromGenerator` | Placeholder Methods | Factory Methods |
+|------------------------------|--------------------:|----------------:|
+| `true` (default) | ✅ Work (via Source Generator) | ✅ Work |
+| `false` | ❌ **Do nothing!** | ✅ Work |
+
+### When to Use `false`
+
+```csharp
+// ✅ Unit testing with mocks - use factory methods only
+await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+container.RegisterSingleton<IRepo>(sp => new MockRepo());  // Factory method
+container.RegisterSingleton<IService, MyService>();        // ❌ Won't work!
+container.Build();
+
+// ✅ Integration testing - apply generated config then override
+await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+container.ConfigureGeneratedServices();                    // Manually apply
+container.RegisterSingleton<IExternal>(sp => new Mock()); // Override specific services
+```
+
+### TL;DR
+
+> 🚨 **If `autoConfigureFromGenerator = false`, you MUST use factory methods for registration.**
+> Placeholder methods like `RegisterTransient<IFoo, Foo>()` will silently do nothing.
+
 ## 🤝 Contributing
 
 PRs welcome! Please ensure:
