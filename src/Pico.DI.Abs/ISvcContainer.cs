@@ -139,7 +139,8 @@ public static class SvcContainerExtensions
         /// <param name="factory">The factory function to create service instances.</param>
         /// <param name="lifetime">The service lifetime.</param>
         /// <returns>The container instance for method chaining.</returns>
-        public ISvcContainer Register<TService, TImplementation>(Func<ISvcScope, TImplementation> factory, SvcLifetime lifetime)
+        public ISvcContainer Register<TService, TImplementation>(Func<ISvcScope, TImplementation> factory,
+            SvcLifetime lifetime)
             where TService : class
             where TImplementation : class =>
             container.Register(new SvcDescriptor(typeof(TService), factory, lifetime));
@@ -204,7 +205,7 @@ public static class SvcContainerExtensions
         /// <typeparam name="TService">The service type.</typeparam>
         /// <typeparam name="TImplementation">The implementation type.</typeparam>
         /// <returns>The container instance for method chaining.</returns>
-        public ISvcContainer RegisterTransient<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
+        public ISvcContainer RegisterTransient<TService, TImplementation>()
             where TImplementation : TService => container;
 
         /// <summary>
@@ -327,7 +328,7 @@ public static class SvcContainerExtensions
         /// <typeparam name="TService">The service type.</typeparam>
         /// <typeparam name="TImplementation">The implementation type.</typeparam>
         /// <returns>The container instance for method chaining.</returns>
-        public ISvcContainer RegisterScoped<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
+        public ISvcContainer RegisterScoped<TService, TImplementation>()
             where TImplementation : TService => container;
 
         /// <summary>
@@ -450,7 +451,7 @@ public static class SvcContainerExtensions
         /// <typeparam name="TService">The service type.</typeparam>
         /// <typeparam name="TImplementation">The implementation type.</typeparam>
         /// <returns>The container instance for method chaining.</returns>
-        public ISvcContainer RegisterSingleton<TService, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TImplementation>()
+        public ISvcContainer RegisterSingleton<TService, TImplementation>()
             where TImplementation : TService => container;
 
         /// <summary>
