@@ -639,14 +639,8 @@ public static class Program
             multipleResolutionsInnerLoop: cfg.MultipleResolutionsInnerLoop
         );
 
-        Console.WriteLine(
-            "╔══════════════════════════════════════════════════════════════════════════════╗"
-        );
-        Console.WriteLine(
-            "║           Pico.DI vs Microsoft.DI - Code Runner Comparison Benchmark         ║"
-        );
-        Console.WriteLine(
-            "╚══════════════════════════════════════════════════════════════════════════════╝"
+        ConsoleFormatter.PrintTitleBox(
+            "Pico.DI vs Microsoft.DI - Code Runner Comparison Benchmark"
         );
         Console.WriteLine();
 
@@ -705,7 +699,7 @@ public static class Program
                             );
 
                     Console.WriteLine(
-                        $"avg {result.AvgNs, 8:F1} ns/op | p50 {result.P50Ns, 8:F1} ns/op | cycles/op: {cyclesPerOp, 7} | GCΔ: {FormatGcDeltas(result.GcGenDeltas)}"
+                        $"avg {result.AvgNs, 8:F1} ns/op | p50 {result.P50Ns, 8:F1} ns/op | cycles/op: {cyclesPerOp, 7} | GCΔ: {ConsoleFormatter.FormatGcDeltas(result.GcGenDeltas)}"
                     );
                 }
             }
@@ -721,15 +715,7 @@ public static class Program
 
     private static void PrintComparisonReport(List<BenchmarkResult> results)
     {
-        Console.WriteLine(
-            "╔══════════════════════════════════════════════════════════════════════════════╗"
-        );
-        Console.WriteLine(
-            "║                              COMPARISON REPORT                               ║"
-        );
-        Console.WriteLine(
-            "╚══════════════════════════════════════════════════════════════════════════════╝"
-        );
+        ConsoleFormatter.PrintTitleBox("COMPARISON REPORT");
         Console.WriteLine();
 
         const int caseW = 20;
@@ -755,15 +741,6 @@ public static class Program
             speedW + 2
         };
 
-        static string Truncate(string value, int width)
-        {
-            if (value.Length <= width)
-                return value;
-            if (width <= 3)
-                return value[..width];
-            return value[..(width - 3)] + "...";
-        }
-
         var byScenario = results.GroupBy(r => r.Scenario).OrderBy(g => g.Key).ToList();
 
         foreach (var scenarioGroup in byScenario)
@@ -773,11 +750,11 @@ public static class Program
                 $"▶ Scenario: {scenarioGroup.Key} (samples={first.Samples}, iterationsPerSample={first.IterationsPerSample})"
             );
 
-            Console.WriteLine(Line('┌', '┬', '┐', segments));
+            Console.WriteLine(ConsoleFormatter.TopLine(segments));
             Console.WriteLine(
                 $"│ {"Test case", -caseW} │ {"Avg(ns/op)", avgW} │ {"P50(ns/op)", p50W} │ {"P90(ns/op)", p90W} │ {"P95(ns/op)", p95W} │ {"P99(ns/op)", p99W} │ {"CPU(cy)", -cpuW} │ {"GC", -gcW} │ {"Pico x", -speedW} │"
             );
-            Console.WriteLine(Line('├', '┼', '┤', segments));
+            Console.WriteLine(ConsoleFormatter.MiddleLine(segments));
 
             foreach (
                 var lifetime in new[]
@@ -788,11 +765,11 @@ public static class Program
                 }
             )
             {
-                var pico = scenarioGroup.First(
-                    r => r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
+                var pico = scenarioGroup.First(r =>
+                    r.Lifetime == lifetime && r.Container == ContainerType.PicoDI
                 );
-                var ms = scenarioGroup.First(
-                    r => r.Lifetime == lifetime && r.Container == ContainerType.MsDI
+                var ms = scenarioGroup.First(r =>
+                    r.Lifetime == lifetime && r.Container == ContainerType.MsDI
                 );
 
                 var picoTime = pico.AvgNs;
@@ -802,21 +779,30 @@ public static class Program
                 var picoCpu = CpuCyclesPerOpString(pico);
                 var msCpu = CpuCyclesPerOpString(ms);
 
-                var picoGc = Truncate(FormatGcDeltas(pico.GcGenDeltas), gcW);
-                var msGc = Truncate(FormatGcDeltas(ms.GcGenDeltas), gcW);
+                var picoGc = ConsoleFormatter.Truncate(
+                    ConsoleFormatter.FormatGcDeltas(pico.GcGenDeltas),
+                    gcW
+                );
+                var msGc = ConsoleFormatter.Truncate(
+                    ConsoleFormatter.FormatGcDeltas(ms.GcGenDeltas),
+                    gcW
+                );
 
-                var picoCase = Truncate($"{ContainerType.PicoDI} × {lifetime}", caseW);
-                var msCase = Truncate($"{ContainerType.MsDI} × {lifetime}", caseW);
+                var picoCase = ConsoleFormatter.Truncate(
+                    $"{ContainerType.PicoDI} × {lifetime}",
+                    caseW
+                );
+                var msCase = ConsoleFormatter.Truncate($"{ContainerType.MsDI} × {lifetime}", caseW);
 
                 Console.WriteLine(
-                    $"│ {picoCase, -caseW} │ {pico.AvgNs, avgW:F1} │ {pico.P50Ns, p50W:F1} │ {pico.P90Ns, p90W:F1} │ {pico.P95Ns, p95W:F1} │ {pico.P99Ns, p99W:F1} │ {Truncate(picoCpu, cpuW), -cpuW} │ {picoGc, -gcW} │ {Truncate(speedup, speedW), -speedW} │"
+                    $"│ {picoCase, -caseW} │ {pico.AvgNs, avgW:F1} │ {pico.P50Ns, p50W:F1} │ {pico.P90Ns, p90W:F1} │ {pico.P95Ns, p95W:F1} │ {pico.P99Ns, p99W:F1} │ {ConsoleFormatter.Truncate(picoCpu, cpuW), -cpuW} │ {picoGc, -gcW} │ {ConsoleFormatter.Truncate(speedup, speedW), -speedW} │"
                 );
                 Console.WriteLine(
-                    $"│ {msCase, -caseW} │ {ms.AvgNs, avgW:F1} │ {ms.P50Ns, p50W:F1} │ {ms.P90Ns, p90W:F1} │ {ms.P95Ns, p95W:F1} │ {ms.P99Ns, p99W:F1} │ {Truncate(msCpu, cpuW), -cpuW} │ {msGc, -gcW} │ {"", -speedW} │"
+                    $"│ {msCase, -caseW} │ {ms.AvgNs, avgW:F1} │ {ms.P50Ns, p50W:F1} │ {ms.P90Ns, p90W:F1} │ {ms.P95Ns, p95W:F1} │ {ms.P99Ns, p99W:F1} │ {ConsoleFormatter.Truncate(msCpu, cpuW), -cpuW} │ {msGc, -gcW} │ {"", -speedW} │"
                 );
             }
 
-            Console.WriteLine(Line('└', '┴', '┘', segments));
+            Console.WriteLine(ConsoleFormatter.BottomLine(segments));
 
             PrintScenarioTotalsComparison(scenarioGroup.ToList());
 
@@ -827,13 +813,6 @@ public static class Program
 
         // Summary (wins count)
         PrintSummary(results);
-        return;
-
-        static string Line(char left, char mid, char right, int[] segs)
-        {
-            var parts = segs.Select(s => new string('─', s));
-            return left + string.Join(mid, parts) + right;
-        }
     }
 
     private sealed record TotalsAgg(
@@ -863,17 +842,6 @@ public static class Program
         );
     }
 
-    private static double? Ratio(double numerator, double denominator)
-    {
-        if (double.IsNaN(numerator) || double.IsNaN(denominator))
-            return null;
-        if (double.IsInfinity(numerator) || double.IsInfinity(denominator))
-            return null;
-        if (denominator <= 0)
-            return null;
-        return numerator / denominator;
-    }
-
     private static void PrintTotalsBlock(string label, TotalsAgg pico, TotalsAgg ms)
     {
         var picoGcSum = pico.GcTotals.Values.Sum();
@@ -883,33 +851,17 @@ public static class Program
         const int cpuW = 11;
         const int gcW = 14;
 
-        static string Truncate(string value, int width)
-        {
-            if (value.Length <= width)
-                return value;
-            if (width <= 3)
-                return value[..width];
-            return value[..(width - 3)] + "...";
-        }
-
         static string FTime(double v) => v.ToString("0.0");
 
-        static string FormatGcRatio(int msSum, int picoSum)
-        {
-            if (picoSum == 0)
-                return msSum == 0 ? "1.00x" : "inf";
-            return (msSum / (double)picoSum).ToString("0.00") + "x";
-        }
-
-        var picoCpu = FormatNumber(pico.CpuCyclesPerOp, "N0");
-        var msCpu = FormatNumber(ms.CpuCyclesPerOp, "N0");
-        var picoGc = Truncate(FormatGcTotals(pico.GcTotals), gcW);
-        var msGc = Truncate(FormatGcTotals(ms.GcTotals), gcW);
+        var picoCpu = ConsoleFormatter.FormatNumber(pico.CpuCyclesPerOp, "N0");
+        var msCpu = ConsoleFormatter.FormatNumber(ms.CpuCyclesPerOp, "N0");
+        var picoGc = ConsoleFormatter.Truncate(ConsoleFormatter.FormatGcTotals(pico.GcTotals), gcW);
+        var msGc = ConsoleFormatter.Truncate(ConsoleFormatter.FormatGcTotals(ms.GcTotals), gcW);
 
         var cpuRatio =
             pico.CpuCyclesPerOp is null || ms.CpuCyclesPerOp is null
                 ? null
-                : Ratio(ms.CpuCyclesPerOp.Value, pico.CpuCyclesPerOp.Value);
+                : ConsoleFormatter.Ratio(ms.CpuCyclesPerOp.Value, pico.CpuCyclesPerOp.Value);
 
         Console.WriteLine($"{label}: (avg across cases)");
         Console.WriteLine(
@@ -919,7 +871,7 @@ public static class Program
             $"  {"Ms", -6} | Avg {FTime(ms.AvgNs), timeW} | P50 {FTime(ms.P50Ns), timeW} | P90 {FTime(ms.P90Ns), timeW} | P95 {FTime(ms.P95Ns), timeW} | P99 {FTime(ms.P99Ns), timeW} | CPU {msCpu, cpuW} | GC {msGc, -gcW}"
         );
         Console.WriteLine(
-            $"  {"Pico x", -6} | Avg {FormatRatio(Ratio(ms.AvgNs, pico.AvgNs)), timeW} | P50 {FormatRatio(Ratio(ms.P50Ns, pico.P50Ns)), timeW} | P90 {FormatRatio(Ratio(ms.P90Ns, pico.P90Ns)), timeW} | P95 {FormatRatio(Ratio(ms.P95Ns, pico.P95Ns)), timeW} | P99 {FormatRatio(Ratio(ms.P99Ns, pico.P99Ns)), timeW} | CPU {FormatRatio(cpuRatio), cpuW} | GC {FormatGcRatio(msGcSum, picoGcSum), gcW}"
+            $"  {"Pico x", -6} | Avg {ConsoleFormatter.FormatRatio(ConsoleFormatter.Ratio(ms.AvgNs, pico.AvgNs)), timeW} | P50 {ConsoleFormatter.FormatRatio(ConsoleFormatter.Ratio(ms.P50Ns, pico.P50Ns)), timeW} | P90 {ConsoleFormatter.FormatRatio(ConsoleFormatter.Ratio(ms.P90Ns, pico.P90Ns)), timeW} | P95 {ConsoleFormatter.FormatRatio(ConsoleFormatter.Ratio(ms.P95Ns, pico.P95Ns)), timeW} | P99 {ConsoleFormatter.FormatRatio(ConsoleFormatter.Ratio(ms.P99Ns, pico.P99Ns)), timeW} | CPU {ConsoleFormatter.FormatRatio(cpuRatio), cpuW} | GC {ConsoleFormatter.FormatGcRatio(msGcSum, picoGcSum), gcW}"
         );
     }
 
@@ -937,15 +889,7 @@ public static class Program
 
     private static void PrintTotalsComparison(List<BenchmarkResult> results)
     {
-        Console.WriteLine(
-            "╔══════════════════════════════════════════════════════════════════════════════╗"
-        );
-        Console.WriteLine(
-            "║                                   TOTALS                                     ║"
-        );
-        Console.WriteLine(
-            "╚══════════════════════════════════════════════════════════════════════════════╝"
-        );
+        ConsoleFormatter.PrintTitleBox("TOTALS");
         Console.WriteLine();
 
         var picoCases = results.Where(r => r.Container == ContainerType.PicoDI).ToList();
@@ -1019,45 +963,8 @@ public static class Program
             : (r.CpuCycles / (double)r.IterationsPerSample).ToString("N0");
     }
 
-    private static Dictionary<int, int> SumGcAllGens(List<BenchmarkResult> cases)
-    {
-        var totals = new Dictionary<int, int>();
-        foreach (var d in cases.SelectMany(r => r.GcGenDeltas))
-        {
-            totals.TryGetValue(d.Gen, out var existing);
-            totals[d.Gen] = existing + d.Count;
-        }
-
-        return totals;
-    }
-
-    private static string FormatGcTotals(Dictionary<int, int> totals)
-    {
-        if (totals.Count == 0)
-            return "0";
-
-        var parts = totals
-            .Where(kvp => kvp.Value != 0)
-            .OrderBy(kvp => kvp.Key)
-            .Select(kvp => $"Gen{kvp.Key}+{kvp.Value}")
-            .ToArray();
-
-        return parts.Length == 0 ? "0" : string.Join(" ", parts);
-    }
-
-    private static string FormatNumber(double? value, string format)
-    {
-        if (value is null || double.IsNaN(value.Value) || double.IsInfinity(value.Value))
-            return "n/a";
-        return value.Value.ToString(format);
-    }
-
-    private static string FormatRatio(double? value)
-    {
-        if (value is null || double.IsNaN(value.Value) || double.IsInfinity(value.Value))
-            return "n/a";
-        return value.Value.ToString("0.00") + "x";
-    }
+    private static Dictionary<int, int> SumGcAllGens(List<BenchmarkResult> cases) =>
+        ConsoleFormatter.SumGcAllGens(cases.Select(r => r.GcGenDeltas));
 
     private static void PrintSummary(List<BenchmarkResult> results)
     {
@@ -1076,17 +983,15 @@ public static class Program
         {
             foreach (var lifetime in lifetimes)
             {
-                var pico = results.First(
-                    r =>
-                        r.Scenario == scenario
-                        && r.Lifetime == lifetime
-                        && r.Container == ContainerType.PicoDI
+                var pico = results.First(r =>
+                    r.Scenario == scenario
+                    && r.Lifetime == lifetime
+                    && r.Container == ContainerType.PicoDI
                 );
-                var ms = results.First(
-                    r =>
-                        r.Scenario == scenario
-                        && r.Lifetime == lifetime
-                        && r.Container == ContainerType.MsDI
+                var ms = results.First(r =>
+                    r.Scenario == scenario
+                    && r.Lifetime == lifetime
+                    && r.Container == ContainerType.MsDI
                 );
 
                 if (pico.AvgNs < ms.AvgNs)
@@ -1098,48 +1003,25 @@ public static class Program
 
         const int innerW = 78;
 
-        Console.WriteLine($"╔{new string('═', innerW)}╗");
-        WriteRow(Center("SUMMARY", innerW), innerW);
-        Console.WriteLine($"╠{new string('═', innerW)}╣");
+        Console.WriteLine(
+            $"{ConsoleFormatter.DoubleLine.TopLeft}{new string(ConsoleFormatter.DoubleLine.Horizontal, innerW)}{ConsoleFormatter.DoubleLine.TopRight}"
+        );
+        Console.WriteLine(
+            $"{ConsoleFormatter.DoubleLine.Vertical}{ConsoleFormatter.Center("SUMMARY", innerW)}{ConsoleFormatter.DoubleLine.Vertical}"
+        );
+        Console.WriteLine($"╠{new string(ConsoleFormatter.DoubleLine.Horizontal, innerW)}╣");
 
         var total = picoWins + msWins;
-        WriteRow($"  Pico.DI wins: {picoWins, 3} / {total, 3}", innerW);
-        WriteRow($"  Ms.DI wins:   {msWins, 3} / {total, 3}", innerW);
+        Console.WriteLine(
+            $"{ConsoleFormatter.DoubleLine.Vertical}{ConsoleFormatter.Left($"  Pico.DI wins: {picoWins, 3} / {total, 3}", innerW)}{ConsoleFormatter.DoubleLine.Vertical}"
+        );
+        Console.WriteLine(
+            $"{ConsoleFormatter.DoubleLine.Vertical}{ConsoleFormatter.Left($"  Ms.DI wins:   {msWins, 3} / {total, 3}", innerW)}{ConsoleFormatter.DoubleLine.Vertical}"
+        );
 
-        Console.WriteLine($"╚{new string('═', innerW)}╝");
-        return;
-
-        static void WriteRow(string content, int width) =>
-            Console.WriteLine($"║{content.PadRight(width)}║");
-
-        static string Center(string text, int width)
-        {
-            if (text.Length >= width)
-                return text[..width];
-            var left = (width - text.Length) / 2;
-            return new string(' ', left) + text + new string(' ', width - left - text.Length);
-        }
-    }
-
-    private static string FormatGcDeltas(IReadOnlyList<GenCount> deltas, bool verbose = false)
-    {
-        if (deltas.Count == 0)
-            return "0";
-
-        var prefix = verbose ? "Gen" : "G";
-        var parts = deltas
-            .Where(d => d.Count != 0)
-            .Select(d => $"{prefix}{d.Gen}+{d.Count}")
-            .ToArray();
-
-        return parts.Length == 0 ? "0" : string.Join(" ", parts);
-    }
-
-    private static string FormatGcDeltasAllGens(IReadOnlyList<GenCount> deltas)
-    {
-        return deltas.Count == 0
-            ? "0"
-            : string.Join(" ", deltas.Select(d => $"G{d.Gen}:{d.Count}")); // Include all generations, even if count is 0.
+        Console.WriteLine(
+            $"{ConsoleFormatter.DoubleLine.BottomLeft}{new string(ConsoleFormatter.DoubleLine.Horizontal, innerW)}{ConsoleFormatter.DoubleLine.BottomRight}"
+        );
     }
 }
 
