@@ -11,7 +11,7 @@
 │  Pico.DI: Compile-time DI that doesn't suck                │
 │  ✓ Zero reflection at runtime                              │
 │  ✓ Native AOT compatible                                   │
-│  ✓ Up to 100x faster than Microsoft.DI                     │
+│  ✓ Up to 19x faster than Microsoft.DI                      │
 │  ✓ Zero GC allocations on hot paths                        │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -42,7 +42,7 @@
 ```csharp
 // Pico.DI at compile-time:
 // Source Generator scans your code → Generates static factories
-// Result: ~9ns per resolution 🚀 (that's 77x faster)
+// Result: ~12ns per resolution 🚀 (that's up to 19x faster)
 ```
 
 ## ⚡ Quick Start
