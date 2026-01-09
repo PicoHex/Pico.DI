@@ -126,37 +126,64 @@ public class OrderService(
 
 ## 📊 Benchmarks
 
-**Environment:** .NET 10.0 | Windows | x64 | Release build
+**Environment:** .NET 10.0 | Windows | x64 | **Native AOT** | 25 samples × 10,000 iterations
+
+### Overall Summary
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║  Pico.DI wins:  12 / 12 scenarios                            ║
+║  Average speedup: 3.67x faster                               ║
+║  GC allocations: ZERO (vs Gen0+12 for MS.DI)                 ║
+╚══════════════════════════════════════════════════════════════╝
+```
 
 ### Scope Creation
-| Container | Avg (ns/op) | P50 | Speedup |
-|-----------|-------------|-----|---------|
-| **Pico.DI** | 53 | 54 | **4.2x faster** |
-| MS.DI | 224 | 227 | baseline |
 
-### Single Resolution (Transient)
-| Container | Avg (ns/op) | P50 | Speedup |
-|-----------|-------------|-----|---------|
-| **Pico.DI** | 53 | 50 | **13.4x faster** |
-| MS.DI | 708 | 678 | baseline |
+| Container | Avg (ns/op) | P50 | P99 | Speedup |
+|-----------|-------------|-----|-----|---------|
+| **Pico.DI** | 60 | 60 | 98 | **1.4x faster** |
+| MS.DI | 87 | 81 | 147 | baseline |
 
-### Multiple Resolutions (Hot Path)
-| Container | Avg (ns/op) | P50 | Speedup |
-|-----------|-------------|-----|---------|
-| **Pico.DI** | 17 | 10 | **23x faster** |
-| MS.DI | 397 | 394 | baseline |
+### Single Resolution
+
+| Container | Lifetime | Avg (ns/op) | P50 | Speedup |
+|-----------|----------|-------------|-----|---------|
+| **Pico.DI** | Transient | 12 | 12 | **12x faster** 🔥 |
+| MS.DI | Transient | 140 | 127 | baseline |
+| **Pico.DI** | Scoped | 12 | 12 | **4.8x faster** |
+| MS.DI | Scoped | 59 | 59 | baseline |
+| **Pico.DI** | Singleton | 12 | 12 | **2.6x faster** |
+| MS.DI | Singleton | 33 | 32 | baseline |
+
+### Multiple Resolutions (1M ops, hot path)
+
+| Container | Lifetime | Avg (ns/op) | P50 | Speedup |
+|-----------|----------|-------------|-----|---------|
+| **Pico.DI** | Transient | 10 | 10 | **14x faster** 🔥 |
+| MS.DI | Transient | 137 | 136 | baseline |
+| **Pico.DI** | Scoped | 10 | 10 | **6.3x faster** |
+| MS.DI | Scoped | 61 | 61 | baseline |
+| **Pico.DI** | Singleton | 10 | 10 | **3x faster** |
+| MS.DI | Singleton | 30 | 29 | baseline |
 
 ### Deep Dependency Chain (5 levels)
-| Container | Avg (ns/op) | P50 | Speedup |
-|-----------|-------------|-----|---------|
-| **Pico.DI** | 9.5 | 9.4 | **105x faster** 🔥 |
-| MS.DI | 1002 | 995 | baseline |
 
-### GC Pressure
-| Container | Transient Resolution | Result |
-|-----------|---------------------|--------|
-| **Pico.DI** | 1M operations | **0 GC** |
-| MS.DI | 1M operations | Gen0 +12 |
+| Container | Lifetime | Avg (ns/op) | P50 | Speedup |
+|-----------|----------|-------------|-----|---------|
+| **Pico.DI** | Transient | 12 | 12 | **19x faster** 🔥🔥 |
+| MS.DI | Transient | 223 | 218 | baseline |
+| **Pico.DI** | Scoped | 12 | 12 | **5.2x faster** |
+| MS.DI | Scoped | 62 | 60 | baseline |
+| **Pico.DI** | Singleton | 12 | 12 | **2.6x faster** |
+| MS.DI | Singleton | 32 | 32 | baseline |
+
+### GC Pressure (1M transient resolutions)
+
+| Container | Gen0 Collections | Result |
+|-----------|-----------------|--------|
+| **Pico.DI** | 0 | **Zero GC** ✨ |
+| MS.DI | +12 | Allocations |
 
 > 💡 **Why so fast?** Pico.DI generates inlined factory chains at compile-time. No reflection, no expression trees, no runtime codegen. Just pure, static method calls.
 
@@ -289,6 +316,7 @@ var container = new SvcContainer(autoConfigureFromGenerator: false);
 ### How Registration Actually Works
 
 **Placeholder methods** (depend on Source Generator):
+
 ```csharp
 container.RegisterTransient<IFoo, Foo>();      // ⚠️ This is a PLACEHOLDER!
 container.RegisterScoped<IBar, Bar>();         // ⚠️ Actually does nothing at runtime
@@ -296,6 +324,7 @@ container.RegisterSingleton<IBaz, Baz>();      // ⚠️ Source Generator interc
 ```
 
 **Factory methods** (real runtime registration):
+
 ```csharp
 container.RegisterTransient<IFoo>(sp => new Foo());      // ✅ Real registration
 container.RegisterScoped<IBar>(sp => new Bar());         // ✅ Works without Source Generator
@@ -333,6 +362,7 @@ container.RegisterSingleton<IExternal>(sp => new Mock()); // Override specific s
 ## 🤝 Contributing
 
 PRs welcome! Please ensure:
+
 - All tests pass (`dotnet test`)
 - Benchmarks don't regress
 - AOT compatibility maintained
