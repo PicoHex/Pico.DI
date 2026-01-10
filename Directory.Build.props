@@ -4,7 +4,7 @@
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
 
     <!-- Shared version for all Pico.DI packages -->
-    <PicoDIVersion>0.0.2</PicoDIVersion>
+    <PicoDIVersion>0.0.5</PicoDIVersion>
   </PropertyGroup>
 
   <!-- Common package metadata (applies to packed projects; harmless for others) -->
