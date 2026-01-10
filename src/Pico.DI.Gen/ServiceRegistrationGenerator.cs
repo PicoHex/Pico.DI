@@ -48,7 +48,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     {
         // Find all invocations that look like Register* method calls (regular registrations)
         var registerInvocations = context
-            .SyntaxProvider.CreateSyntaxProvider(
+            .SyntaxProvider
+            .CreateSyntaxProvider(
                 predicate: static (node, _) => IsRegisterMethodInvocation(node),
                 transform: static (ctx, _) => GetInvocationInfo(ctx)
             )
@@ -56,7 +57,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Find all open generic registrations (from both regular Register* and legacy RegisterOpenGeneric* methods)
         var openGenericRegistrations = context
-            .SyntaxProvider.CreateSyntaxProvider(
+            .SyntaxProvider
+            .CreateSyntaxProvider(
                 predicate: static (node, _) => IsOpenGenericRegisterInvocation(node),
                 transform: static (ctx, _) => GetOpenGenericInvocationInfo(ctx)
             )
@@ -64,7 +66,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Find all GetService<T> calls to detect closed generic usages
         var closedGenericUsages = context
-            .SyntaxProvider.CreateSyntaxProvider(
+            .SyntaxProvider
+            .CreateSyntaxProvider(
                 predicate: static (node, _) => IsGetServiceInvocation(node),
                 transform: static (ctx, _) => GetClosedGenericUsageInfo(ctx)
             )
@@ -73,26 +76,49 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         // Find closed generic types used in declarations (variables, fields, properties, parameters)
         // This helps detect entity-associated generics like IRepository<User>
         var closedGenericDeclarations = context
-            .SyntaxProvider.CreateSyntaxProvider(
+            .SyntaxProvider
+            .CreateSyntaxProvider(
                 predicate: static (node, _) => IsClosedGenericTypeDeclaration(node),
                 transform: static (ctx, _) => GetClosedGenericFromDeclaration(ctx)
             )
             .Where(static x => x is not null);
+
+        // Find closed generic types in constructor parameters (regular and primary constructors)
+        // This detects ILogger<Service>, IRepository<Entity> etc. in constructor injection
+        var closedGenericCtorParams = context
+            .SyntaxProvider
+            .CreateSyntaxProvider(
+                predicate: static (node, _) => IsConstructorWithGenericParameter(node),
+                transform: static (ctx, _) => GetClosedGenericsFromConstructor(ctx)
+            )
+            .Where(static x => x is not null)
+            .SelectMany(static (x, _) => x);
 
         // Combine all sources
         var combinedSources = registerInvocations
             .Collect()
             .Combine(openGenericRegistrations.Collect())
             .Combine(closedGenericUsages.Collect())
-            .Combine(closedGenericDeclarations.Collect());
+            .Combine(closedGenericDeclarations.Collect())
+            .Combine(closedGenericCtorParams.Collect());
 
         // Generate source
         context.RegisterSourceOutput(
             combinedSources,
             static (spc, source) =>
             {
-                var (((invocations, openGenerics), closedUsages), closedDeclarations) = source;
-                Execute(invocations, openGenerics, closedUsages, closedDeclarations, spc);
+                var (
+                    (((invocations, openGenerics), closedUsages), closedDeclarations),
+                    ctorClosedGenerics
+                ) = source;
+                Execute(
+                    invocations,
+                    openGenerics,
+                    closedUsages,
+                    closedDeclarations,
+                    ctorClosedGenerics,
+                    spc
+                );
             }
         );
     }
@@ -100,6 +126,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     /// <summary>
     /// Check if this is a closed generic type used in a declaration (variable, field, property, parameter).
     /// This helps detect entity-associated generics like IRepository&lt;User&gt;.
+    /// Also detects closed generic types in constructor parameters (both regular and primary constructors).
     /// </summary>
     private static bool IsClosedGenericTypeDeclaration(SyntaxNode node)
     {
@@ -116,7 +143,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         while (parent is QualifiedNameSyntax or AliasQualifiedNameSyntax or NullableTypeSyntax)
             parent = parent.Parent;
 
-        return parent
+        // Check standard declaration contexts
+        if (
+            parent
             is VariableDeclarationSyntax
                 or // var x = ...; or Type x = ...;
                 PropertyDeclarationSyntax
@@ -124,12 +153,127 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 FieldDeclarationSyntax
                 or // private Type _field;
                 ParameterSyntax
-                or // void Method(Type param)
+                or // void Method(Type param) or constructor parameters
                 TypeArgumentListSyntax
                 or // Generic<Type>
                 BaseTypeSyntax
                 or // class Foo : IBase<Type>
-                ObjectCreationExpressionSyntax; // new Type()
+                ObjectCreationExpressionSyntax
+        ) // new Type()
+            return true;
+
+        // Additionally check if this is a constructor parameter by traversing up to find ConstructorDeclarationSyntax
+        // or primary constructor in class/record/struct declarations
+        if (parent is ParameterSyntax paramSyntax)
+        {
+            var paramListParent = paramSyntax.Parent?.Parent;
+            return paramListParent
+                is ConstructorDeclarationSyntax
+                    or ClassDeclarationSyntax // Primary constructor (C# 12+)
+                    or RecordDeclarationSyntax // Record primary constructor
+                    or StructDeclarationSyntax; // Struct primary constructor
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Check if this is a constructor declaration (including primary constructors).
+    /// Used to detect closed generic types in constructor parameters.
+    /// </summary>
+    private static bool IsConstructorWithGenericParameter(SyntaxNode node)
+    {
+        // Check for regular constructor declarations
+        if (node is ConstructorDeclarationSyntax ctorDecl)
+        {
+            return ctorDecl
+                .ParameterList
+                .Parameters
+                .Any(
+                    p =>
+                        p.Type is GenericNameSyntax
+                        || (p.Type is QualifiedNameSyntax qns && qns.Right is GenericNameSyntax)
+                        || (
+                            p.Type is NullableTypeSyntax nts && nts.ElementType is GenericNameSyntax
+                        )
+                );
+        }
+
+        // Check for primary constructor in class/record/struct (C# 12+)
+        if (node is TypeDeclarationSyntax typeDecl && typeDecl.ParameterList is not null)
+        {
+            return typeDecl
+                .ParameterList
+                .Parameters
+                .Any(
+                    p =>
+                        p.Type is GenericNameSyntax
+                        || (p.Type is QualifiedNameSyntax qns && qns.Right is GenericNameSyntax)
+                        || (
+                            p.Type is NullableTypeSyntax nts && nts.ElementType is GenericNameSyntax
+                        )
+                );
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Extract closed generic types from constructor parameters.
+    /// </summary>
+    private static IEnumerable<ITypeSymbol> GetClosedGenericsFromConstructor(
+        GeneratorSyntaxContext context
+    )
+    {
+        var semanticModel = context.SemanticModel;
+        IEnumerable<ParameterSyntax> parameters;
+
+        if (context.Node is ConstructorDeclarationSyntax ctorDecl)
+        {
+            parameters = ctorDecl.ParameterList.Parameters;
+        }
+        else if (
+            context.Node is TypeDeclarationSyntax typeDecl
+            && typeDecl.ParameterList is not null
+        )
+        {
+            parameters = typeDecl.ParameterList.Parameters;
+        }
+        else
+        {
+            yield break;
+        }
+
+        foreach (var param in parameters)
+        {
+            if (param.Type is null)
+                continue;
+
+            var typeInfo = semanticModel.GetTypeInfo(param.Type);
+            var typeSymbol = typeInfo.Type;
+
+            // Check if it's a closed generic type
+            if (
+                typeSymbol
+                is not INamedTypeSymbol
+                {
+                    IsGenericType: true,
+                    IsUnboundGenericType: false
+                } namedType
+            )
+                continue;
+
+            // Skip if any type argument is a type parameter (e.g., T in ILog<T> inside a generic class)
+            if (namedType.TypeArguments.Any(ta => ta is ITypeParameterSymbol))
+                continue;
+
+            // Skip System types
+            var ns = namedType.ContainingNamespace?.ToDisplayString() ?? "";
+            if (ns.StartsWith(PicoDiNames.SystemNamespace))
+                continue;
+
+            yield return namedType;
+        }
     }
 
     /// <summary>
@@ -408,6 +552,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         ImmutableArray<OpenGenericInvocationInfo?> openGenericInvocations,
         ImmutableArray<ITypeSymbol?> closedGenericUsages,
         ImmutableArray<ITypeSymbol?> closedGenericDeclarations,
+        ImmutableArray<ITypeSymbol> ctorClosedGenerics,
         SourceProductionContext context
     )
     {
@@ -448,6 +593,20 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         foreach (var du in declarationClosedUsages.Where(du => !closedUsages.Contains(du)))
         {
             closedUsages.Add(du);
+        }
+
+        // Process closed generic usages from constructor parameters (regular and primary constructors)
+        // This detects ILogger<Service>, IRepository<Entity> etc. in constructor injection
+        var ctorParamClosedUsages = ctorClosedGenerics
+            .Select(x => AnalyzeClosedGenericUsage(x))
+            .OfType<ClosedGenericUsage>()
+            .Distinct()
+            .ToList();
+
+        // Merge constructor parameter usages
+        foreach (var cu in ctorParamClosedUsages.Where(cu => !closedUsages.Contains(cu)))
+        {
+            closedUsages.Add(cu);
         }
 
         // Also detect closed generic usages referenced in constructor parameters of registered services
@@ -543,7 +702,7 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             serviceTypes.Add(reg.ServiceTypeFullName);
             if (!dependencyGraph.ContainsKey(reg.ServiceTypeFullName))
             {
-                dependencyGraph[reg.ServiceTypeFullName] = [];
+                dependencyGraph[reg.ServiceTypeFullName] =  [];
             }
 
             foreach (var paramTypeFullName in reg.ConstructorParameters)
@@ -701,7 +860,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     )
     {
         var constructors = openGenericType
-            .Constructors.Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
+            .Constructors
+            .Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
             .OrderByDescending(c => c.Parameters.Length)
             .ToList();
 
@@ -732,7 +892,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         var openType = namedType.ConstructUnboundGenericType();
         var typeArgs = namedType
-            .TypeArguments.Select(t => t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+            .TypeArguments
+            .Select(t => t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
             .ToImmutableArray();
 
         return new ClosedGenericUsage(
@@ -756,8 +917,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         foreach (var usage in closedUsages)
         {
             // Find matching open generic registration
-            var openGeneric = openGenerics.FirstOrDefault(og =>
-                og.OpenServiceTypeFullName == usage.OpenServiceTypeFullName
+            var openGeneric = openGenerics.FirstOrDefault(
+                og => og.OpenServiceTypeFullName == usage.OpenServiceTypeFullName
             );
 
             if (openGeneric is null)
@@ -783,9 +944,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
             // Generate closed type constructor parameters based on open generic constructor parameters
             var constructorParams = openGeneric
-                .ConstructorParameters.Select(typeFullName =>
-                    SubstituteTypeParameters(typeFullName, typeParamMap)
-                )
+                .ConstructorParameters
+                .Select(typeFullName => SubstituteTypeParameters(typeFullName, typeParamMap))
                 .ToImmutableArray();
 
             result.Add(
@@ -1085,7 +1245,8 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Find the best constructor (prefer the one with most parameters, or [ActivatorUtilitiesConstructor] if present)
         var constructors = namedType
-            .Constructors.Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
+            .Constructors
+            .Where(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public)
             .OrderByDescending(c => c.Parameters.Length)
             .ToList();
 
@@ -1307,16 +1468,16 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             {
                 case PicoDiNames.Transient:
                     // Direct inline construction for transient
-                    var transientFactory = GenerateInlinedFactory(reg, registrationLookup, [], 0);
+                    var transientFactory = GenerateInlinedFactory(reg, registrationLookup, [], 0, "scope");
                     sb.AppendLine($"            return {transientFactory};");
                     break;
 
                 case PicoDiNames.Singleton:
-                    // Use cache helper for singleton
+                    // Use cache helper for singleton - use "s" as scope var name for static lambda
                     sb.AppendLine(
                         $"            return SingletonCache<{serviceType}>.GetOrCreate(scope, static s =>"
                     );
-                    var singletonFactory = GenerateInlinedFactory(reg, registrationLookup, [], 0);
+                    var singletonFactory = GenerateInlinedFactory(reg, registrationLookup, [], 0, "s");
                     sb.AppendLine($"                {singletonFactory});");
                     break;
 
@@ -1404,11 +1565,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     /// For Transient dependencies, recursively inlines the construction.
     /// For Singleton/Scoped dependencies, calls scope.GetService().
     /// </summary>
+    /// <param name="scopeVarName">The variable name for the scope parameter (e.g., "scope" or "s").</param>
     private static string GenerateInlinedFactory(
         ServiceRegistration reg,
         Dictionary<string, ServiceRegistration> registrationLookup,
         HashSet<string> visitedTypes,
-        int indentLevel
+        int indentLevel,
+        string scopeVarName = "scope"
     )
     {
         if (reg.ConstructorParameters.IsEmpty)
@@ -1416,14 +1579,16 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             return $"new {reg.ImplementationTypeFullName}()";
         }
 
-        var paramExpressions = reg
-            .ConstructorParameters.Select(paramTypeFullName =>
-                GenerateParameterExpression(
-                    paramTypeFullName,
-                    registrationLookup,
-                    visitedTypes,
-                    indentLevel + 1
-                )
+        var paramExpressions = reg.ConstructorParameters
+            .Select(
+                paramTypeFullName =>
+                    GenerateParameterExpression(
+                        paramTypeFullName,
+                        registrationLookup,
+                        visitedTypes,
+                        indentLevel + 1,
+                        scopeVarName
+                    )
             )
             .ToList();
 
@@ -1457,29 +1622,31 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     /// Generates the expression for a constructor parameter.
     /// Inlines Transient dependencies, uses GetService for Singleton/Scoped.
     /// </summary>
+    /// <param name="scopeVarName">The variable name for the scope parameter (e.g., "scope" or "s").</param>
     private static string GenerateParameterExpression(
         string paramTypeFullName,
         Dictionary<string, ServiceRegistration> registrationLookup,
         HashSet<string> visitedTypes,
-        int indentLevel
+        int indentLevel,
+        string scopeVarName = "scope"
     )
     {
         // Check if we have a registration for this type
         if (!registrationLookup.TryGetValue(paramTypeFullName, out var depReg))
-            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+            return $"({paramTypeFullName}){scopeVarName}.GetService(typeof({paramTypeFullName}))";
         // Only inline Transient dependencies to avoid breaking singleton/scoped semantics
         if (depReg.Lifetime != PicoDiNames.Transient)
-            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+            return $"({paramTypeFullName}){scopeVarName}.GetService(typeof({paramTypeFullName}))";
         // Check for circular dependency
         if (visitedTypes.Contains(paramTypeFullName))
         {
             // Fall back to GetService for circular references
-            return $"({paramTypeFullName})scope.GetService(typeof({paramTypeFullName}))";
+            return $"({paramTypeFullName}){scopeVarName}.GetService(typeof({paramTypeFullName}))";
         }
 
         // Mark as visited and recursively inline
         var newVisited = new HashSet<string>(visitedTypes) { paramTypeFullName };
-        return GenerateInlinedFactory(depReg, registrationLookup, newVisited, indentLevel);
+        return GenerateInlinedFactory(depReg, registrationLookup, newVisited, indentLevel, scopeVarName);
 
         // For Singleton, Scoped, or unknown dependencies, use GetService
     }
