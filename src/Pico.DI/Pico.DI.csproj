@@ -42,7 +42,7 @@
         <None Include="..\Pico.DI.Gen\bin\$(Configuration)\netstandard2.0\Pico.DI.Gen.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="Pico.DI.Abs" Version="0.0.5" />
+      <PackageReference Include="Pico.DI.Abs" Version="0.0.8" />
     </ItemGroup>
 
 </Project>
