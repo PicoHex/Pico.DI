@@ -1556,9 +1556,6 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         );
         sb.AppendLine("    {");
         sb.AppendLine("        ConfigureGeneratedServicesCore(container);");
-        sb.AppendLine(
-            "        if (container is global::Pico.DI.SvcContainer svcContainer) svcContainer.Build();"
-        );
         sb.AppendLine("        return container;");
         sb.AppendLine("    }");
         sb.AppendLine();
