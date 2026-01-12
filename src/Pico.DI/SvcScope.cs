@@ -93,22 +93,18 @@ public sealed class SvcScope : ISvcScope
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private object HandleServiceNotFound(Type serviceType)
+    [DoesNotReturn]
+    private static object HandleServiceNotFound(Type serviceType)
     {
-        // Check for open generic
-        if (!serviceType.IsGenericType)
-            throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
-        var openGenericType = serviceType.GetGenericTypeDefinition();
-        if (_descriptorCache.ContainsKey(openGenericType))
-        {
-            throw new PicoDiException(
-                $"Open generic type '{openGenericType.FullName}' is registered, but closed type "
-                    + $"'{serviceType.FullName}' was not detected at compile time. "
-                    + "Ensure you call GetService<T> with this specific closed generic type in your code, "
-                    + "or register a factory manually."
-            );
-        }
-        throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
+        // At compile time, the source generator should have detected all needed
+        // closed generic types and generated registrations for them.
+        // If we reach here, it means a service was requested that wasn't registered
+        // and wasn't auto-discovered at compile time.
+        throw new PicoDiException(
+            $"Service type '{serviceType.FullName}' is not registered. "
+                + "Ensure the service is registered explicitly or that the source generator "
+                + "can discover its implementation from referenced assemblies."
+        );
     }
 
     [DoesNotReturn]
@@ -133,24 +129,25 @@ public sealed class SvcScope : ISvcScope
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
         return resolvers!
-            .Select(resolver =>
-                resolver.Lifetime switch
-                {
-                    SvcLifetime.Transient
-                        => resolver.Factory != null
-                            ? resolver.Factory(this)
-                            : throw new PicoDiException(
-                                $"No factory registered for transient service '{serviceType.FullName}'."
-                            ),
-                    SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-                    SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-                    _
-                        => throw new ArgumentOutOfRangeException(
-                            nameof(SvcLifetime),
-                            resolver.Lifetime,
-                            $"Unknown service lifetime '{resolver.Lifetime}'."
-                        )
-                }
+            .Select(
+                resolver =>
+                    resolver.Lifetime switch
+                    {
+                        SvcLifetime.Transient
+                            => resolver.Factory != null
+                                ? resolver.Factory(this)
+                                : throw new PicoDiException(
+                                    $"No factory registered for transient service '{serviceType.FullName}'."
+                                ),
+                        SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
+                        SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+                        _
+                            => throw new ArgumentOutOfRangeException(
+                                nameof(SvcLifetime),
+                                resolver.Lifetime,
+                                $"Unknown service lifetime '{resolver.Lifetime}'."
+                            )
+                    }
             )
             .ToArray();
     }
