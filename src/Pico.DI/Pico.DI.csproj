@@ -29,11 +29,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Pico.DI.Gen" Version="$(PicoDIVersion)" PrivateAssets="all" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Pico.DI.Abs" Version="$(PicoDIVersion)" />
+        <PackageReference Include="Pico.DI.Gen" Version="$(PicoDIVersion)" />
     </ItemGroup>
 
 </Project>
