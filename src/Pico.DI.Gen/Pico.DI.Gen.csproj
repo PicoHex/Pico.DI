@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFramework>netstandard2.1</TargetFramework>
 
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <IsRoslynComponent>true</IsRoslynComponent>
@@ -9,7 +9,7 @@
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
 
-        <!-- Suppress release tracking warning (internal source generator, not public package) -->
+        <!-- Suppress release tracking warning -->
         <NoWarn>$(NoWarn);RS2008</NoWarn>
 
         <OutputType>Library</OutputType>
@@ -20,12 +20,35 @@
         <PublishTrimmed>false</PublishTrimmed>
         <IsTrimmable>false</IsTrimmable>
         
-        <!-- This is now bundled with Pico.DI, not published separately -->
-        <IsPackable>false</IsPackable>
+        <IsPackable>true</IsPackable>
+        
+        <!-- Source Generator specific packaging -->
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    </PropertyGroup>
+
+    <!-- NuGet Package Metadata -->
+    <PropertyGroup>
+        <PackageId>Pico.DI.Gen</PackageId>
+        <Version>$(PicoDIVersion)</Version>
+        <Description>Source generator for Pico.DI - generates AOT-compatible service registrations and open generic metadata at compile time. Use this package for building DI extension libraries.</Description>
+        <PackageTags>DI;IoC;AOT;Source Generator;Roslyn;Analyzer</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="" Visible="false" />
+    </ItemGroup>
+
+    <!-- Pack the analyzer DLL into analyzers folder -->
+    <ItemGroup>
+        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
+        <PackageReference Include="Pico.DI.Abs" Version="$(PicoDIVersion)" />
     </ItemGroup>
 
 </Project>

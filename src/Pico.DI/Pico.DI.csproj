@@ -28,21 +28,12 @@
         <None Include="..\..\README.md" Pack="true" PackagePath="" Visible="false" />
     </ItemGroup>
 
-    <!-- Reference to Source Generator (compile-time only, not a runtime dependency) -->
     <ItemGroup>
-        <ProjectReference Include="..\Pico.DI.Gen\Pico.DI.Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+        <PackageReference Include="Pico.DI.Gen" Version="$(PicoDIVersion)" PrivateAssets="all" />
     </ItemGroup>
 
-    <!-- 
-        Pack the Source Generator DLL into analyzers folder.
-        NuGet automatically loads DLLs from analyzers/dotnet/cs as Roslyn analyzers.
-        No .props or .targets files needed for this to work.
-    -->
     <ItemGroup>
-        <None Include="..\Pico.DI.Gen\bin\$(Configuration)\netstandard2.0\Pico.DI.Gen.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    </ItemGroup>
-    <ItemGroup>
-      <PackageReference Include="Pico.DI.Abs" Version="0.0.16" />
+        <PackageReference Include="Pico.DI.Abs" Version="$(PicoDIVersion)" />
     </ItemGroup>
 
 </Project>
