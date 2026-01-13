@@ -11,7 +11,7 @@
 │  Pico.DI: Compile-time DI that doesn't suck                │
 │  ✓ Zero reflection at runtime                              │
 │  ✓ Native AOT compatible                                   │
-│  ✓ Up to 19x faster than Microsoft.DI                      │
+│  ✓ Up to 5x faster than Microsoft.DI                       │
 │  ✓ Zero GC allocations on hot paths                        │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -42,7 +42,7 @@
 ```csharp
 // Pico.DI at compile-time:
 // Source Generator scans your code → Generates static factories
-// Result: ~12ns per resolution 🚀 (that's up to 19x faster)
+// Result: ~16-45ns per resolution 🚀 (that's 3-5x faster)
 ```
 
 ## ⚡ Quick Start
@@ -126,66 +126,82 @@ public class OrderService(
 
 ## 📊 Benchmarks
 
-**Environment:** .NET 10.0 | Windows | x64 | **Native AOT** | 25 samples × 10,000 iterations
+**Environment:** .NET 10.0 | Windows | x64 | **Native AOT** | 100 samples × 10,000 iterations
 
 ### Overall Summary
 
 ```
-╔══════════════════════════════════════════════════════════════╗
-║  Pico.DI wins:  12 / 12 scenarios                            ║
-║  Average speedup: 3.67x faster                               ║
-║  GC allocations: ZERO (vs Gen0+12 for MS.DI)                 ║
-╚══════════════════════════════════════════════════════════════╝
+╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║  Pico.DI wins:  12 / 12 scenarios                                                                             ║
+║  Average speedup: 3.27x faster                                                                                ║
+║  GC allocations: ZERO                                                                                         ║
+╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 ```
 
-### Scope Creation
+### By Service Complexity
 
-| Container | Avg (ns/op) | P50 | P99 | Speedup |
-|-----------|-------------|-----|-----|---------|
-| **Pico.DI** | 60 | 60 | 98 | **1.4x faster** |
-| MS.DI | 87 | 81 | 147 | baseline |
+#### NoDependency (Simple service)
 
-### Single Resolution
+| Library | Lifetime  | Avg (ns) | P50 (ns) | P90 (ns) | P95 (ns) | P99 (ns) | CPU Cycle | Speedup |
+|---------|-----------|----------|----------|----------|----------|----------|-----------|---------|
+| **Pico.DI** | Transient | 21.3 | 18.3 | 28.4 | 31.2 | 33.9 | 68 | **5.38x** 🔥 |
+| MS.DI | Transient | 114.6 | 105.5 | 151.4 | 153.6 | 162.1 | 365 | baseline |
+| **Pico.DI** | Scoped | 37.8 | 33.8 | 48.5 | 53.7 | 62.1 | 121 | **2.99x** |
+| MS.DI | Scoped | 113.0 | 103.6 | 144.1 | 153.0 | 172.5 | 360 | baseline |
+| **Pico.DI** | Singleton | 16.2 | 14.9 | 20.9 | 22.4 | 24.2 | 51 | **3.87x** |
+| MS.DI | Singleton | 62.7 | 56.8 | 78.3 | 100.6 | 105.3 | 200 | baseline |
 
-| Container | Lifetime | Avg (ns/op) | P50 | Speedup |
-|-----------|----------|-------------|-----|---------|
-| **Pico.DI** | Transient | 12 | 12 | **12x faster** 🔥 |
-| MS.DI | Transient | 140 | 127 | baseline |
-| **Pico.DI** | Scoped | 12 | 12 | **4.8x faster** |
-| MS.DI | Scoped | 59 | 59 | baseline |
-| **Pico.DI** | Singleton | 12 | 12 | **2.6x faster** |
-| MS.DI | Singleton | 33 | 32 | baseline |
+#### SingleDependency (Service with 1 dependency)
 
-### Multiple Resolutions (1M ops, hot path)
+| Library | Lifetime  | Avg (ns) | P50 (ns) | P90 (ns) | P95 (ns) | P99 (ns) | CPU Cycle | Speedup |
+|---------|-----------|----------|----------|----------|----------|----------|-----------|---------|
+| **Pico.DI** | Transient | 45.4 | 43.5 | 52.1 | 57.2 | 65.8 | 145 | **3.78x** |
+| MS.DI | Transient | 171.4 | 164.0 | 192.1 | 208.9 | 235.7 | 547 | baseline |
+| **Pico.DI** | Scoped | 39.9 | 36.4 | 52.5 | 54.6 | 65.0 | 127 | **2.77x** |
+| MS.DI | Scoped | 110.4 | 101.6 | 128.3 | 143.7 | 196.2 | 352 | baseline |
+| **Pico.DI** | Singleton | 17.7 | 16.8 | 19.1 | 21.4 | 29.5 | 56 | **3.36x** |
+| MS.DI | Singleton | 59.5 | 54.1 | 75.9 | 81.7 | 94.8 | 189 | baseline |
 
-| Container | Lifetime | Avg (ns/op) | P50 | Speedup |
-|-----------|----------|-------------|-----|---------|
-| **Pico.DI** | Transient | 10 | 10 | **14x faster** 🔥 |
-| MS.DI | Transient | 137 | 136 | baseline |
-| **Pico.DI** | Scoped | 10 | 10 | **6.3x faster** |
-| MS.DI | Scoped | 61 | 61 | baseline |
-| **Pico.DI** | Singleton | 10 | 10 | **3x faster** |
-| MS.DI | Singleton | 30 | 29 | baseline |
+#### MultipleDependencies (Service with 2+ dependencies)
 
-### Deep Dependency Chain (5 levels)
+| Library | Lifetime  | Avg (ns) | P50 (ns) | P90 (ns) | P95 (ns) | P99 (ns) | CPU Cycle | Speedup |
+|---------|-----------|----------|----------|----------|----------|----------|-----------|---------|
+| **Pico.DI** | Transient | 81.5 | 77.8 | 104.1 | 108.0 | 115.4 | 260 | **4.60x** 🔥 |
+| MS.DI | Transient | 375.0 | 372.3 | 461.2 | 475.3 | 493.3 | 1185 | baseline |
+| **Pico.DI** | Scoped | 43.8 | 41.9 | 49.2 | 52.4 | 69.1 | 136 | **2.21x** |
+| MS.DI | Scoped | 97.1 | 93.7 | 110.6 | 118.6 | 128.6 | 307 | baseline |
+| **Pico.DI** | Singleton | 22.2 | 20.1 | 26.1 | 31.8 | 48.2 | 66 | **2.36x** |
+| MS.DI | Singleton | 52.3 | 50.3 | 60.5 | 65.0 | 78.0 | 158 | baseline |
 
-| Container | Lifetime | Avg (ns/op) | P50 | Speedup |
-|-----------|----------|-------------|-----|---------|
-| **Pico.DI** | Transient | 12 | 12 | **19x faster** 🔥🔥 |
-| MS.DI | Transient | 223 | 218 | baseline |
-| **Pico.DI** | Scoped | 12 | 12 | **5.2x faster** |
-| MS.DI | Scoped | 62 | 60 | baseline |
-| **Pico.DI** | Singleton | 12 | 12 | **2.6x faster** |
-| MS.DI | Singleton | 32 | 32 | baseline |
+#### DeepChain (5-level dependency chain)
 
-### GC Pressure (1M transient resolutions)
+| Library | Lifetime  | Avg (ns) | P50 (ns) | P90 (ns) | P95 (ns) | P99 (ns) | CPU Cycle | Speedup |
+|---------|-----------|----------|----------|----------|----------|----------|-----------|---------|
+| **Pico.DI** | Transient | 149.8 | 145.8 | 165.7 | 185.4 | 210.6 | 478 | **3.44x** |
+| MS.DI | Transient | 515.7 | 501.4 | 569.8 | 583.6 | 641.9 | 1645 | baseline |
+| **Pico.DI** | Scoped | 41.4 | 38.7 | 50.1 | 59.3 | 68.5 | 132 | **2.56x** |
+| MS.DI | Scoped | 105.9 | 100.9 | 128.2 | 141.1 | 162.9 | 337 | baseline |
+| **Pico.DI** | Singleton | 27.0 | 22.6 | 37.5 | 38.2 | 39.6 | 86 | **1.91x** |
+| MS.DI | Singleton | 51.5 | 50.9 | 54.9 | 59.9 | 64.5 | 164 | baseline |
 
-| Container | Gen0 Collections | Result |
-|-----------|-----------------|--------|
-| **Pico.DI** | 0 | **Zero GC** ✨ |
-| MS.DI | +12 | Allocations |
+### Summary by Lifetime
 
-> 💡 **Why so fast?** Pico.DI generates inlined factory chains at compile-time. No reflection, no expression trees, no runtime codegen. Just pure, static method calls.
+| Lifetime | Average Speedup |
+|----------|-----------------|
+| **Transient** | **4.30x faster** 🔥 |
+| Scoped | 2.63x faster |
+| Singleton | 2.88x faster |
+
+### Summary by Service Complexity
+
+| Complexity | Average Speedup |
+|------------|-----------------|
+| NoDependency | 4.08x faster |
+| SingleDependency | 3.30x faster |
+| MultipleDependencies | 3.06x faster |
+| DeepChain | 2.64x faster |
+
+> 💡 **Why so fast?** Pico.DI generates inlined factory chains at compile-time. No reflection, no expression trees, no runtime codegen. Just pure, static method calls with `[MethodImpl(AggressiveInlining)]`.
 
 ## 🧠 How It Works
 

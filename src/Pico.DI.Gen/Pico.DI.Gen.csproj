@@ -16,9 +16,12 @@
 
         <ImplicitUsings>enable</ImplicitUsings>
 
-        <!-- Disable trimming for source generator -->
+        <!-- Disable AOT/trimming for source generator (netstandard2.0 doesn't support it) -->
         <PublishTrimmed>false</PublishTrimmed>
         <IsTrimmable>false</IsTrimmable>
+        <PublishAot>false</PublishAot>
+        <IsAotCompatible>false</IsAotCompatible>
+        <EnableAotAnalyzer>false</EnableAotAnalyzer>
         
         <IsPackable>true</IsPackable>
         

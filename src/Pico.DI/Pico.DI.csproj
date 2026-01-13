@@ -26,8 +26,29 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Pico.DI.Abs" Version="$(PicoDIVersion)" />
-        <PackageReference Include="Pico.DI.Gen" Version="$(PicoDIVersion)" />
+        <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj" />
+        <!-- 
+          For local development: use ProjectReference for the source generator.
+          For NuGet consumers: the generator is included via package dependencies.
+          Using ProjectReference avoids duplicate analyzer loading issues during rebuild.
+        -->
+        <ProjectReference Include="..\Pico.DI.Gen\Pico.DI.Gen.csproj" 
+                          OutputItemType="Analyzer" 
+                          ReferenceOutputAssembly="false"
+                          SetTargetFramework="TargetFramework=netstandard2.0" />
     </ItemGroup>
+
+    <!-- NuGet package dependencies (only applied when packing) -->
+    <ItemGroup Condition="'$(IsPackable)' == 'true'">
+        <None Include="..\Pico.DI.Gen\bin\$(Configuration)\netstandard2.0\Pico.DI.Gen.dll"
+              Pack="true"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false" />
+    </ItemGroup>
+    
+    <PropertyGroup>
+        <!-- Dependencies to include in NuGet package -->
+        <PackageDependencies>Pico.DI.Abs@$(PicoDIVersion)</PackageDependencies>
+    </PropertyGroup>
 
 </Project>

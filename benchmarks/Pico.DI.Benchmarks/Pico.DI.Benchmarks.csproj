@@ -40,6 +40,11 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Pico.DI\Pico.DI.csproj" />
+        <!-- Explicitly add Source Generator for benchmark -->
+        <ProjectReference Include="..\..\src\Pico.DI.Gen\Pico.DI.Gen.csproj" 
+                          OutputItemType="Analyzer" 
+                          ReferenceOutputAssembly="false"
+                          SetTargetFramework="TargetFramework=netstandard2.0" />
     </ItemGroup>
 
     <Target Name="PicoDiBenchmarks_CleanupPublishArtifacts" AfterTargets="_CopyAotSymbols" Condition="'$(PicoDiDeletePdbAfterPublish)' == 'true'">

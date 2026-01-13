@@ -1,5 +1,27 @@
 ﻿namespace Pico.DI.Benchmarks;
 
+/// <summary>
+/// Summary of a benchmark timing run.
+/// </summary>
+public record Summary
+{
+    public required string Name { get; init; }
+    public required double ElapsedMilliseconds { get; init; }
+    public required long ElapsedTicks { get; init; }
+    public required double ElapsedNanoseconds { get; init; }
+    public required ulong CpuCycle { get; init; }
+    public required List<GenCount> GenCounts { get; init; }
+}
+
+/// <summary>
+/// GC generation count delta.
+/// </summary>
+public record GenCount
+{
+    public required int Gen { get; init; }
+    public required int Count { get; init; }
+}
+
 public static class Runner
 {
     public static void Initialize()

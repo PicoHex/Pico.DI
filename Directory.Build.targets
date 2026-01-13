@@ -6,12 +6,15 @@
     
     Note: This only applies to projects in this workspace (local development).
     For NuGet consumers, the analyzer is included in the package via .props/.targets files.
+    
+    IMPORTANT: Pico.DI project uses ProjectReference to Pico.DI.Gen (OutputItemType="Analyzer"),
+    so we exclude it here to avoid duplicate analyzer loading.
   -->
   
-  <!-- Only add analyzer if it exists AND the project is not Pico.DI.Gen itself AND not the abstractions -->
+  <!-- Only add analyzer if it exists AND the project is not Pico.DI.Gen itself AND not the abstractions AND not Pico.DI (which already has ProjectReference to Gen) AND not Benchmarks (which has explicit reference) -->
   <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)src\Pico.DI.Gen\bin\$(Configuration)\netstandard2.0\Pico.DI.Gen.dll')">
     <Analyzer Include="$(MSBuildThisFileDirectory)src\Pico.DI.Gen\bin\$(Configuration)\netstandard2.0\Pico.DI.Gen.dll"
-              Condition="'$(MSBuildProjectName)' != 'Pico.DI.Gen' AND '$(MSBuildProjectName)' != 'Pico.DI.Abs' AND '$(MSBuildProjectName)' != 'Pico.DI.Sample.Services'" />
+              Condition="'$(MSBuildProjectName)' != 'Pico.DI.Gen' AND '$(MSBuildProjectName)' != 'Pico.DI.Abs' AND '$(MSBuildProjectName)' != 'Pico.DI.Sample.Services' AND '$(MSBuildProjectName)' != 'Pico.DI' AND '$(MSBuildProjectName)' != 'Pico.DI.Benchmarks'" />
   </ItemGroup>
 </Project>
 

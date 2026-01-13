@@ -217,8 +217,15 @@ public sealed class SvcScope : ISvcScope
         {
             _scopedInstances ??= new Dictionary<SvcDescriptor, object>();
 
-            if (_scopedInstances.TryGetValue(resolver, out var existing))
-                return existing;
+            // Use CollectionsMarshal to avoid double dictionary lookup
+            ref var slot = ref CollectionsMarshal.GetValueRefOrAddDefault(
+                _scopedInstances,
+                resolver,
+                out bool exists
+            );
+
+            if (exists)
+                return slot!;
 
             var instance =
                 resolver.Factory != null
@@ -228,7 +235,7 @@ public sealed class SvcScope : ISvcScope
                             + "Use Pico.DI.Gen source generator or register with a factory delegate."
                     );
 
-            _scopedInstances[resolver] = instance;
+            slot = instance;
             return instance;
         }
     }
