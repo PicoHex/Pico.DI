@@ -38,17 +38,12 @@
                           SetTargetFramework="TargetFramework=netstandard2.0" />
     </ItemGroup>
 
-    <!-- NuGet package dependencies (only applied when packing) -->
-    <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <!-- Embed Gen analyzer into NuGet package -->
+    <ItemGroup>
         <None Include="..\Pico.DI.Gen\bin\$(Configuration)\netstandard2.0\Pico.DI.Gen.dll"
               Pack="true"
               PackagePath="analyzers/dotnet/cs"
               Visible="false" />
     </ItemGroup>
-    
-    <PropertyGroup>
-        <!-- Dependencies to include in NuGet package -->
-        <PackageDependencies>Pico.DI.Abs@$(PicoDIVersion)</PackageDependencies>
-    </PropertyGroup>
 
 </Project>
