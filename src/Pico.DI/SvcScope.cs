@@ -27,7 +27,8 @@ public sealed class SvcScope : ISvcScope
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
     // Lazy accessor for scoped instances lock (still needed for scoped instance cache)
-    private Lock ScopedLock => field ??= new();
+    private object? _scopedLock;
+    private object ScopedLock => _scopedLock ??= new object();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
@@ -80,7 +81,7 @@ public sealed class SvcScope : ISvcScope
             return HandleServiceNotFound(serviceType);
 
         // Get last registered descriptor (override pattern)
-        var resolver = resolvers[^1];
+        var resolver = resolvers[resolvers.Length - 1];
 
         // Inline lifetime dispatch for hot path
         return resolver.Lifetime switch
@@ -114,12 +115,7 @@ public sealed class SvcScope : ISvcScope
             nameof(SvcLifetime),
             lifetime,
             $"Unknown service lifetime '{lifetime}'."
-        )
-        {
-            HelpLink = null,
-            HResult = 0,
-            Source = null
-        };
+        );
 
     /// <inheritdoc />
     public IEnumerable<object> GetServices(Type serviceType)
