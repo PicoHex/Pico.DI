@@ -7,9 +7,9 @@ global using Microsoft.CodeAnalysis.CSharp;
 global using Microsoft.CodeAnalysis.CSharp.Syntax;
 global using Microsoft.CodeAnalysis.Diagnostics;
 global using Microsoft.CodeAnalysis.Text;
+global using Pico.DI.Gen.Constants;
 
 // Support for record types in netstandard2.0
-namespace System.Runtime.CompilerServices
-{
-    internal static class IsExternalInit { }
-}
+namespace System.Runtime.CompilerServices;
+
+internal static class IsExternalInit;

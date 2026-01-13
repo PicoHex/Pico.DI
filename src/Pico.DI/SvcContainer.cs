@@ -7,8 +7,7 @@
 public sealed class SvcContainer : ISvcContainer
 {
     private Dictionary<Type, SvcDescriptor[]>? _descriptorCache = new();
-    private object? _registrationLock;
-    private object RegistrationLock => _registrationLock ??= new object();
+    private Lock RegistrationLock => field ??= new Lock();
 
     // Sentinel object to mark the linked list as "disposed" - prevents new scopes from being added
     // Using a special marker value instead of null to distinguish "empty list" from "disposed list"
@@ -88,7 +87,7 @@ public sealed class SvcContainer : ISvcContainer
             }
             else
             {
-                cache[descriptor.ServiceType] = new[] { descriptor };
+                cache[descriptor.ServiceType] =  [descriptor];
             }
         }
 

@@ -1,5 +1,3 @@
-using Pico.DI.Gen.Constants;
-
 namespace Pico.DI.Gen;
 
 /// <summary>
@@ -109,8 +107,10 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             static (spc, source) =>
             {
                 var (
-                    ((((invocations, openGenerics), closedUsages), closedDeclarations),
-                    ctorClosedGenerics),
+                    (
+                        (((invocations, openGenerics), closedUsages), closedDeclarations),
+                        ctorClosedGenerics
+                    ),
                     compilation
                 ) = source;
                 Execute(
@@ -652,7 +652,10 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         }
 
         // Discover open generic registrations from referenced assemblies' metadata classes
-        var discoveredOpenGenerics = DiscoverOpenGenericsFromReferencedAssemblies(compilation, openGenerics);
+        var discoveredOpenGenerics = DiscoverOpenGenericsFromReferencedAssemblies(
+            compilation,
+            openGenerics
+        );
         foreach (var og in discoveredOpenGenerics.Where(og => !openGenerics.Contains(og)))
         {
             openGenerics.Add(og);
@@ -680,8 +683,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         }
 
         var source = GenerateSource(allRegistrations, compilation);
+
+        // Generate a unique .g.cs file name including the assembly name to avoid duplicate definitions in multi-project/multi-configuration scenarios
+        var assemblyName = compilation.AssemblyName ?? "Unknown";
+        var safeAssemblyName = new string(assemblyName.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
+        var registrationsFileName = $"PicoIoC.ServiceRegistrations.{safeAssemblyName}.g.cs";
         context.AddSource(
-            "PicoIoC.ServiceRegistrations.g.cs",
+            registrationsFileName,
             SourceText.From(source, Encoding.UTF8)
         );
 
@@ -690,8 +698,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         if (openGenerics.Count > 0)
         {
             var metadataSource = GenerateOpenGenericMetadata(openGenerics, compilation);
+            var metadataFileName = $"PicoIoC.OpenGenericMetadata.{safeAssemblyName}.g.cs";
             context.AddSource(
-                "PicoIoC.OpenGenericMetadata.g.cs",
+                metadataFileName,
                 SourceText.From(metadataSource, Encoding.UTF8)
             );
         }
@@ -707,7 +716,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     )
     {
         var discovered = new List<OpenGenericRegistration>();
-        var existingOpenNames = new HashSet<string>(existingOpenGenerics.Select(og => og.OpenServiceTypeFullName));
+        var existingOpenNames = new HashSet<string>(
+            existingOpenGenerics.Select(og => og.OpenServiceTypeFullName)
+        );
 
         // Scan referenced assemblies for metadata classes
         foreach (var reference in compilation.References)
@@ -745,8 +756,10 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         foreach (var type in ns.GetTypeMembers())
         {
-            if (type.Name == "PicoDiOpenGenericMetadata" &&
-                type.DeclaredAccessibility == Accessibility.Public)
+            if (
+                type.Name == "PicoDiOpenGenericMetadata"
+                && type.DeclaredAccessibility == Accessibility.Public
+            )
             {
                 result.Add(type);
             }
@@ -763,7 +776,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     /// <summary>
     /// Extracts open generic registration info from a metadata type's static members.
     /// </summary>
-    private static List<OpenGenericRegistration> ExtractOpenGenericRegistrationsFromMetadata(INamedTypeSymbol metadataType)
+    private static List<OpenGenericRegistration> ExtractOpenGenericRegistrationsFromMetadata(
+        INamedTypeSymbol metadataType
+    )
     {
         var result = new List<OpenGenericRegistration>();
 
@@ -801,13 +816,20 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                 {
                     if (namedArg.Key == "TypeParameterNames" && namedArg.Value.Values.Length > 0)
                     {
-                        typeParamNames = namedArg.Value.Values
+                        typeParamNames = namedArg
+                            .Value
+                            .Values
                             .Select(v => v.Value as string ?? "T")
                             .ToImmutableArray();
                     }
-                    else if (namedArg.Key == "ConstructorParameters" && namedArg.Value.Values.Length > 0)
+                    else if (
+                        namedArg.Key == "ConstructorParameters"
+                        && namedArg.Value.Values.Length > 0
+                    )
                     {
-                        ctorParams = namedArg.Value.Values
+                        ctorParams = namedArg
+                            .Value
+                            .Values
                             .Select(v => v.Value as string ?? "")
                             .ToImmutableArray();
                     }
@@ -815,19 +837,22 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
                 if (typeParamNames.IsEmpty)
                 {
-                    typeParamNames = Enumerable.Range(0, typeParamCount)
+                    typeParamNames = Enumerable
+                        .Range(0, typeParamCount)
                         .Select(i => i == 0 ? "T" : $"T{i}")
                         .ToImmutableArray();
                 }
 
-                result.Add(new OpenGenericRegistration(
-                    serviceType,
-                    implType,
-                    lifetime,
-                    typeParamCount,
-                    typeParamNames,
-                    ctorParams
-                ));
+                result.Add(
+                    new OpenGenericRegistration(
+                        serviceType,
+                        implType,
+                        lifetime,
+                        typeParamCount,
+                        typeParamNames,
+                        ctorParams
+                    )
+                );
             }
         }
 
@@ -845,7 +870,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
     {
         var sb = new StringBuilder();
         var assemblyName = compilation.AssemblyName ?? "Unknown";
-        var safeAssemblyName = new string(assemblyName.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
+        var safeAssemblyName = new string(
+            assemblyName.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray()
+        );
 
         sb.AppendLine("// <auto-generated/>");
         sb.AppendLine("#nullable enable");
@@ -853,11 +880,17 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         sb.AppendLine("namespace Pico.DI.Generated;");
         sb.AppendLine();
         sb.AppendLine("/// <summary>");
-        sb.AppendLine("/// Metadata class containing open generic registrations from this assembly.");
-        sb.AppendLine("/// This is auto-generated by Pico.DI.Gen and used by other assemblies to discover");
+        sb.AppendLine(
+            "/// Metadata class containing open generic registrations from this assembly."
+        );
+        sb.AppendLine(
+            "/// This is auto-generated by Pico.DI.Gen and used by other assemblies to discover"
+        );
         sb.AppendLine("/// open generic mappings at compile time.");
         sb.AppendLine("/// </summary>");
-        sb.AppendLine("[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+        sb.AppendLine(
+            "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
+        );
         sb.AppendLine($"public static class PicoDiOpenGenericMetadata");
         sb.AppendLine("{");
 
@@ -867,8 +900,12 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             var typeParamNamesStr = string.Join("\", \"", og.TypeParameterNames);
             var ctorParamsStr = string.Join("\", \"", og.ConstructorParameters);
 
-            sb.AppendLine($"    /// <summary>Open generic mapping: {og.OpenServiceTypeFullName} -> {og.OpenImplementationTypeFullName}</summary>");
-            sb.AppendLine($"    [PicoDiOpenGeneric(\"{og.OpenServiceTypeFullName}\", \"{og.OpenImplementationTypeFullName}\", \"{og.Lifetime}\", {og.TypeParameterCount},");
+            sb.AppendLine(
+                $"    /// <summary>Open generic mapping: {og.OpenServiceTypeFullName} -> {og.OpenImplementationTypeFullName}</summary>"
+            );
+            sb.AppendLine(
+                $"    [PicoDiOpenGeneric(\"{og.OpenServiceTypeFullName}\", \"{og.OpenImplementationTypeFullName}\", \"{og.Lifetime}\", {og.TypeParameterCount},"
+            );
             sb.AppendLine($"        TypeParameterNames = new[] {{ \"{typeParamNamesStr}\" }},");
             sb.AppendLine($"        ConstructorParameters = new[] {{ \"{ctorParamsStr}\" }})]");
             sb.AppendLine($"    public static readonly int Registration{index};");
@@ -883,9 +920,15 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         sb.AppendLine("/// <summary>");
         sb.AppendLine("/// Attribute used to store open generic registration metadata.");
         sb.AppendLine("/// </summary>");
-        sb.AppendLine("[global::System.AttributeUsage(global::System.AttributeTargets.Field, AllowMultiple = false)]");
-        sb.AppendLine("[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
-        sb.AppendLine("internal sealed class PicoDiOpenGenericAttribute : global::System.Attribute");
+        sb.AppendLine(
+            "[global::System.AttributeUsage(global::System.AttributeTargets.Field, AllowMultiple = false)]"
+        );
+        sb.AppendLine(
+            "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
+        );
+        sb.AppendLine(
+            "internal sealed class PicoDiOpenGenericAttribute : global::System.Attribute"
+        );
         sb.AppendLine("{");
         sb.AppendLine("    public string ServiceType { get; }");
         sb.AppendLine("    public string ImplementationType { get; }");
@@ -894,7 +937,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         sb.AppendLine("    public string[]? TypeParameterNames { get; set; }");
         sb.AppendLine("    public string[]? ConstructorParameters { get; set; }");
         sb.AppendLine();
-        sb.AppendLine("    public PicoDiOpenGenericAttribute(string serviceType, string implementationType, string lifetime, int typeParameterCount)");
+        sb.AppendLine(
+            "    public PicoDiOpenGenericAttribute(string serviceType, string implementationType, string lifetime, int typeParameterCount)"
+        );
         sb.AppendLine("    {");
         sb.AppendLine("        ServiceType = serviceType;");
         sb.AppendLine("        ImplementationType = implementationType;");
@@ -1493,14 +1538,18 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         ];
     }
 
-    private static string GenerateSource(List<ServiceRegistration> registrations, Compilation compilation)
+    private static string GenerateSource(
+        List<ServiceRegistration> registrations,
+        Compilation compilation
+    )
     {
         var sb = new StringBuilder();
 
         // Generate unique class name based on assembly name to avoid conflicts
         var assemblyName = compilation.AssemblyName ?? "Unknown";
-        var safeClassName = "GeneratedServiceRegistrations_" +
-            new string(assemblyName.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
+        var safeClassName =
+            "GeneratedServiceRegistrations_"
+            + new string(assemblyName.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
 
         sb.AppendLine("// <auto-generated/>");
         sb.AppendLine("#nullable enable");
@@ -1701,7 +1750,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
             {
                 case PicoDiNames.Transient:
                     // Direct inline construction for transient
-                    var transientFactory = GenerateInlinedFactory(reg, registrationLookup, [], 0, "scope");
+                    var transientFactory = GenerateInlinedFactory(
+                        reg,
+                        registrationLookup,
+                        [],
+                        0,
+                        "scope"
+                    );
                     sb.AppendLine($"            return {transientFactory};");
                     break;
 
@@ -1710,7 +1765,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                     sb.AppendLine(
                         $"            return SingletonCache<{serviceType}>.GetOrCreate(scope, static s =>"
                     );
-                    var singletonFactory = GenerateInlinedFactory(reg, registrationLookup, [], 0, "s");
+                    var singletonFactory = GenerateInlinedFactory(
+                        reg,
+                        registrationLookup,
+                        [],
+                        0,
+                        "s"
+                    );
                     sb.AppendLine($"                {singletonFactory});");
                     break;
 
@@ -1879,7 +1940,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
 
         // Mark as visited and recursively inline
         var newVisited = new HashSet<string>(visitedTypes) { paramTypeFullName };
-        return GenerateInlinedFactory(depReg, registrationLookup, newVisited, indentLevel, scopeVarName);
+        return GenerateInlinedFactory(
+            depReg,
+            registrationLookup,
+            newVisited,
+            indentLevel,
+            scopeVarName
+        );
 
         // For Singleton, Scoped, or unknown dependencies, use GetService
     }

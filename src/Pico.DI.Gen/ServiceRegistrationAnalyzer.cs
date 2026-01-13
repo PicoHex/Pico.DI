@@ -1,5 +1,3 @@
-using Pico.DI.Gen.Constants;
-
 namespace Pico.DI.Gen;
 
 /// <summary>
@@ -59,6 +57,7 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
         );
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+
         [
             UnregisteredDependencyRule,
             CircularDependencyRule,
@@ -106,19 +105,23 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
 
         // Check if it's a factory-based registration - multiple detection methods
         // 1. Check if any argument is a lambda expression or anonymous method
-        var hasLambda = invocation.ArgumentList.Arguments.Any(arg =>
-            arg.Expression is LambdaExpressionSyntax
-            || arg.Expression is AnonymousMethodExpressionSyntax
-            || arg.Expression is AnonymousFunctionExpressionSyntax
-        );
+        var hasLambda = invocation
+            .ArgumentList
+            .Arguments
+            .Any(
+                arg =>
+                    arg.Expression is LambdaExpressionSyntax
+                    || arg.Expression is AnonymousMethodExpressionSyntax
+                    || arg.Expression is AnonymousFunctionExpressionSyntax
+            );
 
         if (hasLambda)
             return;
 
         // 2. Check if the method has a Func parameter (covers delegate and method group cases)
-        var hasFactoryParameter = methodSymbol.Parameters.Any(p =>
-            p.Type is INamedTypeSymbol { Name: PicoDiNames.Func }
-        );
+        var hasFactoryParameter = methodSymbol
+            .Parameters
+            .Any(p => p.Type is INamedTypeSymbol { Name: PicoDiNames.Func });
 
         if (hasFactoryParameter && invocation.ArgumentList.Arguments.Count > 0)
             return;
@@ -168,9 +171,9 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
         // Check for public constructor
         if (implementationType is not INamedTypeSymbol namedType)
             return;
-        var hasPublicConstructor = namedType.Constructors.Any(c =>
-            !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public
-        );
+        var hasPublicConstructor = namedType
+            .Constructors
+            .Any(c => !c.IsStatic && c.DeclaredAccessibility == Accessibility.Public);
 
         if (!hasPublicConstructor && !implementationType.IsValueType)
         {
