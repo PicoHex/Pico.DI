@@ -7,6 +7,7 @@
     <Project Path="samples\Pico.DI.Sample.Services\Pico.DI.Sample.Services.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src\Pico.Bench\Pico.Bench.csproj" />
     <Project Path="src\Pico.DI.Abs\Pico.DI.Abs.csproj" />
     <Project Path="src\Pico.DI.Gen\Pico.DI.Gen.csproj" />
     <Project Path="src\Pico.DI\Pico.DI.csproj" />
