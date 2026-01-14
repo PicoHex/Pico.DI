@@ -453,28 +453,37 @@ public static class Program
         SummaryFormatter.Write(comparisons, sw.Elapsed, summaryOptions);
 
         // Output to files if requested
-        if (args.Contains("--csv"))
+        if (args.Contains("--csv") || args.Contains("--all"))
         {
             var csvPath = "benchmark-results.csv";
             CsvFormatter.WriteToFile(csvPath, comparisons);
             Console.WriteLine($"\nCSV results saved to: {csvPath}");
         }
 
-        if (args.Contains("--markdown"))
+        // Build suite for file output
+        var suite = new BenchmarkSuite
+        {
+            Name = "Pico.DI vs Microsoft.DI Benchmark",
+            Description = "Comprehensive DI container performance comparison",
+            Environment = env,
+            Results = comparisons.SelectMany(c => new[] { c.Baseline, c.Candidate }).ToList(),
+            Comparisons = comparisons,
+            Timestamp = startTime,
+            Duration = sw.Elapsed
+        };
+
+        if (args.Contains("--markdown") || args.Contains("--all"))
         {
             var mdPath = "benchmark-results.md";
-            var suite = new BenchmarkSuite
-            {
-                Name = "Pico.DI vs Microsoft.DI Benchmark",
-                Description = "Comprehensive DI container performance comparison",
-                Environment = env,
-                Results = comparisons.SelectMany(c => new[] { c.Baseline, c.Candidate }).ToList(),
-                Comparisons = comparisons,
-                Timestamp = startTime,
-                Duration = sw.Elapsed
-            };
             MarkdownFormatter.WriteToFile(mdPath, suite);
-            Console.WriteLine($"Markdown results saved to: {mdPath}");
+            Console.WriteLine($"\nMarkdown results saved to: {mdPath}");
+        }
+
+        if (args.Contains("--html") || args.Contains("--all"))
+        {
+            var htmlPath = "benchmark-results.html";
+            HtmlFormatter.WriteToFile(htmlPath, suite);
+            Console.WriteLine($"HTML results saved to: {htmlPath}");
         }
     }
 
