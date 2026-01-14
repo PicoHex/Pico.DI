@@ -316,7 +316,7 @@ public sealed class CsvFormatter : FormatterBase
     #region Static Helpers
 
     /// <summary>
-    /// Write CSV to a file.
+    /// Write CSV to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -325,11 +325,11 @@ public sealed class CsvFormatter : FormatterBase
     )
     {
         var formatter = new CsvFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(result));
+        WriteToFileInternal(filePath, formatter.Format(result));
     }
 
     /// <summary>
-    /// Write CSV to a file.
+    /// Write CSV to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -338,11 +338,11 @@ public sealed class CsvFormatter : FormatterBase
     )
     {
         var formatter = new CsvFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(results));
+        WriteToFileInternal(filePath, formatter.Format(results));
     }
 
     /// <summary>
-    /// Write CSV to a file.
+    /// Write CSV to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -351,11 +351,11 @@ public sealed class CsvFormatter : FormatterBase
     )
     {
         var formatter = new CsvFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(comparisons));
+        WriteToFileInternal(filePath, formatter.Format(comparisons));
     }
 
     /// <summary>
-    /// Write CSV to a file.
+    /// Write CSV to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -364,11 +364,11 @@ public sealed class CsvFormatter : FormatterBase
     )
     {
         var formatter = new CsvFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(suite));
+        WriteToFileInternal(filePath, formatter.Format(suite));
     }
 
     /// <summary>
-    /// Append CSV to a file (without header if file exists).
+    /// Append CSV to a file (without header if file exists), creating directory if needed.
     /// </summary>
     public static void AppendToFile(
         string filePath,
@@ -390,7 +390,7 @@ public sealed class CsvFormatter : FormatterBase
         }
         else
         {
-            File.WriteAllText(filePath, content);
+            WriteToFileInternal(filePath, content);
         }
     }
 

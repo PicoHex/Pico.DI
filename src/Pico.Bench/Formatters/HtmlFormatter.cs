@@ -511,7 +511,7 @@ footer {
     #region Static Helpers
 
     /// <summary>
-    /// Write HTML to a file.
+    /// Write HTML to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -520,11 +520,11 @@ footer {
     )
     {
         var formatter = new HtmlFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(result));
+        WriteToFileInternal(filePath, formatter.Format(result));
     }
 
     /// <summary>
-    /// Write HTML to a file.
+    /// Write HTML to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -533,11 +533,11 @@ footer {
     )
     {
         var formatter = new HtmlFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(results));
+        WriteToFileInternal(filePath, formatter.Format(results));
     }
 
     /// <summary>
-    /// Write HTML to a file.
+    /// Write HTML to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -546,11 +546,11 @@ footer {
     )
     {
         var formatter = new HtmlFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(comparisons));
+        WriteToFileInternal(filePath, formatter.Format(comparisons));
     }
 
     /// <summary>
-    /// Write HTML to a file.
+    /// Write HTML to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -559,7 +559,7 @@ footer {
     )
     {
         var formatter = new HtmlFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(suite));
+        WriteToFileInternal(filePath, formatter.Format(suite));
     }
 
     #endregion

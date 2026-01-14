@@ -205,7 +205,7 @@ public sealed class MarkdownFormatter : FormatterBase
     #region Static Helpers
 
     /// <summary>
-    /// Write Markdown to a file.
+    /// Write Markdown to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -214,11 +214,11 @@ public sealed class MarkdownFormatter : FormatterBase
     )
     {
         var formatter = new MarkdownFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(result));
+        WriteToFileInternal(filePath, formatter.Format(result));
     }
 
     /// <summary>
-    /// Write Markdown to a file.
+    /// Write Markdown to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -227,11 +227,11 @@ public sealed class MarkdownFormatter : FormatterBase
     )
     {
         var formatter = new MarkdownFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(results));
+        WriteToFileInternal(filePath, formatter.Format(results));
     }
 
     /// <summary>
-    /// Write Markdown to a file.
+    /// Write Markdown to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -240,11 +240,11 @@ public sealed class MarkdownFormatter : FormatterBase
     )
     {
         var formatter = new MarkdownFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(comparisons));
+        WriteToFileInternal(filePath, formatter.Format(comparisons));
     }
 
     /// <summary>
-    /// Write Markdown to a file.
+    /// Write Markdown to a file, creating directory if needed.
     /// </summary>
     public static void WriteToFile(
         string filePath,
@@ -253,7 +253,7 @@ public sealed class MarkdownFormatter : FormatterBase
     )
     {
         var formatter = new MarkdownFormatter(options);
-        File.WriteAllText(filePath, formatter.Format(suite));
+        WriteToFileInternal(filePath, formatter.Format(suite));
     }
 
     /// <summary>

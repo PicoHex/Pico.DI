@@ -36,6 +36,9 @@ public interface IFormatter
 /// </summary>
 public sealed class FormatterOptions
 {
+    /// <summary>Output directory for WriteToFile methods. If null, uses the file path as-is.</summary>
+    public string? OutputDirectory { get; init; }
+
     /// <summary>Include environment information in output.</summary>
     public bool IncludeEnvironment { get; init; } = true;
 
@@ -74,6 +77,16 @@ public sealed class FormatterOptions
             IncludeCpuCycles = false,
             IncludePercentiles = false
         };
+
+    /// <summary>
+    /// Resolves the full file path, combining OutputDirectory if set.
+    /// </summary>
+    public string ResolvePath(string fileName)
+    {
+        if (string.IsNullOrEmpty(OutputDirectory))
+            return fileName;
+        return Path.Combine(OutputDirectory, fileName);
+    }
 }
 
 /// <summary>
@@ -120,5 +133,18 @@ public abstract class FormatterBase : IFormatter
             >= 1 => "",
             _ => "⚠"
         };
+    }
+
+    /// <summary>
+    /// Write content to a file, creating the directory if it doesn't exist.
+    /// </summary>
+    protected static void WriteToFileInternal(string filePath, string content)
+    {
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+        File.WriteAllText(filePath, content);
     }
 }

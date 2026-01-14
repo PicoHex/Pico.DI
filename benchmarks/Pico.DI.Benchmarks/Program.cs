@@ -453,9 +453,11 @@ public static class Program
         SummaryFormatter.Write(comparisons, sw.Elapsed, summaryOptions);
 
         // Output to files if requested
+        var fileOptions = new FormatterOptions { OutputDirectory = "results" };
+
         if (args.Contains("--csv") || args.Contains("--all"))
         {
-            var csvPath = "benchmark-results.csv";
+            var csvPath = fileOptions.ResolvePath("benchmark-results.csv");
             CsvFormatter.WriteToFile(csvPath, comparisons);
             Console.WriteLine($"\nCSV results saved to: {csvPath}");
         }
@@ -474,14 +476,14 @@ public static class Program
 
         if (args.Contains("--markdown") || args.Contains("--all"))
         {
-            var mdPath = "benchmark-results.md";
+            var mdPath = fileOptions.ResolvePath("benchmark-results.md");
             MarkdownFormatter.WriteToFile(mdPath, suite);
             Console.WriteLine($"\nMarkdown results saved to: {mdPath}");
         }
 
         if (args.Contains("--html") || args.Contains("--all"))
         {
-            var htmlPath = "benchmark-results.html";
+            var htmlPath = fileOptions.ResolvePath("benchmark-results.html");
             HtmlFormatter.WriteToFile(htmlPath, suite);
             Console.WriteLine($"HTML results saved to: {htmlPath}");
         }
