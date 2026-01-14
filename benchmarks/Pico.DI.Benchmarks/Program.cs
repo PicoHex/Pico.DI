@@ -319,6 +319,14 @@ public static class Program
 {
     private static readonly BenchmarkConfig Config = BenchmarkConfig.Default;
 
+    private static readonly FormatterOptions TableOptions =
+        new()
+        {
+            IncludePercentiles = true,
+            IncludeCpuCycles = true,
+            IncludeGcInfo = true
+        };
+
     public static void Main(string[] args)
     {
         Pico.Bench.Runner.Initialize();
@@ -327,22 +335,9 @@ public static class Program
         var startTime = DateTime.UtcNow;
         var sw = Stopwatch.StartNew();
 
-        Console.WriteLine();
-        Console.WriteLine(
-            "╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╗"
-        );
-        Console.WriteLine(
-            "║                          Pico.DI vs Microsoft.DI - Comprehensive Benchmark                                    ║"
-        );
-        Console.WriteLine(
-            "╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╝"
-        );
-        Console.WriteLine();
-        Console.WriteLine($"Environment: {env}");
-        Console.WriteLine(
-            $"Config: {Config.SampleCount} samples × {Config.IterationsPerSample} iterations"
-        );
-        Console.WriteLine();
+        // Header
+        ConsoleFormatter.WriteHeader("Pico.DI vs Microsoft.DI - Comprehensive Benchmark");
+        ConsoleFormatter.WriteEnvironment(env, Config);
 
         var complexities = new[]
         {
@@ -367,9 +362,10 @@ public static class Program
             }
         }
 
-        PrintPartTable(
+        ConsoleFormatter.WriteTableWithTitle(
             "PART 1: Service Resolution by Complexity (GetService<T>() within a scope)",
-            part1Comparisons
+            part1Comparisons,
+            TableOptions
         );
 
         // Part 2: Infrastructure Overhead
@@ -383,7 +379,11 @@ public static class Program
         comparisons.Add(scopeCreation);
         part2Comparisons.Add(scopeCreation);
 
-        PrintPartTable("PART 2: Infrastructure Overhead", part2Comparisons);
+        ConsoleFormatter.WriteTableWithTitle(
+            "PART 2: Infrastructure Overhead",
+            part2Comparisons,
+            TableOptions
+        );
 
         // Part 3: Resolution Scenarios
         var part3Comparisons = new List<ComparisonResult>();
@@ -402,11 +402,15 @@ public static class Program
             part3Comparisons.Add(multi);
         }
 
-        PrintPartTable("PART 3: Resolution Scenarios (hot path performance)", part3Comparisons);
+        ConsoleFormatter.WriteTableWithTitle(
+            "PART 3: Resolution Scenarios (hot path performance)",
+            part3Comparisons,
+            TableOptions
+        );
 
         sw.Stop();
 
-        // Summary using Pico.Bench SummaryFormatter
+        // Summary
         var summaryOptions = new SummaryOptions
         {
             CandidateLabel = "Pico.DI",
@@ -416,7 +420,7 @@ public static class Program
         };
         SummaryFormatter.Write(comparisons, sw.Elapsed, summaryOptions);
 
-        // Output to files if requested - use timestamp folder
+        // Output to files
         var timestamp = startTime.ToString("yyyy-MM-dd_HH-mm-ss");
         var outputDir = Path.Combine("results", timestamp);
         var fileOptions = new FormatterOptions { OutputDirectory = outputDir };
@@ -425,10 +429,9 @@ public static class Program
         {
             var csvPath = fileOptions.ResolvePath("benchmark-results.csv");
             CsvFormatter.WriteToFile(csvPath, comparisons);
-            Console.WriteLine($"\nCSV results saved to: {csvPath}");
+            ConsoleFormatter.WriteFileSaved("CSV", csvPath);
         }
 
-        // Build suite for file output
         var suite = new BenchmarkSuite
         {
             Name = "Pico.DI vs Microsoft.DI Benchmark",
@@ -444,14 +447,14 @@ public static class Program
         {
             var mdPath = fileOptions.ResolvePath("benchmark-results.md");
             MarkdownFormatter.WriteToFile(mdPath, suite);
-            Console.WriteLine($"\nMarkdown results saved to: {mdPath}");
+            ConsoleFormatter.WriteFileSaved("Markdown", mdPath);
         }
 
         if (args.Contains("--html") || args.Contains("--all"))
         {
             var htmlPath = fileOptions.ResolvePath("benchmark-results.html");
             HtmlFormatter.WriteToFile(htmlPath, suite);
-            Console.WriteLine($"HTML results saved to: {htmlPath}");
+            ConsoleFormatter.WriteFileSaved("HTML", htmlPath);
         }
     }
 
@@ -693,92 +696,6 @@ public static class Program
                 ),
             _ => throw new ArgumentOutOfRangeException(nameof(complexity))
         };
-    }
-
-    #endregion
-
-    #region Table Helpers
-
-    private static void PrintPartTable(string title, List<ComparisonResult> comparisons)
-    {
-        // Flatten comparisons into individual rows for detailed view
-        var rows = new List<(string TestCase, string Provider, Statistics Stats, string Speedup)>();
-        foreach (var c in comparisons)
-        {
-            var indicator =
-                c.Speedup >= 2.0
-                    ? "*"
-                    : c.Speedup >= 1.0
-                        ? ""
-                        : "(!)";
-            rows.Add((c.Name, "Pico.DI", c.Candidate.Statistics, $"{c.Speedup:F2}x {indicator}"));
-            rows.Add((c.Name, "MS.DI", c.Baseline.Statistics, ""));
-        }
-
-        // Calculate adaptive column widths
-        var nameWidth =
-            Math.Max("Test Case".Length, rows.Max(r => $"{r.Provider} * {r.TestCase}".Length)) + 2;
-        var avgWidth = Math.Max("Avg (ns)".Length, rows.Max(r => $"{r.Stats.Avg:F1}".Length)) + 2;
-        var speedupWidth = Math.Max("Speedup".Length, rows.Max(r => r.Speedup.Length)) + 2;
-        var p50Width = Math.Max("P50".Length, rows.Max(r => $"{r.Stats.P50:F1}".Length)) + 2;
-        var p90Width = Math.Max("P90".Length, rows.Max(r => $"{r.Stats.P90:F1}".Length)) + 2;
-        var p99Width = Math.Max("P99".Length, rows.Max(r => $"{r.Stats.P99:F1}".Length)) + 2;
-        var cpuWidth =
-            Math.Max("CPU".Length, rows.Max(r => $"{r.Stats.CpuCyclesPerOp:F0}".Length)) + 2;
-        var gcWidth = Math.Max("GC".Length, rows.Max(r => FormatGcInfo(r.Stats.GcInfo).Length)) + 2;
-
-        var totalWidth =
-            nameWidth
-            + avgWidth
-            + speedupWidth
-            + p50Width
-            + p90Width
-            + p99Width
-            + cpuWidth
-            + gcWidth
-            + 9;
-
-        // Print header
-        Console.WriteLine();
-        Console.WriteLine($"┌{"".PadRight(totalWidth - 2, '─')}┐");
-        Console.WriteLine($"│ {title.PadRight(totalWidth - 4)} │");
-        Console.WriteLine(
-            $"├{"".PadRight(nameWidth, '─')}┬{"".PadRight(avgWidth, '─')}┬{"".PadRight(speedupWidth, '─')}┬{"".PadRight(p50Width, '─')}┬{"".PadRight(p90Width, '─')}┬{"".PadRight(p99Width, '─')}┬{"".PadRight(cpuWidth, '─')}┬{"".PadRight(gcWidth, '─')}┤"
-        );
-        Console.WriteLine(
-            $"│ {"Test Case".PadRight(nameWidth - 1)}│{"Avg (ns)".PadLeft(avgWidth)}│{"Speedup".PadLeft(speedupWidth)}│{"P50".PadLeft(p50Width)}│{"P90".PadLeft(p90Width)}│{"P99".PadLeft(p99Width)}│{"CPU".PadLeft(cpuWidth)}│{"GC".PadLeft(gcWidth)}│"
-        );
-        Console.WriteLine(
-            $"├{"".PadRight(nameWidth, '─')}┼{"".PadRight(avgWidth, '─')}┼{"".PadRight(speedupWidth, '─')}┼{"".PadRight(p50Width, '─')}┼{"".PadRight(p90Width, '─')}┼{"".PadRight(p99Width, '─')}┼{"".PadRight(cpuWidth, '─')}┼{"".PadRight(gcWidth, '─')}┤"
-        );
-
-        // Print rows
-        foreach (var row in rows)
-        {
-            var testCase = $"{row.Provider} * {row.TestCase}";
-            var avg = $"{row.Stats.Avg:F1}";
-            var p50 = $"{row.Stats.P50:F1}";
-            var p90 = $"{row.Stats.P90:F1}";
-            var p99 = $"{row.Stats.P99:F1}";
-            var cpu = $"{row.Stats.CpuCyclesPerOp:F0}";
-            var gc = FormatGcInfo(row.Stats.GcInfo);
-
-            Console.WriteLine(
-                $"│ {testCase.PadRight(nameWidth - 1)}│{avg.PadLeft(avgWidth)}│{row.Speedup.PadLeft(speedupWidth)}│{p50.PadLeft(p50Width)}│{p90.PadLeft(p90Width)}│{p99.PadLeft(p99Width)}│{cpu.PadLeft(cpuWidth)}│{gc.PadLeft(gcWidth)}│"
-            );
-        }
-
-        // Print footer
-        Console.WriteLine(
-            $"└{"".PadRight(nameWidth, '─')}┴{"".PadRight(avgWidth, '─')}┴{"".PadRight(speedupWidth, '─')}┴{"".PadRight(p50Width, '─')}┴{"".PadRight(p90Width, '─')}┴{"".PadRight(p99Width, '─')}┴{"".PadRight(cpuWidth, '─')}┴{"".PadRight(gcWidth, '─')}┘"
-        );
-    }
-
-    private static string FormatGcInfo(GcInfo? gc)
-    {
-        if (gc == null)
-            return "0/0/0";
-        return $"{gc.Gen0}/{gc.Gen1}/{gc.Gen2}";
     }
 
     #endregion

@@ -402,6 +402,183 @@ public sealed class ConsoleFormatter : FormatterBase
 
     #endregion
 
+    #region Table With Title
+
+    /// <summary>
+    /// Formats comparisons as a table with a title header.
+    /// </summary>
+    public string FormatTableWithTitle(string title, IEnumerable<ComparisonResult> comparisons)
+    {
+        var sb = new StringBuilder();
+        var list = comparisons.ToList();
+
+        if (list.Count == 0)
+            return "No comparisons.";
+
+        AppendComparisonsTableWithTitle(sb, title, list);
+        return sb.ToString();
+    }
+
+    private void AppendComparisonsTableWithTitle(
+        StringBuilder sb,
+        string title,
+        List<ComparisonResult> comparisons
+    )
+    {
+        // Flatten comparisons into individual rows for detailed view
+        var rows =
+            new List<(string Name, string Provider, BenchmarkResult Result, string Speedup)>();
+        foreach (var c in comparisons)
+        {
+            var indicator = GetSpeedupIndicator(c.Speedup);
+            rows.Add((c.Name, "Pico.DI", c.Candidate, $"{FormatSpeedup(c.Speedup)} {indicator}"));
+            rows.Add((c.Name, "MS.DI", c.Baseline, ""));
+        }
+
+        // Calculate column widths based on content
+        var nameWidth = Math.Max(
+            "Test Case".Length,
+            rows.Max(r => $"{r.Provider} * {r.Name}".Length)
+        );
+        var avgWidth = Math.Max(
+            "Avg (ns)".Length,
+            rows.Max(r => FormatTime(r.Result.Statistics.Avg).Length)
+        );
+        var speedupWidth = Math.Max("Speedup".Length, rows.Max(r => r.Speedup.Length));
+
+        // Build column definitions
+        var columns = new List<(string Header, int Width)> { ("Test Case", nameWidth + 2) };
+        columns.Add(("Avg (ns)", avgWidth + 2));
+        columns.Add(("Speedup", speedupWidth + 2));
+
+        if (Options.IncludePercentiles)
+        {
+            var p50Width = Math.Max(
+                "P50".Length,
+                rows.Max(r => FormatTime(r.Result.Statistics.P50).Length)
+            );
+            var p90Width = Math.Max(
+                "P90".Length,
+                rows.Max(r => FormatTime(r.Result.Statistics.P90).Length)
+            );
+            var p99Width = Math.Max(
+                "P99".Length,
+                rows.Max(r => FormatTime(r.Result.Statistics.P99).Length)
+            );
+            columns.Add(("P50", p50Width + 2));
+            columns.Add(("P90", p90Width + 2));
+            columns.Add(("P99", p99Width + 2));
+        }
+
+        if (Options.IncludeCpuCycles)
+        {
+            var cpuWidth = Math.Max(
+                "CPU".Length,
+                rows.Max(r => $"{r.Result.Statistics.CpuCyclesPerOp:F0}".Length)
+            );
+            columns.Add(("CPU", cpuWidth + 2));
+        }
+
+        if (Options.IncludeGcInfo)
+        {
+            var gcWidth = Math.Max(
+                "GC".Length,
+                rows.Max(r => FormatGcInfo(r.Result.Statistics.GcInfo).Length)
+            );
+            columns.Add(("GC", gcWidth + 2));
+        }
+
+        var totalWidth = columns.Sum(c => c.Width) + columns.Count + 1;
+
+        // Title row
+        sb.AppendLine();
+        sb.Append('┌');
+        sb.Append(new string('─', totalWidth - 2));
+        sb.AppendLine("┐");
+        sb.Append("│ ");
+        sb.Append(title.PadRight(totalWidth - 4));
+        sb.AppendLine(" │");
+
+        // Header separator with column dividers
+        sb.Append('├');
+        for (int i = 0; i < columns.Count; i++)
+        {
+            sb.Append(new string('─', columns[i].Width));
+            sb.Append(i < columns.Count - 1 ? '┬' : '┤');
+        }
+        sb.AppendLine();
+
+        // Header row
+        sb.Append('│');
+        for (int i = 0; i < columns.Count; i++)
+        {
+            var (header, width) = columns[i];
+            var text = i == 0 ? $" {header}".PadRight(width) : header.PadLeft(width - 1) + " ";
+            sb.Append(text);
+            sb.Append('│');
+        }
+        sb.AppendLine();
+
+        // Header-data separator
+        sb.Append('├');
+        for (int i = 0; i < columns.Count; i++)
+        {
+            sb.Append(new string('─', columns[i].Width));
+            sb.Append(i < columns.Count - 1 ? '┼' : '┤');
+        }
+        sb.AppendLine();
+
+        // Data rows
+        foreach (var row in rows)
+        {
+            var values = new List<string>
+            {
+                $"{row.Provider} * {row.Name}",
+                FormatTime(row.Result.Statistics.Avg),
+                row.Speedup
+            };
+
+            if (Options.IncludePercentiles)
+            {
+                values.Add(FormatTime(row.Result.Statistics.P50));
+                values.Add(FormatTime(row.Result.Statistics.P90));
+                values.Add(FormatTime(row.Result.Statistics.P99));
+            }
+
+            if (Options.IncludeCpuCycles)
+            {
+                values.Add($"{row.Result.Statistics.CpuCyclesPerOp:F0}");
+            }
+
+            if (Options.IncludeGcInfo)
+            {
+                values.Add(FormatGcInfo(row.Result.Statistics.GcInfo));
+            }
+
+            sb.Append('│');
+            for (int i = 0; i < columns.Count; i++)
+            {
+                var width = columns[i].Width;
+                var text =
+                    i == 0 ? $" {values[i]}".PadRight(width) : values[i].PadLeft(width - 1) + " ";
+                sb.Append(text);
+                sb.Append('│');
+            }
+            sb.AppendLine();
+        }
+
+        // Bottom border
+        sb.Append('└');
+        for (int i = 0; i < columns.Count; i++)
+        {
+            sb.Append(new string('─', columns[i].Width));
+            sb.Append(i < columns.Count - 1 ? '┴' : '┘');
+        }
+        sb.AppendLine();
+    }
+
+    #endregion
+
     #region Static Helpers
 
     /// <summary>
@@ -450,6 +627,57 @@ public sealed class ConsoleFormatter : FormatterBase
     {
         var formatter = new ConsoleFormatter(options);
         Console.WriteLine(formatter.Format(suite));
+    }
+
+    /// <summary>
+    /// Write comparisons table with title directly to console.
+    /// </summary>
+    public static void WriteTableWithTitle(
+        string title,
+        IEnumerable<ComparisonResult> comparisons,
+        FormatterOptions? options = null
+    )
+    {
+        var formatter = new ConsoleFormatter(options);
+        Console.Write(formatter.FormatTableWithTitle(title, comparisons));
+    }
+
+    /// <summary>
+    /// Write a header box to console.
+    /// </summary>
+    /// <param name="title">The main title.</param>
+    /// <param name="width">The width of the box (default 111).</param>
+    public static void WriteHeader(string title, int width = 111)
+    {
+        var border = new string('═', width - 2);
+        var padding = (width - 2 - title.Length) / 2;
+        var centeredTitle = title.PadLeft(padding + title.Length).PadRight(width - 2);
+
+        Console.WriteLine();
+        Console.WriteLine($"╔{border}╗");
+        Console.WriteLine($"║{centeredTitle}║");
+        Console.WriteLine($"╚{border}╝");
+    }
+
+    /// <summary>
+    /// Write environment and config info to console.
+    /// </summary>
+    public static void WriteEnvironment(EnvironmentInfo env, BenchmarkConfig config)
+    {
+        Console.WriteLine();
+        Console.WriteLine($"Environment: {env}");
+        Console.WriteLine(
+            $"Config: {config.SampleCount} samples × {config.IterationsPerSample} iterations"
+        );
+        Console.WriteLine();
+    }
+
+    /// <summary>
+    /// Write file save message to console.
+    /// </summary>
+    public static void WriteFileSaved(string format, string path)
+    {
+        Console.WriteLine($"\n{format} results saved to: {path}");
     }
 
     #endregion
