@@ -8,6 +8,12 @@ public sealed class SvcScope : ISvcScope
 {
     private readonly FrozenDictionary<Type, SvcDescriptor[]> _descriptorCache;
 
+    /// <summary>
+    /// Fast singleton cache: direct Type -> SvcDescriptor lookup for singleton services.
+    /// Avoids array indexing overhead in the hot path.
+    /// </summary>
+    private readonly FrozenDictionary<Type, SvcDescriptor> _singletonCache;
+
     // Scoped instances: use Dictionary + lock for better single-thread performance (most common case)
     private Dictionary<SvcDescriptor, object>? _scopedInstances;
 
@@ -15,7 +21,7 @@ public sealed class SvcScope : ISvcScope
     private static readonly SvcScope DisposedSentinel = CreateSentinel();
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static SvcScope CreateSentinel() => new(null!);
+    private static SvcScope CreateSentinel() => new(null!, null!);
 
     // Child scopes linked list - lock-free prepend using CAS
     private SvcScope? _firstChildScope;
@@ -45,16 +51,23 @@ public sealed class SvcScope : ISvcScope
     /// Initializes a new instance of <see cref="SvcScope"/> with a frozen (optimized) descriptor cache.
     /// </summary>
     /// <param name="descriptorCache">The frozen dictionary containing service descriptors.</param>
-    public SvcScope(FrozenDictionary<Type, SvcDescriptor[]> descriptorCache) =>
+    /// <param name="singletonCache">The frozen dictionary for fast singleton lookup.</param>
+    public SvcScope(
+        FrozenDictionary<Type, SvcDescriptor[]> descriptorCache,
+        FrozenDictionary<Type, SvcDescriptor> singletonCache
+    )
+    {
         _descriptorCache = descriptorCache;
+        _singletonCache = singletonCache;
+    }
 
     /// <inheritdoc />
     public ISvcScope CreateScope()
     {
         ThrowIfDisposed();
 
-        // Create child scope
-        var childScope = new SvcScope(_descriptorCache);
+        // Create child scope with same caches
+        var childScope = new SvcScope(_descriptorCache, _singletonCache);
 
         // Lock-free prepend using CAS with sentinel check for 100% disposal safety
         SvcScope? current;
@@ -75,7 +88,19 @@ public sealed class SvcScope : ISvcScope
     {
         ThrowIfDisposed();
 
-        // Fast path: inline frozen cache lookup
+        // Ultra-fast path for singletons: direct lookup without array indexing
+        if (_singletonCache.TryGetValue(serviceType, out var singletonDescriptor))
+        {
+            // Fast path: singleton already initialized (most common case after warmup)
+            var instance = singletonDescriptor.SingleInstance;
+            if (instance != null)
+                return instance;
+
+            // Slow path: initialize singleton
+            return GetOrCreateSingletonSlow(serviceType, singletonDescriptor);
+        }
+
+        // Standard path for non-singleton services
         if (!_descriptorCache.TryGetValue(serviceType, out var resolvers))
             return HandleServiceNotFound(serviceType);
 
@@ -85,7 +110,6 @@ public sealed class SvcScope : ISvcScope
         // Inline lifetime dispatch for hot path
         return resolver.Lifetime switch
         {
-            SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
             SvcLifetime.Transient => ResolveTransient(serviceType, resolver),
             SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
             _ => ThrowUnknownLifetime(resolver.Lifetime)
@@ -124,25 +148,24 @@ public sealed class SvcScope : ISvcScope
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
         return resolvers!
-            .Select(
-                resolver =>
-                    resolver.Lifetime switch
-                    {
-                        SvcLifetime.Transient
-                            => resolver.Factory != null
-                                ? resolver.Factory(this)
-                                : throw new PicoDiException(
-                                    $"No factory registered for transient service '{serviceType.FullName}'."
-                                ),
-                        SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-                        SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-                        _
-                            => throw new ArgumentOutOfRangeException(
-                                nameof(SvcLifetime),
-                                resolver.Lifetime,
-                                $"Unknown service lifetime '{resolver.Lifetime}'."
-                            )
-                    }
+            .Select(resolver =>
+                resolver.Lifetime switch
+                {
+                    SvcLifetime.Transient
+                        => resolver.Factory != null
+                            ? resolver.Factory(this)
+                            : throw new PicoDiException(
+                                $"No factory registered for transient service '{serviceType.FullName}'."
+                            ),
+                    SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
+                    SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+                    _
+                        => throw new ArgumentOutOfRangeException(
+                            nameof(SvcLifetime),
+                            resolver.Lifetime,
+                            $"Unknown service lifetime '{resolver.Lifetime}'."
+                        )
+                }
             )
             .ToArray();
     }
@@ -202,10 +225,14 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private object GetOrAddScopedInstance(SvcDescriptor resolver)
     {
-        // Fast path: check without lock (most common case after first resolution)
+        // Fast path: direct dictionary lookup (no null check - initialized on first slow path)
         var instances = _scopedInstances;
-        if (instances != null && instances.TryGetValue(resolver, out var existing))
-            return existing;
+        if (instances != null)
+        {
+            // Use TryGetValue for fastest lookup
+            if (instances.TryGetValue(resolver, out var existing))
+                return existing;
+        }
 
         return GetOrAddScopedInstanceSlow(resolver);
     }

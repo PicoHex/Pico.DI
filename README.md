@@ -132,8 +132,8 @@ public class OrderService(
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-║  Pico.DI wins:  12 / 12 scenarios                                                                             ║
-║  Average speedup: 3.27x faster                                                                                ║
+║  Pico.DI wins:  18 / 18 scenarios                                                                             ║
+║  Average speedup: 3.04x faster                                                                                ║
 ║  GC allocations: ZERO                                                                                         ║
 ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -144,62 +144,62 @@ public class OrderService(
 
 | Library | Lifetime  | Avg (ns) | P50 (ns) | P90 (ns) | P95 (ns) | P99 (ns) | CPU Cycle | Speedup |
 |---------|-----------|----------|----------|----------|----------|----------|-----------|---------|
-| **Pico.DI** | Transient | 21.3 | 18.3 | 28.4 | 31.2 | 33.9 | 68 | **5.38x** 🔥 |
-| MS.DI | Transient | 114.6 | 105.5 | 151.4 | 153.6 | 162.1 | 365 | baseline |
-| **Pico.DI** | Scoped | 37.8 | 33.8 | 48.5 | 53.7 | 62.1 | 121 | **2.99x** |
-| MS.DI | Scoped | 113.0 | 103.6 | 144.1 | 153.0 | 172.5 | 360 | baseline |
-| **Pico.DI** | Singleton | 16.2 | 14.9 | 20.9 | 22.4 | 24.2 | 51 | **3.87x** |
-| MS.DI | Singleton | 62.7 | 56.8 | 78.3 | 100.6 | 105.3 | 200 | baseline |
+| **Pico.DI** | Transient | 11.7 | 11.6 | 11.9 | 12.0 | 13.7 | 29 | **4.57x** 🔥 |
+| MS.DI | Transient | 53.7 | 51.7 | 60.0 | 65.2 | 73.6 | 130 | baseline |
+| **Pico.DI** | Scoped | 24.3 | 23.8 | 24.9 | 26.9 | 31.8 | 60 | **3.10x** |
+| MS.DI | Scoped | 75.3 | 73.5 | 74.3 | 76.2 | 81.6 | 184 | baseline |
+| **Pico.DI** | Singleton | 10.0 | 9.5 | 12.1 | 13.3 | 13.5 | 25 | **3.86x** |
+| MS.DI | Singleton | 38.4 | 36.4 | 46.1 | 51.2 | 52.7 | 96 | baseline |
 
 #### SingleDependency (Service with 1 dependency)
 
 | Library | Lifetime  | Avg (ns) | P50 (ns) | P90 (ns) | P95 (ns) | P99 (ns) | CPU Cycle | Speedup |
 |---------|-----------|----------|----------|----------|----------|----------|-----------|---------|
-| **Pico.DI** | Transient | 45.4 | 43.5 | 52.1 | 57.2 | 65.8 | 145 | **3.78x** |
-| MS.DI | Transient | 171.4 | 164.0 | 192.1 | 208.9 | 235.7 | 547 | baseline |
-| **Pico.DI** | Scoped | 39.9 | 36.4 | 52.5 | 54.6 | 65.0 | 127 | **2.77x** |
-| MS.DI | Scoped | 110.4 | 101.6 | 128.3 | 143.7 | 196.2 | 352 | baseline |
-| **Pico.DI** | Singleton | 17.7 | 16.8 | 19.1 | 21.4 | 29.5 | 56 | **3.36x** |
-| MS.DI | Singleton | 59.5 | 54.1 | 75.9 | 81.7 | 94.8 | 189 | baseline |
+| **Pico.DI** | Transient | 31.5 | 31.1 | 32.2 | 32.6 | 34.8 | 79 | **3.24x** |
+| MS.DI | Transient | 102.3 | 102.0 | 104.9 | 105.7 | 109.2 | 255 | baseline |
+| **Pico.DI** | Scoped | 29.3 | 29.4 | 30.5 | 30.8 | 31.2 | 73 | **2.40x** |
+| MS.DI | Scoped | 70.3 | 70.0 | 70.5 | 73.5 | 76.5 | 175 | baseline |
+| **Pico.DI** | Singleton | 13.9 | 13.9 | 14.5 | 14.8 | 15.9 | 35 | **2.76x** |
+| MS.DI | Singleton | 38.4 | 38.2 | 38.8 | 41.6 | 47.7 | 96 | baseline |
 
 #### MultipleDependencies (Service with 2+ dependencies)
 
 | Library | Lifetime  | Avg (ns) | P50 (ns) | P90 (ns) | P95 (ns) | P99 (ns) | CPU Cycle | Speedup |
 |---------|-----------|----------|----------|----------|----------|----------|-----------|---------|
-| **Pico.DI** | Transient | 81.5 | 77.8 | 104.1 | 108.0 | 115.4 | 260 | **4.60x** 🔥 |
-| MS.DI | Transient | 375.0 | 372.3 | 461.2 | 475.3 | 493.3 | 1185 | baseline |
-| **Pico.DI** | Scoped | 43.8 | 41.9 | 49.2 | 52.4 | 69.1 | 136 | **2.21x** |
-| MS.DI | Scoped | 97.1 | 93.7 | 110.6 | 118.6 | 128.6 | 307 | baseline |
-| **Pico.DI** | Singleton | 22.2 | 20.1 | 26.1 | 31.8 | 48.2 | 66 | **2.36x** |
-| MS.DI | Singleton | 52.3 | 50.3 | 60.5 | 65.0 | 78.0 | 158 | baseline |
+| **Pico.DI** | Transient | 55.4 | 53.1 | 63.4 | 68.0 | 73.6 | 138 | **2.94x** |
+| MS.DI | Transient | 162.6 | 162.4 | 167.8 | 168.9 | 171.5 | 405 | baseline |
+| **Pico.DI** | Scoped | 34.8 | 34.9 | 35.5 | 35.8 | 37.3 | 87 | **2.12x** |
+| MS.DI | Scoped | 73.7 | 73.5 | 74.5 | 79.2 | 80.4 | 184 | baseline |
+| **Pico.DI** | Singleton | 17.6 | 17.8 | 18.0 | 18.4 | 18.6 | 44 | **2.08x** |
+| MS.DI | Singleton | 36.5 | 36.3 | 36.7 | 36.9 | 38.1 | 91 | baseline |
 
 #### DeepChain (5-level dependency chain)
 
 | Library | Lifetime  | Avg (ns) | P50 (ns) | P90 (ns) | P95 (ns) | P99 (ns) | CPU Cycle | Speedup |
 |---------|-----------|----------|----------|----------|----------|----------|-----------|---------|
-| **Pico.DI** | Transient | 149.8 | 145.8 | 165.7 | 185.4 | 210.6 | 478 | **3.44x** |
-| MS.DI | Transient | 515.7 | 501.4 | 569.8 | 583.6 | 641.9 | 1645 | baseline |
-| **Pico.DI** | Scoped | 41.4 | 38.7 | 50.1 | 59.3 | 68.5 | 132 | **2.56x** |
-| MS.DI | Scoped | 105.9 | 100.9 | 128.2 | 141.1 | 162.9 | 337 | baseline |
-| **Pico.DI** | Singleton | 27.0 | 22.6 | 37.5 | 38.2 | 39.6 | 86 | **1.91x** |
-| MS.DI | Singleton | 51.5 | 50.9 | 54.9 | 59.9 | 64.5 | 164 | baseline |
+| **Pico.DI** | Transient | 89.4 | 88.6 | 91.1 | 92.4 | 97.9 | 223 | **2.83x** |
+| MS.DI | Transient | 252.6 | 252.3 | 260.5 | 261.4 | 279.6 | 629 | baseline |
+| **Pico.DI** | Scoped | 27.3 | 27.1 | 28.0 | 28.3 | 29.1 | 68 | **2.43x** |
+| MS.DI | Scoped | 66.4 | 65.6 | 67.5 | 68.4 | 77.3 | 165 | baseline |
+| **Pico.DI** | Singleton | 13.0 | 12.7 | 14.9 | 15.3 | 16.2 | 32 | **2.68x** |
+| MS.DI | Singleton | 34.9 | 34.3 | 35.4 | 36.1 | 39.9 | 87 | baseline |
 
 ### Summary by Lifetime
 
 | Lifetime | Average Speedup |
 |----------|-----------------|
-| **Transient** | **4.30x faster** 🔥 |
-| Scoped | 2.63x faster |
-| Singleton | 2.88x faster |
+| **Transient** | **3.39x faster** 🔥 |
+| Scoped | 2.51x faster |
+| Singleton | 2.84x faster |
 
 ### Summary by Service Complexity
 
 | Complexity | Average Speedup |
 |------------|-----------------|
-| NoDependency | 4.08x faster |
-| SingleDependency | 3.30x faster |
-| MultipleDependencies | 3.06x faster |
-| DeepChain | 2.64x faster |
+| NoDependency | 3.84x faster |
+| SingleDependency | 2.80x faster |
+| MultipleDependencies | 2.38x faster |
+| DeepChain | 2.65x faster |
 
 > 💡 **Why so fast?** Pico.DI generates inlined factory chains at compile-time. No reflection, no expression trees, no runtime codegen. Just pure, static method calls with `[MethodImpl(AggressiveInlining)]`.
 

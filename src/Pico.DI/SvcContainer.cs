@@ -14,7 +14,7 @@ public sealed class SvcContainer : ISvcContainer
     private static readonly SvcScope DisposedSentinel = CreateSentinel();
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static SvcScope CreateSentinel() => new(null!);
+    private static SvcScope CreateSentinel() => new(null!, null!);
 
     // Use simple linked list for root scopes - lower overhead than ConcurrentBag
     // Lock-free prepend using CAS; disposal uses Exchange to atomically acquire and seal the list
@@ -24,6 +24,12 @@ public sealed class SvcContainer : ISvcContainer
     /// Frozen (optimized) descriptor cache after Build() is called.
     /// </summary>
     private FrozenDictionary<Type, SvcDescriptor[]>? _frozenCache;
+
+    /// <summary>
+    /// Fast singleton cache: Type -> SvcDescriptor (for singleton services only).
+    /// This provides O(1) lookup without going through the full descriptor array.
+    /// </summary>
+    private FrozenDictionary<Type, SvcDescriptor>? _singletonCache;
 
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
@@ -87,7 +93,7 @@ public sealed class SvcContainer : ISvcContainer
             }
             else
             {
-                cache[descriptor.ServiceType] =  [descriptor];
+                cache[descriptor.ServiceType] = [descriptor];
             }
         }
 
@@ -116,6 +122,19 @@ public sealed class SvcContainer : ISvcContainer
             var cache = _descriptorCache ?? new Dictionary<Type, SvcDescriptor[]>();
             _frozenCache = cache.ToFrozenDictionary();
 
+            // Build singleton cache for fast singleton lookup
+            // Only include types where the last registered service is a singleton
+            var singletonDict = new Dictionary<Type, SvcDescriptor>();
+            foreach (var kvp in cache)
+            {
+                var lastDescriptor = kvp.Value[^1];
+                if (lastDescriptor.Lifetime == SvcLifetime.Singleton)
+                {
+                    singletonDict[kvp.Key] = lastDescriptor;
+                }
+            }
+            _singletonCache = singletonDict.ToFrozenDictionary();
+
             // After build, registrations are immutable and resolution uses frozen cache.
             // Drop the registration cache to reduce memory overhead.
             _descriptorCache = null;
@@ -130,13 +149,15 @@ public sealed class SvcContainer : ISvcContainer
         // Ensure the container is built before creating scopes/resolving services.
         // This keeps resolution on FrozenDictionary hot path, while avoiding requiring callers to remember Build().
         var frozenCache = _frozenCache;
-        if (frozenCache == null)
+        var singletonCache = _singletonCache;
+        if (frozenCache == null || singletonCache == null)
         {
             Build();
             frozenCache = _frozenCache!;
+            singletonCache = _singletonCache!;
         }
 
-        var scope = new SvcScope(frozenCache);
+        var scope = new SvcScope(frozenCache, singletonCache);
 
         // Lock-free prepend using CAS with sentinel check for 100% disposal safety
         SvcScope? current;
