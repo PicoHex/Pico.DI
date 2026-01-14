@@ -438,12 +438,32 @@ footer {
 
     private void AppendComparisonsTable(StringBuilder sb, List<ComparisonResult> comparisons)
     {
+        // Flatten to rows with Provider column
+        var rows =
+            new List<(string TestCase, string Provider, Statistics Stats, double? Speedup)>();
+        foreach (var c in comparisons)
+        {
+            rows.Add((c.Name, "Pico.DI", c.Candidate.Statistics, c.Speedup));
+            rows.Add((c.Name, "MS.DI", c.Baseline.Statistics, null));
+        }
+
         sb.AppendLine("<table>");
         sb.AppendLine("<thead><tr>");
         sb.AppendLine("<th>Test Case</th>");
-        sb.AppendLine("<th class=\"number\">Baseline (ns)</th>");
-        sb.AppendLine("<th class=\"number\">Candidate (ns)</th>");
+        sb.AppendLine("<th class=\"number\">Avg (ns)</th>");
         sb.AppendLine("<th class=\"number\">Speedup</th>");
+
+        if (Options.IncludePercentiles)
+        {
+            sb.AppendLine("<th class=\"number\">P50</th>");
+            sb.AppendLine("<th class=\"number\">P90</th>");
+            sb.AppendLine("<th class=\"number\">P99</th>");
+        }
+
+        if (Options.IncludeCpuCycles)
+        {
+            sb.AppendLine("<th class=\"number\">CPU</th>");
+        }
 
         if (Options.IncludeGcInfo)
         {
@@ -453,25 +473,35 @@ footer {
         sb.AppendLine("</tr></thead>");
         sb.AppendLine("<tbody>");
 
-        foreach (var c in comparisons)
+        foreach (var row in rows)
         {
-            var speedupClass = GetSpeedupClass(c.Speedup);
-            var indicator = GetSpeedupIndicator(c.Speedup);
+            var testCase = $"{row.Provider} * {row.TestCase}";
+            var speedupClass = row.Speedup.HasValue ? GetSpeedupClass(row.Speedup.Value) : "";
+            var indicator = row.Speedup.HasValue ? GetSpeedupIndicator(row.Speedup.Value) : "";
+            var speedupText = row.Speedup.HasValue
+                ? $"<span class=\"speedup {speedupClass}\">{FormatSpeedup(row.Speedup.Value)}</span><span class=\"indicator\">{indicator}</span>"
+                : "";
 
             sb.AppendLine("<tr>");
-            sb.AppendLine($"<td>{Escape(c.Name)}</td>");
-            sb.AppendLine($"<td class=\"number\">{FormatTime(c.Baseline.Statistics.Avg)}</td>");
-            sb.AppendLine($"<td class=\"number\">{FormatTime(c.Candidate.Statistics.Avg)}</td>");
-            sb.AppendLine(
-                $"<td class=\"number\"><span class=\"speedup {speedupClass}\">{FormatSpeedup(c.Speedup)}</span><span class=\"indicator\">{indicator}</span></td>"
-            );
+            sb.AppendLine($"<td>{Escape(testCase)}</td>");
+            sb.AppendLine($"<td class=\"number\">{FormatTime(row.Stats.Avg)}</td>");
+            sb.AppendLine($"<td class=\"number\">{speedupText}</td>");
+
+            if (Options.IncludePercentiles)
+            {
+                sb.AppendLine($"<td class=\"number\">{FormatTime(row.Stats.P50)}</td>");
+                sb.AppendLine($"<td class=\"number\">{FormatTime(row.Stats.P90)}</td>");
+                sb.AppendLine($"<td class=\"number\">{FormatTime(row.Stats.P99)}</td>");
+            }
+
+            if (Options.IncludeCpuCycles)
+            {
+                sb.AppendLine($"<td class=\"number\">{row.Stats.CpuCyclesPerOp:F0}</td>");
+            }
 
             if (Options.IncludeGcInfo)
             {
-                var gcStatus = c.Candidate.Statistics.GcInfo.IsZero
-                    ? "✓ Zero"
-                    : c.Candidate.Statistics.GcInfo.ToString();
-                sb.AppendLine($"<td class=\"gc-info\">{gcStatus}</td>");
+                sb.AppendLine($"<td class=\"gc-info\">{FormatGcInfo(row.Stats.GcInfo)}</td>");
             }
 
             sb.AppendLine("</tr>");

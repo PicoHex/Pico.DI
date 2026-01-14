@@ -356,89 +356,53 @@ public static class Program
         var comparisons = new List<ComparisonResult>();
 
         // Part 1: Service Resolution by Complexity
-        Console.WriteLine(
-            "═══════════════════════════════════════════════════════════════════════════════════════════════════════════════"
-        );
-        Console.WriteLine(
-            "  PART 1: Service Resolution by Complexity (GetService<T>() within a scope)"
-        );
-        Console.WriteLine(
-            "═══════════════════════════════════════════════════════════════════════════════════════════════════════════════"
-        );
-        Console.WriteLine();
-
+        var part1Comparisons = new List<ComparisonResult>();
         foreach (var complexity in complexities)
         {
-            Console.WriteLine($"▶ Testing: {complexity}");
-
             foreach (var lifetime in lifetimes)
             {
-                Console.Write($"  Running {complexity} × {lifetime}...".PadRight(60));
                 var comparison = RunResolutionBenchmark(complexity, lifetime);
                 comparisons.Add(comparison);
-                Console.WriteLine(
-                    $" {comparison.Candidate.Statistics.Avg, 8:F1} ns vs {comparison.Baseline.Statistics.Avg, 8:F1} ns = {comparison.Speedup:F2}x"
-                );
+                part1Comparisons.Add(comparison);
             }
-            Console.WriteLine();
         }
+
+        PrintPartTable(
+            "PART 1: Service Resolution by Complexity (GetService<T>() within a scope)",
+            part1Comparisons
+        );
 
         // Part 2: Infrastructure Overhead
-        Console.WriteLine(
-            "═══════════════════════════════════════════════════════════════════════════════════════════════════════════════"
-        );
-        Console.WriteLine("  PART 2: Infrastructure Overhead");
-        Console.WriteLine(
-            "═══════════════════════════════════════════════════════════════════════════════════════════════════════════════"
-        );
-        Console.WriteLine();
+        var part2Comparisons = new List<ComparisonResult>();
 
-        Console.Write("  Running ContainerSetup...".PadRight(60));
         var containerSetup = RunContainerSetupBenchmark();
         comparisons.Add(containerSetup);
-        Console.WriteLine(
-            $" {containerSetup.Candidate.Statistics.Avg, 8:F1} ns vs {containerSetup.Baseline.Statistics.Avg, 8:F1} ns = {containerSetup.Speedup:F2}x"
-        );
+        part2Comparisons.Add(containerSetup);
 
-        Console.Write("  Running ScopeCreation...".PadRight(60));
         var scopeCreation = RunScopeCreationBenchmark();
         comparisons.Add(scopeCreation);
-        Console.WriteLine(
-            $" {scopeCreation.Candidate.Statistics.Avg, 8:F1} ns vs {scopeCreation.Baseline.Statistics.Avg, 8:F1} ns = {scopeCreation.Speedup:F2}x"
-        );
-        Console.WriteLine();
+        part2Comparisons.Add(scopeCreation);
+
+        PrintPartTable("PART 2: Infrastructure Overhead", part2Comparisons);
 
         // Part 3: Resolution Scenarios
-        Console.WriteLine(
-            "═══════════════════════════════════════════════════════════════════════════════════════════════════════════════"
-        );
-        Console.WriteLine("  PART 3: Resolution Scenarios (hot path performance)");
-        Console.WriteLine(
-            "═══════════════════════════════════════════════════════════════════════════════════════════════════════════════"
-        );
-        Console.WriteLine();
+        var part3Comparisons = new List<ComparisonResult>();
 
         foreach (var lifetime in lifetimes)
         {
-            Console.Write($"  Running SingleResolution × {lifetime}...".PadRight(60));
             var single = RunSingleResolutionBenchmark(lifetime);
             comparisons.Add(single);
-            Console.WriteLine(
-                $" {single.Candidate.Statistics.Avg, 8:F1} ns vs {single.Baseline.Statistics.Avg, 8:F1} ns = {single.Speedup:F2}x"
-            );
+            part3Comparisons.Add(single);
         }
-        Console.WriteLine();
 
         foreach (var lifetime in lifetimes)
         {
-            Console.Write($"  Running MultipleResolutions × {lifetime}...".PadRight(60));
             var multi = RunMultipleResolutionsBenchmark(lifetime);
             comparisons.Add(multi);
-            Console.WriteLine(
-                $" {multi.Candidate.Statistics.Avg, 8:F1} ns vs {multi.Baseline.Statistics.Avg, 8:F1} ns = {multi.Speedup:F2}x"
-            );
+            part3Comparisons.Add(multi);
         }
-        Console.WriteLine();
+
+        PrintPartTable("PART 3: Resolution Scenarios (hot path performance)", part3Comparisons);
 
         sw.Stop();
 
@@ -452,8 +416,10 @@ public static class Program
         };
         SummaryFormatter.Write(comparisons, sw.Elapsed, summaryOptions);
 
-        // Output to files if requested
-        var fileOptions = new FormatterOptions { OutputDirectory = "results" };
+        // Output to files if requested - use timestamp folder
+        var timestamp = startTime.ToString("yyyy-MM-dd_HH-mm-ss");
+        var outputDir = Path.Combine("results", timestamp);
+        var fileOptions = new FormatterOptions { OutputDirectory = outputDir };
 
         if (args.Contains("--csv") || args.Contains("--all"))
         {
@@ -727,6 +693,92 @@ public static class Program
                 ),
             _ => throw new ArgumentOutOfRangeException(nameof(complexity))
         };
+    }
+
+    #endregion
+
+    #region Table Helpers
+
+    private static void PrintPartTable(string title, List<ComparisonResult> comparisons)
+    {
+        // Flatten comparisons into individual rows for detailed view
+        var rows = new List<(string TestCase, string Provider, Statistics Stats, string Speedup)>();
+        foreach (var c in comparisons)
+        {
+            var indicator =
+                c.Speedup >= 2.0
+                    ? "*"
+                    : c.Speedup >= 1.0
+                        ? ""
+                        : "(!)";
+            rows.Add((c.Name, "Pico.DI", c.Candidate.Statistics, $"{c.Speedup:F2}x {indicator}"));
+            rows.Add((c.Name, "MS.DI", c.Baseline.Statistics, ""));
+        }
+
+        // Calculate adaptive column widths
+        var nameWidth =
+            Math.Max("Test Case".Length, rows.Max(r => $"{r.Provider} * {r.TestCase}".Length)) + 2;
+        var avgWidth = Math.Max("Avg (ns)".Length, rows.Max(r => $"{r.Stats.Avg:F1}".Length)) + 2;
+        var speedupWidth = Math.Max("Speedup".Length, rows.Max(r => r.Speedup.Length)) + 2;
+        var p50Width = Math.Max("P50".Length, rows.Max(r => $"{r.Stats.P50:F1}".Length)) + 2;
+        var p90Width = Math.Max("P90".Length, rows.Max(r => $"{r.Stats.P90:F1}".Length)) + 2;
+        var p99Width = Math.Max("P99".Length, rows.Max(r => $"{r.Stats.P99:F1}".Length)) + 2;
+        var cpuWidth =
+            Math.Max("CPU".Length, rows.Max(r => $"{r.Stats.CpuCyclesPerOp:F0}".Length)) + 2;
+        var gcWidth = Math.Max("GC".Length, rows.Max(r => FormatGcInfo(r.Stats.GcInfo).Length)) + 2;
+
+        var totalWidth =
+            nameWidth
+            + avgWidth
+            + speedupWidth
+            + p50Width
+            + p90Width
+            + p99Width
+            + cpuWidth
+            + gcWidth
+            + 9;
+
+        // Print header
+        Console.WriteLine();
+        Console.WriteLine($"┌{"".PadRight(totalWidth - 2, '─')}┐");
+        Console.WriteLine($"│ {title.PadRight(totalWidth - 4)} │");
+        Console.WriteLine(
+            $"├{"".PadRight(nameWidth, '─')}┬{"".PadRight(avgWidth, '─')}┬{"".PadRight(speedupWidth, '─')}┬{"".PadRight(p50Width, '─')}┬{"".PadRight(p90Width, '─')}┬{"".PadRight(p99Width, '─')}┬{"".PadRight(cpuWidth, '─')}┬{"".PadRight(gcWidth, '─')}┤"
+        );
+        Console.WriteLine(
+            $"│ {"Test Case".PadRight(nameWidth - 1)}│{"Avg (ns)".PadLeft(avgWidth)}│{"Speedup".PadLeft(speedupWidth)}│{"P50".PadLeft(p50Width)}│{"P90".PadLeft(p90Width)}│{"P99".PadLeft(p99Width)}│{"CPU".PadLeft(cpuWidth)}│{"GC".PadLeft(gcWidth)}│"
+        );
+        Console.WriteLine(
+            $"├{"".PadRight(nameWidth, '─')}┼{"".PadRight(avgWidth, '─')}┼{"".PadRight(speedupWidth, '─')}┼{"".PadRight(p50Width, '─')}┼{"".PadRight(p90Width, '─')}┼{"".PadRight(p99Width, '─')}┼{"".PadRight(cpuWidth, '─')}┼{"".PadRight(gcWidth, '─')}┤"
+        );
+
+        // Print rows
+        foreach (var row in rows)
+        {
+            var testCase = $"{row.Provider} * {row.TestCase}";
+            var avg = $"{row.Stats.Avg:F1}";
+            var p50 = $"{row.Stats.P50:F1}";
+            var p90 = $"{row.Stats.P90:F1}";
+            var p99 = $"{row.Stats.P99:F1}";
+            var cpu = $"{row.Stats.CpuCyclesPerOp:F0}";
+            var gc = FormatGcInfo(row.Stats.GcInfo);
+
+            Console.WriteLine(
+                $"│ {testCase.PadRight(nameWidth - 1)}│{avg.PadLeft(avgWidth)}│{row.Speedup.PadLeft(speedupWidth)}│{p50.PadLeft(p50Width)}│{p90.PadLeft(p90Width)}│{p99.PadLeft(p99Width)}│{cpu.PadLeft(cpuWidth)}│{gc.PadLeft(gcWidth)}│"
+            );
+        }
+
+        // Print footer
+        Console.WriteLine(
+            $"└{"".PadRight(nameWidth, '─')}┴{"".PadRight(avgWidth, '─')}┴{"".PadRight(speedupWidth, '─')}┴{"".PadRight(p50Width, '─')}┴{"".PadRight(p90Width, '─')}┴{"".PadRight(p99Width, '─')}┴{"".PadRight(cpuWidth, '─')}┴{"".PadRight(gcWidth, '─')}┘"
+        );
+    }
+
+    private static string FormatGcInfo(GcInfo? gc)
+    {
+        if (gc == null)
+            return "0/0/0";
+        return $"{gc.Gen0}/{gc.Gen1}/{gc.Gen2}";
     }
 
     #endregion

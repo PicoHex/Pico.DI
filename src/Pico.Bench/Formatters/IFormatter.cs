@@ -126,12 +126,11 @@ public abstract class FormatterBase : IFormatter
     {
         return speedup switch
         {
-            >= 10 => "🚀",
-            >= 5 => "🔥",
-            >= 2 => "⚡",
-            >= 1.5 => "✓",
+            >= 10 => "***",
+            >= 5 => "**",
+            >= 2 => "*",
             >= 1 => "",
-            _ => "⚠"
+            _ => "(!)"
         };
     }
 

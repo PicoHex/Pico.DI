@@ -155,35 +155,65 @@ public sealed class MarkdownFormatter : FormatterBase
 
     private void AppendComparisonsTable(StringBuilder sb, List<ComparisonResult> comparisons)
     {
+        // Flatten to rows with Provider column
+        var rows = new List<(string TestCase, string Provider, Statistics Stats, string Speedup)>();
+        foreach (var c in comparisons)
+        {
+            var indicator = GetSpeedupIndicator(c.Speedup);
+            rows.Add(
+                (
+                    c.Name,
+                    "Pico.DI",
+                    c.Candidate.Statistics,
+                    $"**{FormatSpeedup(c.Speedup)}** {indicator}"
+                )
+            );
+            rows.Add((c.Name, "MS.DI", c.Baseline.Statistics, ""));
+        }
+
         // Header
-        sb.Append("| Test Case | Baseline (ns) | Candidate (ns) | Speedup |");
+        sb.Append("| Test Case | Avg (ns) | Speedup |");
+        if (Options.IncludePercentiles)
+            sb.Append(" P50 | P90 | P99 |");
+        if (Options.IncludeCpuCycles)
+            sb.Append(" CPU |");
         if (Options.IncludeGcInfo)
             sb.Append(" GC |");
         sb.AppendLine();
 
         // Separator
-        sb.Append("|-----------|---------------|----------------|---------|");
+        sb.Append("|-----------|----------|---------|");
+        if (Options.IncludePercentiles)
+            sb.Append("-----|-----|-----|");
+        if (Options.IncludeCpuCycles)
+            sb.Append("-----|");
         if (Options.IncludeGcInfo)
-            sb.Append("----|");
+            sb.Append("-----|");
         sb.AppendLine();
 
         // Rows
-        foreach (var c in comparisons)
+        foreach (var row in rows)
         {
-            var indicator = GetSpeedupIndicator(c.Speedup);
-            var speedupText = $"**{FormatSpeedup(c.Speedup)}** {indicator}";
+            var testCase = $"{row.Provider} * {row.TestCase}";
+            sb.Append($"| {Escape(testCase)} ");
+            sb.Append($"| {FormatTime(row.Stats.Avg)} ");
+            sb.Append($"| {row.Speedup} |");
 
-            sb.Append($"| {Escape(c.Name)} ");
-            sb.Append($"| {FormatTime(c.Baseline.Statistics.Avg)} ");
-            sb.Append($"| {FormatTime(c.Candidate.Statistics.Avg)} ");
-            sb.Append($"| {speedupText} |");
+            if (Options.IncludePercentiles)
+            {
+                sb.Append($" {FormatTime(row.Stats.P50)} |");
+                sb.Append($" {FormatTime(row.Stats.P90)} |");
+                sb.Append($" {FormatTime(row.Stats.P99)} |");
+            }
+
+            if (Options.IncludeCpuCycles)
+            {
+                sb.Append($" {row.Stats.CpuCyclesPerOp:F0} |");
+            }
 
             if (Options.IncludeGcInfo)
             {
-                var gcStatus = c.Candidate.Statistics.GcInfo.IsZero
-                    ? "✓"
-                    : c.Candidate.Statistics.GcInfo.ToString();
-                sb.Append($" {gcStatus} |");
+                sb.Append($" {FormatGcInfo(row.Stats.GcInfo)} |");
             }
 
             sb.AppendLine();

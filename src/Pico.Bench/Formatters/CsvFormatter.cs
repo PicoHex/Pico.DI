@@ -199,38 +199,21 @@ public sealed class CsvFormatter : FormatterBase
 
     private void AppendComparisonsHeader(StringBuilder sb)
     {
-        var columns = new List<string>
-        {
-            "Name",
-            "Category",
-            "Baseline_Name",
-            "Baseline_Avg_ns",
-            "Candidate_Name",
-            "Candidate_Avg_ns",
-            "Speedup",
-            "ImprovementPercent",
-            "IsFaster"
-        };
+        var columns = new List<string> { "TestCase", "Provider", "Avg_ns", "Speedup" };
 
         if (Options.IncludePercentiles)
         {
-            columns.AddRange(
-                ["Baseline_P50_ns", "Baseline_P99_ns", "Candidate_P50_ns", "Candidate_P99_ns"]
-            );
+            columns.AddRange(["P50_ns", "P90_ns", "P99_ns"]);
+        }
+
+        if (Options.IncludeCpuCycles)
+        {
+            columns.Add("CpuCycles");
         }
 
         if (Options.IncludeGcInfo)
         {
-            columns.AddRange(
-                [
-                    "Baseline_GC0",
-                    "Baseline_GC1",
-                    "Baseline_GC2",
-                    "Candidate_GC0",
-                    "Candidate_GC1",
-                    "Candidate_GC2"
-                ]
-            );
+            columns.AddRange(["GC0", "GC1", "GC2"]);
         }
 
         sb.AppendLine(string.Join(Separator, columns));
@@ -238,44 +221,46 @@ public sealed class CsvFormatter : FormatterBase
 
     private void AppendComparisonRow(StringBuilder sb, ComparisonResult c)
     {
-        var bs = c.Baseline.Statistics;
-        var cs = c.Candidate.Statistics;
+        // Output two rows: one for Pico.DI (candidate) and one for MS.DI (baseline)
+        AppendComparisonSingleRow(sb, c.Name, "Pico.DI", c.Candidate.Statistics, c.Speedup);
+        AppendComparisonSingleRow(sb, c.Name, "MS.DI", c.Baseline.Statistics, null);
+    }
 
+    private void AppendComparisonSingleRow(
+        StringBuilder sb,
+        string testCase,
+        string provider,
+        Statistics stats,
+        double? speedup
+    )
+    {
         var values = new List<string>
         {
-            Escape(c.Name),
-            Escape(c.Category ?? ""),
-            Escape(c.Baseline.Name),
-            FormatNumber(bs.Avg),
-            Escape(c.Candidate.Name),
-            FormatNumber(cs.Avg),
-            FormatNumber(c.Speedup),
-            FormatNumber(c.ImprovementPercent),
-            c.IsFaster.ToString()
+            Escape($"{provider} * {testCase}"),
+            Escape(provider),
+            FormatNumber(stats.Avg),
+            speedup.HasValue ? FormatNumber(speedup.Value) : ""
         };
 
         if (Options.IncludePercentiles)
         {
             values.AddRange(
-                [
-                    FormatNumber(bs.P50),
-                    FormatNumber(bs.P99),
-                    FormatNumber(cs.P50),
-                    FormatNumber(cs.P99)
-                ]
+                [FormatNumber(stats.P50), FormatNumber(stats.P90), FormatNumber(stats.P99)]
             );
+        }
+
+        if (Options.IncludeCpuCycles)
+        {
+            values.Add(FormatNumber(stats.CpuCyclesPerOp));
         }
 
         if (Options.IncludeGcInfo)
         {
             values.AddRange(
                 [
-                    bs.GcInfo.Gen0.ToString(CultureInfo.InvariantCulture),
-                    bs.GcInfo.Gen1.ToString(CultureInfo.InvariantCulture),
-                    bs.GcInfo.Gen2.ToString(CultureInfo.InvariantCulture),
-                    cs.GcInfo.Gen0.ToString(CultureInfo.InvariantCulture),
-                    cs.GcInfo.Gen1.ToString(CultureInfo.InvariantCulture),
-                    cs.GcInfo.Gen2.ToString(CultureInfo.InvariantCulture)
+                    stats.GcInfo.Gen0.ToString(CultureInfo.InvariantCulture),
+                    stats.GcInfo.Gen1.ToString(CultureInfo.InvariantCulture),
+                    stats.GcInfo.Gen2.ToString(CultureInfo.InvariantCulture)
                 ]
             );
         }

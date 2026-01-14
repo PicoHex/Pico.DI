@@ -116,7 +116,7 @@ public static class SummaryFormatter
             sb.AppendLine();
             sb.AppendLine("▶ Detailed Results:");
 
-            var formatter = new ConsoleFormatter(options.TableOptions ?? FormatterOptions.Compact);
+            var formatter = new ConsoleFormatter(options.TableOptions ?? FormatterOptions.Default);
             sb.Append(formatter.Format(list));
         }
 
@@ -183,11 +183,11 @@ public static class SummaryFormatter
     {
         return speedup switch
         {
-            >= 10 => "🚀",
-            >= 5 => "🔥",
-            >= 2 => "🔥",
-            >= 1 => "✓",
-            _ => "⚠"
+            >= 10 => "***",
+            >= 5 => "**",
+            >= 2 => "*",
+            >= 1 => "",
+            _ => "(!)"
         };
     }
 

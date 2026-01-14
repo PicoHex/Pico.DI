@@ -119,72 +119,64 @@ public sealed class ConsoleFormatter : FormatterBase
 
     private void AppendResultsTable(StringBuilder sb, List<BenchmarkResult> results)
     {
-        // Calculate column widths
-        var nameWidth = Math.Max(30, results.Max(r => r.Name.Length) + 2);
+        // Calculate column widths based on content
+        var nameWidth = Math.Max("Name".Length, results.Max(r => r.Name.Length));
+        var avgWidth = Math.Max(
+            "Avg (ns)".Length,
+            results.Max(r => FormatTime(r.Statistics.Avg).Length)
+        );
+        var p50Width = Math.Max(
+            "P50 (ns)".Length,
+            results.Max(r => FormatTime(r.Statistics.P50).Length)
+        );
+        var p90Width = Options.IncludePercentiles
+            ? Math.Max("P90 (ns)".Length, results.Max(r => FormatTime(r.Statistics.P90).Length))
+            : 0;
+        var p95Width = Options.IncludePercentiles
+            ? Math.Max("P95 (ns)".Length, results.Max(r => FormatTime(r.Statistics.P95).Length))
+            : 0;
+        var p99Width = Options.IncludePercentiles
+            ? Math.Max("P99 (ns)".Length, results.Max(r => FormatTime(r.Statistics.P99).Length))
+            : 0;
+        var cpuWidth = Options.IncludeCpuCycles
+            ? Math.Max(
+                "CPU Cycles".Length,
+                results.Max(r => $"{r.Statistics.CpuCyclesPerOp:F0}".Length)
+            )
+            : 0;
+        var gcWidth = Options.IncludeGcInfo
+            ? Math.Max(
+                "GC (0/1/2)".Length,
+                results.Max(r => FormatGcInfo(r.Statistics.GcInfo).Length)
+            )
+            : 0;
 
-        // Header
-        sb.Append("┌");
-        sb.Append(new string('─', nameWidth));
-        sb.Append("┬──────────┬──────────");
-        if (Options.IncludePercentiles)
-            sb.Append("┬──────────┬──────────┬──────────");
-        if (Options.IncludeCpuCycles)
-            sb.Append("┬───────────");
-        if (Options.IncludeGcInfo)
-            sb.Append("┬─────────────");
-        sb.AppendLine("┐");
-
-        sb.Append("│");
-        sb.Append(" Name".PadRight(nameWidth));
-        sb.Append("│ Avg (ns) │ P50 (ns) ");
-        if (Options.IncludePercentiles)
-            sb.Append("│ P90 (ns) │ P95 (ns) │ P99 (ns) ");
-        if (Options.IncludeCpuCycles)
-            sb.Append("│ CPU Cycle ");
-        if (Options.IncludeGcInfo)
-            sb.Append("│ GC (0/1/2)  ");
-        sb.AppendLine("│");
-
-        sb.Append("├");
-        sb.Append(new string('─', nameWidth));
-        sb.Append("┼──────────┼──────────");
-        if (Options.IncludePercentiles)
-            sb.Append("┼──────────┼──────────┼──────────");
-        if (Options.IncludeCpuCycles)
-            sb.Append("┼───────────");
-        if (Options.IncludeGcInfo)
-            sb.Append("┼─────────────");
-        sb.AppendLine("┤");
-
-        // Rows
-        foreach (var result in results)
+        // Build column definitions
+        var columns = new List<(string Header, int Width, Func<BenchmarkResult, string> GetValue)>
         {
-            var s = result.Statistics;
-            sb.Append("│");
-            sb.Append($" {result.Name}".PadRight(nameWidth));
-            sb.Append($"│{FormatTime(s.Avg), 9} │{FormatTime(s.P50), 9} ");
-            if (Options.IncludePercentiles)
-                sb.Append(
-                    $"│{FormatTime(s.P90), 9} │{FormatTime(s.P95), 9} │{FormatTime(s.P99), 9} "
-                );
-            if (Options.IncludeCpuCycles)
-                sb.Append($"│{s.CpuCyclesPerOp, 10:F0} ");
-            if (Options.IncludeGcInfo)
-                sb.Append($"│ {FormatGcInfo(s.GcInfo), -11} ");
-            sb.AppendLine("│");
+            ("Name", nameWidth, r => r.Name),
+            ("Avg (ns)", avgWidth, r => FormatTime(r.Statistics.Avg)),
+            ("P50 (ns)", p50Width, r => FormatTime(r.Statistics.P50))
+        };
+
+        if (Options.IncludePercentiles)
+        {
+            columns.Add(("P90 (ns)", p90Width, r => FormatTime(r.Statistics.P90)));
+            columns.Add(("P95 (ns)", p95Width, r => FormatTime(r.Statistics.P95)));
+            columns.Add(("P99 (ns)", p99Width, r => FormatTime(r.Statistics.P99)));
         }
 
-        // Footer
-        sb.Append("└");
-        sb.Append(new string('─', nameWidth));
-        sb.Append("┴──────────┴──────────");
-        if (Options.IncludePercentiles)
-            sb.Append("┴──────────┴──────────┴──────────");
         if (Options.IncludeCpuCycles)
-            sb.Append("┴───────────");
+        {
+            columns.Add(("CPU Cycles", cpuWidth, r => $"{r.Statistics.CpuCyclesPerOp:F0}"));
+        }
+
         if (Options.IncludeGcInfo)
-            sb.Append("┴─────────────");
-        sb.AppendLine("┘");
+        {
+            columns.Add(("GC (0/1/2)", gcWidth, r => FormatGcInfo(r.Statistics.GcInfo)));
+        }
+
+        AppendTable(sb, columns, results, isFirstColumnLeftAlign: true);
     }
 
     #endregion
@@ -214,36 +206,81 @@ public sealed class ConsoleFormatter : FormatterBase
 
     private void AppendComparisonsTable(StringBuilder sb, List<ComparisonResult> comparisons)
     {
-        var nameWidth = Math.Max(35, comparisons.Max(c => c.Name.Length) + 2);
-
-        // Header
-        sb.Append("┌");
-        sb.Append(new string('─', nameWidth));
-        sb.AppendLine("┬────────────┬────────────┬──────────┐");
-
-        sb.Append("│");
-        sb.Append(" Test Case".PadRight(nameWidth));
-        sb.AppendLine("│ Baseline   │ Candidate  │ Speedup  │");
-
-        sb.Append("├");
-        sb.Append(new string('─', nameWidth));
-        sb.AppendLine("┼────────────┼────────────┼──────────┤");
-
-        // Rows
+        // Flatten comparisons into individual results for detailed view
+        var rows =
+            new List<(string Name, string Provider, BenchmarkResult Result, string Speedup)>();
         foreach (var c in comparisons)
         {
             var indicator = GetSpeedupIndicator(c.Speedup);
-            sb.Append("│");
-            sb.Append($" {c.Name}".PadRight(nameWidth));
-            sb.Append($"│{FormatTime(c.Baseline.Statistics.Avg), 10} ");
-            sb.Append($"│{FormatTime(c.Candidate.Statistics.Avg), 10} ");
-            sb.AppendLine($"│{FormatSpeedup(c.Speedup), 7} {indicator} │");
+            rows.Add((c.Name, "Pico.DI", c.Candidate, $"{FormatSpeedup(c.Speedup)} {indicator}"));
+            rows.Add((c.Name, "MS.DI", c.Baseline, ""));
         }
 
-        // Footer
-        sb.Append("└");
-        sb.Append(new string('─', nameWidth));
-        sb.AppendLine("┴────────────┴────────────┴──────────┘");
+        // Calculate column widths based on content
+        var nameWidth = Math.Max(
+            "Test Case".Length,
+            rows.Max(r => $"{r.Provider} * {r.Name}".Length)
+        );
+        var avgWidth = Math.Max(
+            "Avg (ns)".Length,
+            rows.Max(r => FormatTime(r.Result.Statistics.Avg).Length)
+        );
+        var speedupWidth = Math.Max("Speedup".Length, rows.Max(r => r.Speedup.Length));
+
+        // Build column definitions
+        var columns = new List<(
+            string Header,
+            int Width,
+            Func<
+                (string Name, string Provider, BenchmarkResult Result, string Speedup),
+                string
+            > GetValue
+        )>
+        {
+            ("Test Case", nameWidth, r => $"{r.Provider} * {r.Name}"),
+            ("Avg (ns)", avgWidth, r => FormatTime(r.Result.Statistics.Avg)),
+            ("Speedup", speedupWidth, r => r.Speedup)
+        };
+
+        // Add optional columns based on Options
+        if (Options.IncludePercentiles)
+        {
+            var p50Width = Math.Max(
+                "P50".Length,
+                rows.Max(r => FormatTime(r.Result.Statistics.P50).Length)
+            );
+            var p90Width = Math.Max(
+                "P90".Length,
+                rows.Max(r => FormatTime(r.Result.Statistics.P90).Length)
+            );
+            var p99Width = Math.Max(
+                "P99".Length,
+                rows.Max(r => FormatTime(r.Result.Statistics.P99).Length)
+            );
+            columns.Add(("P50", p50Width, r => FormatTime(r.Result.Statistics.P50)));
+            columns.Add(("P90", p90Width, r => FormatTime(r.Result.Statistics.P90)));
+            columns.Add(("P99", p99Width, r => FormatTime(r.Result.Statistics.P99)));
+        }
+
+        if (Options.IncludeCpuCycles)
+        {
+            var cpuWidth = Math.Max(
+                "CPU".Length,
+                rows.Max(r => $"{r.Result.Statistics.CpuCyclesPerOp:F0}".Length)
+            );
+            columns.Add(("CPU", cpuWidth, r => $"{r.Result.Statistics.CpuCyclesPerOp:F0}"));
+        }
+
+        if (Options.IncludeGcInfo)
+        {
+            var gcWidth = Math.Max(
+                "GC".Length,
+                rows.Max(r => FormatGcInfo(r.Result.Statistics.GcInfo).Length)
+            );
+            columns.Add(("GC", gcWidth, r => FormatGcInfo(r.Result.Statistics.GcInfo)));
+        }
+
+        AppendTable(sb, columns, rows, isFirstColumnLeftAlign: true);
 
         // Summary
         var wins = comparisons.Count(c => c.IsFaster);
@@ -283,6 +320,84 @@ public sealed class ConsoleFormatter : FormatterBase
 
         var padding = (width - text.Length) / 2;
         return text.PadLeft(padding + text.Length).PadRight(width);
+    }
+
+    #endregion
+
+    #region Generic Table Builder
+
+    private static void AppendTable<T>(
+        StringBuilder sb,
+        List<(string Header, int Width, Func<T, string> GetValue)> columns,
+        List<T> rows,
+        bool isFirstColumnLeftAlign = false
+    )
+    {
+        // Add padding to widths
+        for (int i = 0; i < columns.Count; i++)
+        {
+            var (header, width, getValue) = columns[i];
+            columns[i] = (header, width + 2, getValue); // +2 for padding
+        }
+
+        // Top border
+        sb.Append('┌');
+        for (int i = 0; i < columns.Count; i++)
+        {
+            sb.Append(new string('─', columns[i].Width));
+            sb.Append(i < columns.Count - 1 ? '┬' : '┐');
+        }
+        sb.AppendLine();
+
+        // Header row
+        sb.Append('│');
+        for (int i = 0; i < columns.Count; i++)
+        {
+            var (header, width, _) = columns[i];
+            var text =
+                i == 0 && isFirstColumnLeftAlign
+                    ? $" {header}".PadRight(width)
+                    : header.PadLeft(width - 1) + " ";
+            sb.Append(text);
+            sb.Append('│');
+        }
+        sb.AppendLine();
+
+        // Header separator
+        sb.Append('├');
+        for (int i = 0; i < columns.Count; i++)
+        {
+            sb.Append(new string('─', columns[i].Width));
+            sb.Append(i < columns.Count - 1 ? '┼' : '┤');
+        }
+        sb.AppendLine();
+
+        // Data rows
+        foreach (var row in rows)
+        {
+            sb.Append('│');
+            for (int i = 0; i < columns.Count; i++)
+            {
+                var (_, width, getValue) = columns[i];
+                var value = getValue(row);
+                var text =
+                    i == 0 && isFirstColumnLeftAlign
+                        ? $" {value}".PadRight(width)
+                        : value.PadLeft(width - 1) + " ";
+                sb.Append(text);
+                sb.Append('│');
+            }
+            sb.AppendLine();
+        }
+
+        // Bottom border
+        sb.Append('└');
+        for (int i = 0; i < columns.Count; i++)
+        {
+            sb.Append(new string('─', columns[i].Width));
+            sb.Append(i < columns.Count - 1 ? '┴' : '┘');
+        }
+        sb.AppendLine();
     }
 
     #endregion
