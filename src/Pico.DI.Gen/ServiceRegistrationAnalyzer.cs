@@ -93,14 +93,23 @@ public class ServiceRegistrationAnalyzer : DiagnosticAnalyzer
             return;
 
         // Verify this is a Pico.DI method
-        var containingType = methodSymbol.ContainingType?.ToDisplayString();
-        if (
-            containingType == null
-            || (
-                !containingType.StartsWith(PicoDiNames.RootNamespace)
-                && !containingType.Contains(PicoDiNames.SvcContainer)
-            )
-        )
+        // Must match the same detection logic used in the Generator to handle
+        // C# 14 extension types, reduced extension methods, and receiver types.
+        var containingType = methodSymbol.ContainingType?.ToDisplayString() ?? "";
+        var containingNs = methodSymbol.ContainingNamespace?.ToDisplayString() ?? "";
+        var receiverType = methodSymbol.ReceiverType?.ToDisplayString() ?? "";
+        var reducedFrom = methodSymbol.ReducedFrom?.ContainingNamespace?.ToDisplayString() ?? "";
+
+        var isPicoDiMethod =
+            containingType.StartsWith(PicoDiNames.RootNamespace)
+            || containingType.Contains(PicoDiNames.SvcContainer)
+            || containingType.Contains(PicoDiNames.ISvcContainer)
+            || containingNs.StartsWith(PicoDiNames.RootNamespace)
+            || receiverType.Contains(PicoDiNames.ISvcContainer)
+            || receiverType.Contains(PicoDiNames.SvcContainer)
+            || reducedFrom.StartsWith(PicoDiNames.RootNamespace);
+
+        if (!isPicoDiMethod)
             return;
 
         // Check if it's a factory-based registration - multiple detection methods

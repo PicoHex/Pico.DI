@@ -7,7 +7,11 @@
 public sealed class SvcContainer : ISvcContainer
 {
     private Dictionary<Type, SvcDescriptor[]>? _descriptorCache = new();
-    private Lock RegistrationLock => field ??= new Lock();
+
+    // Eagerly initialized lock for registration/build operations.
+    // Must NOT use lazy `field ??=` pattern — it is non-atomic and can cause two threads
+    // to obtain different lock objects, breaking mutual exclusion.
+    private readonly Lock _registrationLock = new();
 
     // Sentinel object to mark the linked list as "disposed" - prevents new scopes from being added
     // Using a special marker value instead of null to distinguish "empty list" from "disposed list"
@@ -67,7 +71,7 @@ public sealed class SvcContainer : ISvcContainer
     {
         ThrowIfDisposed();
 
-        lock (RegistrationLock)
+        lock (_registrationLock)
         {
             if (_frozenCache != null)
                 throw new InvalidOperationException(
@@ -114,7 +118,7 @@ public sealed class SvcContainer : ISvcContainer
     {
         ThrowIfDisposed();
 
-        lock (RegistrationLock)
+        lock (_registrationLock)
         {
             if (_frozenCache != null)
                 return;

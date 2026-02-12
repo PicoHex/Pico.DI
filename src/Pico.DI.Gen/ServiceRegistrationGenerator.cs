@@ -898,16 +898,30 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         foreach (var og in openGenerics)
         {
             var typeParamNamesStr = string.Join("\", \"", og.TypeParameterNames);
-            var ctorParamsStr = string.Join("\", \"", og.ConstructorParameters);
 
             sb.AppendLine(
                 $"    /// <summary>Open generic mapping: {og.OpenServiceTypeFullName} -> {og.OpenImplementationTypeFullName}</summary>"
             );
-            sb.AppendLine(
-                $"    [PicoDiOpenGeneric(\"{og.OpenServiceTypeFullName}\", \"{og.OpenImplementationTypeFullName}\", \"{og.Lifetime}\", {og.TypeParameterCount},"
-            );
-            sb.AppendLine($"        TypeParameterNames = new[] {{ \"{typeParamNamesStr}\" }},");
-            sb.AppendLine($"        ConstructorParameters = new[] {{ \"{ctorParamsStr}\" }})]");
+
+            // Only emit ConstructorParameters when non-empty.
+            // An empty array serialized as new[] { "" } would produce a single empty-string
+            // element on the reading side, corrupting factory code generation.
+            if (og.ConstructorParameters.Length > 0)
+            {
+                var ctorParamsStr = string.Join("\", \"", og.ConstructorParameters);
+                sb.AppendLine(
+                    $"    [PicoDiOpenGeneric(\"{og.OpenServiceTypeFullName}\", \"{og.OpenImplementationTypeFullName}\", \"{og.Lifetime}\", {og.TypeParameterCount},"
+                );
+                sb.AppendLine($"        TypeParameterNames = new[] {{ \"{typeParamNamesStr}\" }},");
+                sb.AppendLine($"        ConstructorParameters = new[] {{ \"{ctorParamsStr}\" }})]");
+            }
+            else
+            {
+                sb.AppendLine(
+                    $"    [PicoDiOpenGeneric(\"{og.OpenServiceTypeFullName}\", \"{og.OpenImplementationTypeFullName}\", \"{og.Lifetime}\", {og.TypeParameterCount},"
+                );
+                sb.AppendLine($"        TypeParameterNames = new[] {{ \"{typeParamNamesStr}\" }})]");
+            }
             sb.AppendLine($"    public static readonly int Registration{index};");
             sb.AppendLine();
             index++;
@@ -1663,32 +1677,16 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         foreach (var group in groupedByServiceType)
         {
             var serviceTypeFullName = group.Key;
-            var regs = group.Value;
 
+            // Delegate to runtime GetServices() to correctly respect Singleton/Scoped lifetime semantics.
+            // Direct inlined construction would bypass per-descriptor caching for non-Transient services.
             sb.AppendLine($"        container.Register(new global::Pico.DI.Abs.SvcDescriptor(");
             sb.AppendLine(
                 $"            typeof(global::System.Collections.Generic.IEnumerable<{serviceTypeFullName}>),"
             );
-            sb.AppendLine($"            static scope => new {serviceTypeFullName}[]");
-            sb.AppendLine($"            {{");
-
-            for (var i = 0; i < regs.Count; i++)
-            {
-                var reg = regs[i];
-                var comma = i < regs.Count - 1 ? "," : "";
-
-                if (reg.ConstructorParameters.IsEmpty)
-                {
-                    sb.AppendLine($"                new {reg.ImplementationTypeFullName}(){comma}");
-                }
-                else
-                {
-                    var factoryCode = GenerateInlinedFactory(reg, registrationLookup, [], 4);
-                    sb.AppendLine($"                {factoryCode}{comma}");
-                }
-            }
-
-            sb.AppendLine($"            }},");
+            sb.AppendLine($"            static scope => global::System.Linq.Enumerable.ToArray(");
+            sb.AppendLine($"                global::System.Linq.Enumerable.Cast<{serviceTypeFullName}>(");
+            sb.AppendLine($"                    scope.GetServices(typeof({serviceTypeFullName})))),");
             sb.AppendLine($"            global::Pico.DI.Abs.SvcLifetime.Transient));");
             sb.AppendLine();
         }
@@ -1761,18 +1759,13 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
                     break;
 
                 case PicoDiNames.Singleton:
-                    // Use cache helper for singleton - use "s" as scope var name for static lambda
+                    // Delegate to scope.GetService() for singletons to share the same
+                    // SvcDescriptor.SingleInstance cache used by the runtime.
+                    // A separate static SingletonCache<T> would create duplicate instances
+                    // when users mix Resolve.XXX(scope) and scope.GetService<T>() calls.
                     sb.AppendLine(
-                        $"            return SingletonCache<{serviceType}>.GetOrCreate(scope, static s =>"
+                        $"            return ({serviceType})scope.GetService(typeof({serviceType}));"
                     );
-                    var singletonFactory = GenerateInlinedFactory(
-                        reg,
-                        registrationLookup,
-                        [],
-                        0,
-                        "s"
-                    );
-                    sb.AppendLine($"                {singletonFactory});");
                     break;
 
                 case PicoDiNames.Scoped:
@@ -1788,53 +1781,9 @@ public class ServiceRegistrationGenerator : IIncrementalGenerator
         }
 
         sb.AppendLine("    }");
-        sb.AppendLine();
-
-        // Generate singleton cache helper class
-        sb.AppendLine(
-            "    /// <summary>Thread-safe singleton cache using static generic class pattern.</summary>"
-        );
-        sb.AppendLine("    private static class SingletonCache<T> where T : class");
-        sb.AppendLine("    {");
-        sb.AppendLine("        private static T? _instance;");
-        sb.AppendLine("        private static object? _lock;");
-        sb.AppendLine();
-        sb.AppendLine(
-            "        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]"
-        );
-        sb.AppendLine(
-            "        public static T GetOrCreate(global::Pico.DI.Abs.ISvcScope scope, global::System.Func<global::Pico.DI.Abs.ISvcScope, T> factory)"
-        );
-        sb.AppendLine("        {");
-        sb.AppendLine(
-            "            var instance = global::System.Threading.Volatile.Read(ref _instance);"
-        );
-        sb.AppendLine("            if (instance != null) return instance;");
-        sb.AppendLine("            return GetOrCreateSlow(scope, factory);");
-        sb.AppendLine("        }");
-        sb.AppendLine();
-        sb.AppendLine(
-            "        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]"
-        );
-        sb.AppendLine(
-            "        private static T GetOrCreateSlow(global::Pico.DI.Abs.ISvcScope scope, global::System.Func<global::Pico.DI.Abs.ISvcScope, T> factory)"
-        );
-        sb.AppendLine("        {");
-        sb.AppendLine("            _lock ??= new object();");
-        sb.AppendLine("            lock (_lock)");
-        sb.AppendLine("            {");
-        sb.AppendLine(
-            "                var instance = global::System.Threading.Volatile.Read(ref _instance);"
-        );
-        sb.AppendLine("                if (instance != null) return instance;");
-        sb.AppendLine("                instance = factory(scope);");
-        sb.AppendLine(
-            "                global::System.Threading.Volatile.Write(ref _instance, instance);"
-        );
-        sb.AppendLine("                return instance;");
-        sb.AppendLine("            }");
-        sb.AppendLine("        }");
-        sb.AppendLine("    }");
+        // SingletonCache<T> removed: singleton typed resolvers now delegate to
+        // scope.GetService() to share the runtime's SvcDescriptor.SingleInstance cache,
+        // ensuring a single instance regardless of the resolution path.
     }
 
     /// <summary>

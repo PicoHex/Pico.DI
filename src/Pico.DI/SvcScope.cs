@@ -32,8 +32,10 @@ public sealed class SvcScope : ISvcScope
 
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
-    // Lazy accessor for scoped instances lock (still needed for scoped instance cache)
-    private Lock ScopedLock => field ??= new Lock();
+    // Eagerly initialized lock for scoped instance cache.
+    // Must NOT use lazy `field ??=` pattern — it is non-atomic and can cause two threads
+    // to obtain different lock objects, breaking mutual exclusion on the Dictionary.
+    private readonly Lock _scopedLock = new();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
@@ -92,7 +94,8 @@ public sealed class SvcScope : ISvcScope
         if (_singletonCache.TryGetValue(serviceType, out var singletonDescriptor))
         {
             // Fast path: singleton already initialized (most common case after warmup)
-            var instance = singletonDescriptor.SingleInstance;
+            // Use Volatile.Read to ensure cross-thread visibility (critical on ARM architectures)
+            var instance = Volatile.Read(ref singletonDescriptor.SingleInstance);
             if (instance != null)
                 return instance;
 
@@ -235,7 +238,7 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private object GetOrAddScopedInstance(SvcDescriptor resolver)
     {
-        lock (ScopedLock)
+        lock (_scopedLock)
         {
             // Fast path: check if already created within this scope
             if (
