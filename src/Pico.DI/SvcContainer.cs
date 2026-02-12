@@ -93,7 +93,7 @@ public sealed class SvcContainer : ISvcContainer
             }
             else
             {
-                cache[descriptor.ServiceType] = [descriptor];
+                cache[descriptor.ServiceType] =  [descriptor];
             }
         }
 
@@ -198,7 +198,17 @@ public sealed class SvcContainer : ISvcContainer
         {
             foreach (var svc in frozenCache.SelectMany(keyValuePair => keyValuePair.Value))
             {
-                (svc.SingleInstance as IDisposable)?.Dispose();
+                switch (svc.SingleInstance)
+                {
+                    case IDisposable disposable:
+                        disposable.Dispose();
+                        break;
+                    // Handle objects that only implement IAsyncDisposable but not IDisposable.
+                    // In a sync Dispose context, we must block on the async disposal to prevent resource leaks.
+                    case IAsyncDisposable asyncDisposable:
+                        asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        break;
+                }
             }
         }
         else
@@ -208,7 +218,15 @@ public sealed class SvcContainer : ISvcContainer
             {
                 foreach (var svc in cache.SelectMany(keyValuePair => keyValuePair.Value))
                 {
-                    (svc.SingleInstance as IDisposable)?.Dispose();
+                    switch (svc.SingleInstance)
+                    {
+                        case IDisposable disposable:
+                            disposable.Dispose();
+                            break;
+                        case IAsyncDisposable asyncDisposable:
+                            asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                            break;
+                    }
                 }
 
                 cache.Clear();

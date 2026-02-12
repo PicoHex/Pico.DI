@@ -112,6 +112,10 @@ public sealed class SvcScope : ISvcScope
         {
             SvcLifetime.Transient => ResolveTransient(serviceType, resolver),
             SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+            // Defensive: handle Singleton here in case it wasn't in the fast singleton cache
+            // (e.g., if the type has mixed-lifetime registrations where the last is not singleton)
+            SvcLifetime.Singleton
+                => GetOrCreateSingleton(serviceType, resolver),
             _ => ThrowUnknownLifetime(resolver.Lifetime)
         };
     }
@@ -148,24 +152,25 @@ public sealed class SvcScope : ISvcScope
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
         return resolvers!
-            .Select(resolver =>
-                resolver.Lifetime switch
-                {
-                    SvcLifetime.Transient
-                        => resolver.Factory != null
-                            ? resolver.Factory(this)
-                            : throw new PicoDiException(
-                                $"No factory registered for transient service '{serviceType.FullName}'."
-                            ),
-                    SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
-                    SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
-                    _
-                        => throw new ArgumentOutOfRangeException(
-                            nameof(SvcLifetime),
-                            resolver.Lifetime,
-                            $"Unknown service lifetime '{resolver.Lifetime}'."
-                        )
-                }
+            .Select(
+                resolver =>
+                    resolver.Lifetime switch
+                    {
+                        SvcLifetime.Transient
+                            => resolver.Factory != null
+                                ? resolver.Factory(this)
+                                : throw new PicoDiException(
+                                    $"No factory registered for transient service '{serviceType.FullName}'."
+                                ),
+                        SvcLifetime.Singleton => GetOrCreateSingleton(serviceType, resolver),
+                        SvcLifetime.Scoped => GetOrAddScopedInstance(resolver),
+                        _
+                            => throw new ArgumentOutOfRangeException(
+                                nameof(SvcLifetime),
+                                resolver.Lifetime,
+                                $"Unknown service lifetime '{resolver.Lifetime}'."
+                            )
+                    }
             )
             .ToArray();
     }
@@ -222,26 +227,23 @@ public sealed class SvcScope : ISvcScope
         return false;
     }
 
+    /// <summary>
+    /// Resolves or creates a scoped service instance.
+    /// All access to the scoped instance dictionary is synchronized to prevent data corruption
+    /// from concurrent reads/writes on the non-thread-safe Dictionary.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private object GetOrAddScopedInstance(SvcDescriptor resolver)
     {
-        // Fast path: direct dictionary lookup (no null check - initialized on first slow path)
-        var instances = _scopedInstances;
-        if (instances != null)
-        {
-            // Use TryGetValue for fastest lookup
-            if (instances.TryGetValue(resolver, out var existing))
-                return existing;
-        }
-
-        return GetOrAddScopedInstanceSlow(resolver);
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private object GetOrAddScopedInstanceSlow(SvcDescriptor resolver)
-    {
         lock (ScopedLock)
         {
+            // Fast path: check if already created within this scope
+            if (
+                _scopedInstances != null
+                && _scopedInstances.TryGetValue(resolver, out var existing)
+            )
+                return existing;
+
             _scopedInstances ??= new Dictionary<SvcDescriptor, object>();
 
             // Use CollectionsMarshal to avoid double dictionary lookup
@@ -292,7 +294,17 @@ public sealed class SvcScope : ISvcScope
             return;
         foreach (var svc in instances.Values)
         {
-            (svc as IDisposable)?.Dispose();
+            switch (svc)
+            {
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
+                // Handle objects that only implement IAsyncDisposable but not IDisposable.
+                // In a sync Dispose context, we must block on the async disposal to prevent resource leaks.
+                case IAsyncDisposable asyncDisposable:
+                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    break;
+            }
         }
 
         instances.Clear();

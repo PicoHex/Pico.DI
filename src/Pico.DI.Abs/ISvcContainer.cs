@@ -82,7 +82,14 @@ public static class SvcContainerExtensions
         /// <param name="lifetime">The service lifetime.</param>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer Register<TService, TImplementation>(SvcLifetime lifetime)
-            where TImplementation : TService => container;
+        where TImplementation : TService
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         /// <summary>
         /// Registers a service type as its own implementation with the specified lifetime.
@@ -92,7 +99,14 @@ public static class SvcContainerExtensions
         /// <param name="lifetime">The service lifetime.</param>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer Register<TService>(SvcLifetime lifetime)
-            where TService : class => container;
+        where TService : class
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         /// <summary>
         /// Registers a service with the specified implementation type and lifetime.
@@ -103,7 +117,14 @@ public static class SvcContainerExtensions
         /// <param name="lifetime">The service lifetime.</param>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer Register<TService>(Type implementType, SvcLifetime lifetime)
-            where TService : class => container;
+        where TService : class
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
     }
 
     // Add by factory
@@ -206,7 +227,14 @@ public static class SvcContainerExtensions
         /// <typeparam name="TImplementation">The implementation type.</typeparam>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterTransient<TService, TImplementation>()
-            where TImplementation : TService => container;
+        where TImplementation : TService
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         /// <summary>
         /// Registers a transient service type as its own implementation.
@@ -215,7 +243,14 @@ public static class SvcContainerExtensions
         /// <typeparam name="TService">The service type (also used as implementation).</typeparam>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterTransient<TService>()
-            where TService : class => container;
+        where TService : class
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         /// <summary>
         /// Registers a transient service with the specified implementation type.
@@ -225,7 +260,14 @@ public static class SvcContainerExtensions
         /// <param name="implementType">The implementation type.</param>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterTransient<TService>(Type implementType)
-            where TService : class => container;
+        where TService : class
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         #endregion
 
@@ -329,7 +371,14 @@ public static class SvcContainerExtensions
         /// <typeparam name="TImplementation">The implementation type.</typeparam>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterScoped<TService, TImplementation>()
-            where TImplementation : TService => container;
+        where TImplementation : TService
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         /// <summary>
         /// Registers a scoped service type as its own implementation.
@@ -338,7 +387,14 @@ public static class SvcContainerExtensions
         /// <typeparam name="TService">The service type (also used as implementation).</typeparam>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterScoped<TService>()
-            where TService : class => container;
+        where TService : class
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         /// <summary>
         /// Registers a scoped service with the specified implementation type.
@@ -348,7 +404,14 @@ public static class SvcContainerExtensions
         /// <param name="implementType">The implementation type.</param>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterScoped<TService>(Type implementType)
-            where TService : class => container;
+        where TService : class
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         #endregion
 
@@ -452,7 +515,14 @@ public static class SvcContainerExtensions
         /// <typeparam name="TImplementation">The implementation type.</typeparam>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingleton<TService, TImplementation>()
-            where TImplementation : TService => container;
+        where TImplementation : TService
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         /// <summary>
         /// Registers a singleton service type as its own implementation.
@@ -461,7 +531,14 @@ public static class SvcContainerExtensions
         /// <typeparam name="TService">The service type (also used as implementation).</typeparam>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingleton<TService>()
-            where TService : class => container;
+        where TService : class
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         /// <summary>
         /// Registers a singleton service with the specified implementation type.
@@ -471,7 +548,14 @@ public static class SvcContainerExtensions
         /// <param name="implementType">The implementation type.</param>
         /// <returns>The container instance for method chaining.</returns>
         public ISvcContainer RegisterSingleton<TService>(Type implementType)
-            where TService : class => container;
+        where TService : class
+    {
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+            throw new SourceGeneratorRequiredException(
+                "Compile-time generated registrations are required. Ensure Pico.DI.Gen runs and call ConfigureGeneratedServices()."
+            );
+        return container;
+    }
 
         #endregion
 
