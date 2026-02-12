@@ -41,4 +41,51 @@ internal static class PicoDiNames
         RegisterScoped,
         RegisterSingleton
     ];
+
+    /// <summary>
+    /// Determines whether the given method symbol belongs to Pico.DI.
+    /// Handles C# 14 extension types, reduced extension methods, and receiver types.
+    /// </summary>
+    public static bool IsPicoDiMethod(IMethodSymbol methodSymbol)
+    {
+        var containingType = methodSymbol.ContainingType?.ToDisplayString() ?? "";
+        var containingNs = methodSymbol.ContainingNamespace?.ToDisplayString() ?? "";
+        var receiverType = methodSymbol.ReceiverType?.ToDisplayString() ?? "";
+        var reducedFrom = methodSymbol.ReducedFrom?.ContainingNamespace?.ToDisplayString() ?? "";
+
+        return containingType.StartsWith(RootNamespace)
+            || containingType.Contains(SvcContainer)
+            || containingType.Contains(ISvcContainer)
+            || containingNs.StartsWith(RootNamespace)
+            || receiverType.Contains(ISvcContainer)
+            || receiverType.Contains(SvcContainer)
+            || reducedFrom.StartsWith(RootNamespace);
+    }
+
+    /// <summary>
+    /// Infers lifetime from a Register* method name (e.g., RegisterTransient → Transient).
+    /// Returns <paramref name="fallback"/> if no lifetime keyword is found.
+    /// </summary>
+    public static string InferLifetimeFromMethodName(string methodName, string fallback = Singleton)
+    {
+        if (methodName.Contains(Transient))
+            return Transient;
+        if (methodName.Contains(Scoped))
+            return Scoped;
+        if (methodName.Contains(Singleton))
+            return Singleton;
+        return fallback;
+    }
+
+    /// <summary>
+    /// Parses a SvcLifetime value from its expression text (e.g., "SvcLifetime.Transient").
+    /// </summary>
+    public static string ParseLifetimeFromExpression(string expressionText)
+    {
+        if (expressionText.Contains(Transient))
+            return Transient;
+        if (expressionText.Contains(Scoped))
+            return Scoped;
+        return Singleton;
+    }
 }

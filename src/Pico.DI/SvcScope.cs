@@ -151,7 +151,7 @@ public sealed class SvcScope : ISvcScope
     public IEnumerable<object> GetServices(Type serviceType)
     {
         ThrowIfDisposed();
-        if (!TryGetResolvers(serviceType, out var resolvers))
+        if (!_descriptorCache.TryGetValue(serviceType, out var resolvers))
             throw new PicoDiException($"Service type '{serviceType.FullName}' is not registered.");
 
         return resolvers!
@@ -222,14 +222,6 @@ public sealed class SvcScope : ISvcScope
         }
     }
 
-    private bool TryGetResolvers(Type serviceType, out SvcDescriptor[]? resolvers)
-    {
-        if (_descriptorCache.TryGetValue(serviceType, out resolvers))
-            return true;
-        resolvers = null;
-        return false;
-    }
-
     /// <summary>
     /// Resolves or creates a scoped service instance.
     /// All access to the scoped instance dictionary is synchronized to prevent data corruption
@@ -240,13 +232,6 @@ public sealed class SvcScope : ISvcScope
     {
         lock (_scopedLock)
         {
-            // Fast path: check if already created within this scope
-            if (
-                _scopedInstances != null
-                && _scopedInstances.TryGetValue(resolver, out var existing)
-            )
-                return existing;
-
             _scopedInstances ??= new Dictionary<SvcDescriptor, object>();
 
             // Use CollectionsMarshal to avoid double dictionary lookup
@@ -275,26 +260,60 @@ public sealed class SvcScope : ISvcScope
     /// <inheritdoc />
     public void Dispose()
     {
-        // Thread-safe check-and-set using Interlocked
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
 
-        // Atomically acquire the child scope list and set sentinel to block new child scope creation
-        var head = Interlocked.Exchange(ref _firstChildScope, DisposedSentinel);
+        DisposeChildScopes();
+        DisposeScopedInstances();
+    }
 
-        // Dispose child scopes first (depth-first disposal)
-        var child = head;
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+            return;
+
+        await DisposeChildScopesAsync();
+        await DisposeScopedInstancesAsync();
+    }
+
+    /// <summary>
+    /// Atomically seals the child scope list and synchronously disposes all child scopes.
+    /// </summary>
+    private void DisposeChildScopes()
+    {
+        var child = Interlocked.Exchange(ref _firstChildScope, DisposedSentinel);
         while (child != null && !ReferenceEquals(child, DisposedSentinel))
         {
             var next = child.NextInList;
             child.Dispose();
             child = next;
         }
+    }
 
-        // Then dispose scoped instances owned by this scope
+    /// <summary>
+    /// Atomically seals the child scope list and asynchronously disposes all child scopes.
+    /// </summary>
+    private async ValueTask DisposeChildScopesAsync()
+    {
+        var child = Interlocked.Exchange(ref _firstChildScope, DisposedSentinel);
+        while (child != null && !ReferenceEquals(child, DisposedSentinel))
+        {
+            var next = child.NextInList;
+            await child.DisposeAsync();
+            child = next;
+        }
+    }
+
+    /// <summary>
+    /// Synchronously disposes all scoped instances owned by this scope.
+    /// </summary>
+    private void DisposeScopedInstances()
+    {
         var instances = _scopedInstances;
         if (instances == null)
             return;
+
         foreach (var svc in instances.Values)
         {
             switch (svc)
@@ -303,7 +322,6 @@ public sealed class SvcScope : ISvcScope
                     disposable.Dispose();
                     break;
                 // Handle objects that only implement IAsyncDisposable but not IDisposable.
-                // In a sync Dispose context, we must block on the async disposal to prevent resource leaks.
                 case IAsyncDisposable asyncDisposable:
                     asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
                     break;
@@ -313,43 +331,28 @@ public sealed class SvcScope : ISvcScope
         instances.Clear();
     }
 
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
+    /// <summary>
+    /// Asynchronously disposes all scoped instances owned by this scope.
+    /// </summary>
+    private async ValueTask DisposeScopedInstancesAsync()
     {
-        // Thread-safe check-and-set using Interlocked
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        var instances = _scopedInstances;
+        if (instances == null)
             return;
 
-        // Atomically acquire the child scope list and set sentinel to block new child scope creation
-        var head = Interlocked.Exchange(ref _firstChildScope, DisposedSentinel);
-
-        // Dispose child scopes first (depth-first disposal)
-        var child = head;
-        while (child != null && !ReferenceEquals(child, DisposedSentinel))
+        foreach (var svc in instances.Values)
         {
-            var next = child.NextInList;
-            await child.DisposeAsync();
-            child = next;
-        }
-
-        // Then dispose scoped instances owned by this scope
-        var instances = _scopedInstances;
-        if (instances != null)
-        {
-            foreach (var svc in instances.Values)
+            switch (svc)
             {
-                switch (svc)
-                {
-                    case IAsyncDisposable asyncDisposable:
-                        await asyncDisposable.DisposeAsync();
-                        break;
-                    case IDisposable disposable:
-                        disposable.Dispose();
-                        break;
-                }
+                case IAsyncDisposable asyncDisposable:
+                    await asyncDisposable.DisposeAsync();
+                    break;
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
             }
-
-            instances.Clear();
         }
+
+        instances.Clear();
     }
 }

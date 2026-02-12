@@ -179,125 +179,106 @@ public sealed class SvcContainer : ISvcContainer
     /// <inheritdoc />
     public void Dispose()
     {
-        // Thread-safe check-and-set using Interlocked
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
             return;
 
-        // Atomically acquire the linked list and set sentinel to block new scope creation
-        // This guarantees no scope can be added after this point (they'll see DisposedSentinel and throw)
-        var head = Interlocked.Exchange(ref _firstRootScope, DisposedSentinel);
+        DisposeRootScopes();
+        DisposeSingletonInstances();
+    }
 
-        // Dispose all root scopes (which will recursively dispose their child scopes)
-        var scope = head;
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+            return;
+
+        await DisposeRootScopesAsync();
+        await DisposeSingletonInstancesAsync();
+    }
+
+    /// <summary>
+    /// Atomically seals the root scope list and synchronously disposes all root scopes.
+    /// </summary>
+    private void DisposeRootScopes()
+    {
+        var scope = Interlocked.Exchange(ref _firstRootScope, DisposedSentinel);
         while (scope != null && !ReferenceEquals(scope, DisposedSentinel))
         {
             var next = scope.NextInList;
             scope.Dispose();
             scope = next;
         }
-
-        // Then dispose singleton instances owned by the container
-        var frozenCache = _frozenCache;
-        if (frozenCache != null)
-        {
-            foreach (var svc in frozenCache.SelectMany(keyValuePair => keyValuePair.Value))
-            {
-                switch (svc.SingleInstance)
-                {
-                    case IDisposable disposable:
-                        disposable.Dispose();
-                        break;
-                    // Handle objects that only implement IAsyncDisposable but not IDisposable.
-                    // In a sync Dispose context, we must block on the async disposal to prevent resource leaks.
-                    case IAsyncDisposable asyncDisposable:
-                        asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                        break;
-                }
-            }
-        }
-        else
-        {
-            var cache = _descriptorCache;
-            if (cache != null)
-            {
-                foreach (var svc in cache.SelectMany(keyValuePair => keyValuePair.Value))
-                {
-                    switch (svc.SingleInstance)
-                    {
-                        case IDisposable disposable:
-                            disposable.Dispose();
-                            break;
-                        case IAsyncDisposable asyncDisposable:
-                            asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                            break;
-                    }
-                }
-
-                cache.Clear();
-            }
-        }
-
-        _descriptorCache = null;
     }
 
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
+    /// <summary>
+    /// Atomically seals the root scope list and asynchronously disposes all root scopes.
+    /// </summary>
+    private async ValueTask DisposeRootScopesAsync()
     {
-        // Thread-safe check-and-set using Interlocked
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
-            return;
-
-        // Atomically acquire the linked list and set sentinel to block new scope creation
-        var head = Interlocked.Exchange(ref _firstRootScope, DisposedSentinel);
-
-        // Dispose all root scopes (which will recursively dispose their child scopes)
-        var scope = head;
+        var scope = Interlocked.Exchange(ref _firstRootScope, DisposedSentinel);
         while (scope != null && !ReferenceEquals(scope, DisposedSentinel))
         {
             var next = scope.NextInList;
             await scope.DisposeAsync();
             scope = next;
         }
+    }
 
-        // Then dispose singleton instances owned by the container
-        var frozenCache = _frozenCache;
-        if (frozenCache != null)
-        {
-            foreach (var svc in frozenCache.SelectMany(keyValuePair => keyValuePair.Value))
-            {
-                switch (svc.SingleInstance)
-                {
-                    case IAsyncDisposable asyncDisposable:
-                        await asyncDisposable.DisposeAsync();
-                        break;
-                    case IDisposable disposable:
-                        disposable.Dispose();
-                        break;
-                }
-            }
-        }
-        else
-        {
-            var cache = _descriptorCache;
-            if (cache != null)
-            {
-                foreach (var svc in cache.SelectMany(keyValuePair => keyValuePair.Value))
-                {
-                    switch (svc.SingleInstance)
-                    {
-                        case IAsyncDisposable asyncDisposable:
-                            await asyncDisposable.DisposeAsync();
-                            break;
-                        case IDisposable disposable:
-                            disposable.Dispose();
-                            break;
-                    }
-                }
+    /// <summary>
+    /// Enumerates all descriptors from either the frozen cache or the mutable registration cache.
+    /// </summary>
+    private IEnumerable<SvcDescriptor> EnumerateAllDescriptors()
+    {
+        var frozen = _frozenCache;
+        if (frozen != null)
+            return frozen.SelectMany(kvp => kvp.Value);
 
-                cache.Clear();
+        var cache = _descriptorCache;
+        return cache != null ? cache.SelectMany(kvp => kvp.Value) : [];
+    }
+
+    /// <summary>
+    /// Synchronously disposes all singleton instances and clears the registration cache.
+    /// </summary>
+    private void DisposeSingletonInstances()
+    {
+        foreach (var svc in EnumerateAllDescriptors())
+        {
+            switch (svc.SingleInstance)
+            {
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
+                // Handle objects that only implement IAsyncDisposable but not IDisposable.
+                case IAsyncDisposable asyncDisposable:
+                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    break;
             }
         }
 
+        _descriptorCache?.Clear();
+        _descriptorCache = null;
+    }
+
+    /// <summary>
+    /// Asynchronously disposes all singleton instances and clears the registration cache.
+    /// </summary>
+    private async ValueTask DisposeSingletonInstancesAsync()
+    {
+        foreach (var svc in EnumerateAllDescriptors())
+        {
+            switch (svc.SingleInstance)
+            {
+                case IAsyncDisposable asyncDisposable:
+                    await asyncDisposable.DisposeAsync();
+                    break;
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
+            }
+        }
+
+        _descriptorCache?.Clear();
         _descriptorCache = null;
     }
 }
