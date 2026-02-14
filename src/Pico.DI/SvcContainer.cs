@@ -1,4 +1,6 @@
-﻿namespace Pico.DI;
+namespace Pico.DI;
+
+using System.Diagnostics;
 
 /// <summary>
 /// A high-performance, AOT-compatible dependency injection container.
@@ -40,7 +42,7 @@ public sealed class SvcContainer : ISvcContainer
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
     {
-        if (_disposed != 0)
+        if (Volatile.Read(ref _disposed) != 0)
             ThrowObjectDisposedException();
     }
 
@@ -48,6 +50,14 @@ public sealed class SvcContainer : ISvcContainer
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowObjectDisposedException() =>
         throw new ObjectDisposedException(nameof(SvcContainer));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void LogDisposeError(object? instance, Exception exception)
+    {
+        // Use Trace for AOT-compatible logging
+        // Users can configure Trace listeners if they need to capture these errors
+        Trace.WriteLine($"Error disposing service instance of type '{instance?.GetType().FullName ?? "unknown"}': {exception}");
+    }
 
     /// <summary>
     /// Creates a new instance of <see cref="SvcContainer"/>.
@@ -124,7 +134,7 @@ public sealed class SvcContainer : ISvcContainer
                 return;
 
             var cache = _descriptorCache ?? new Dictionary<Type, SvcDescriptor[]>();
-            _frozenCache = cache.ToFrozenDictionary();
+            Volatile.Write(ref _frozenCache, cache.ToFrozenDictionary());
 
             // Build singleton cache for fast singleton lookup
             // Only include types where the last registered service is a singleton
@@ -137,11 +147,11 @@ public sealed class SvcContainer : ISvcContainer
                     singletonDict[kvp.Key] = lastDescriptor;
                 }
             }
-            _singletonCache = singletonDict.ToFrozenDictionary();
+            Volatile.Write(ref _singletonCache, singletonDict.ToFrozenDictionary());
 
             // After build, registrations are immutable and resolution uses frozen cache.
             // Drop the registration cache to reduce memory overhead.
-            _descriptorCache = null;
+            Volatile.Write(ref _descriptorCache, null);
         }
     }
 
@@ -152,13 +162,13 @@ public sealed class SvcContainer : ISvcContainer
 
         // Ensure the container is built before creating scopes/resolving services.
         // This keeps resolution on FrozenDictionary hot path, while avoiding requiring callers to remember Build().
-        var frozenCache = _frozenCache;
-        var singletonCache = _singletonCache;
+        var frozenCache = Volatile.Read(ref _frozenCache);
+        var singletonCache = Volatile.Read(ref _singletonCache);
         if (frozenCache == null || singletonCache == null)
         {
             Build();
-            frozenCache = _frozenCache!;
-            singletonCache = _singletonCache!;
+            frozenCache = Volatile.Read(ref _frozenCache)!;
+            singletonCache = Volatile.Read(ref _singletonCache)!;
         }
 
         var scope = new SvcScope(frozenCache, singletonCache);
@@ -205,7 +215,16 @@ public sealed class SvcContainer : ISvcContainer
         while (scope != null && !ReferenceEquals(scope, DisposedSentinel))
         {
             var next = scope.NextInList;
-            scope.Dispose();
+            try
+            {
+                scope.Dispose();
+            }
+            catch (Exception ex)
+            {
+                // Log the exception but continue disposing other scopes
+                // In AOT environments, we prioritize completing cleanup over error reporting
+                Trace.WriteLine($"Error disposing root scope: {ex}");
+            }
             scope = next;
         }
     }
@@ -219,7 +238,16 @@ public sealed class SvcContainer : ISvcContainer
         while (scope != null && !ReferenceEquals(scope, DisposedSentinel))
         {
             var next = scope.NextInList;
-            await scope.DisposeAsync();
+            try
+            {
+                await scope.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                // Log the exception but continue disposing other scopes
+                // In AOT environments, we prioritize completing cleanup over error reporting
+                Trace.WriteLine($"Error disposing root scope asynchronously: {ex}");
+            }
             scope = next;
         }
     }
@@ -229,11 +257,11 @@ public sealed class SvcContainer : ISvcContainer
     /// </summary>
     private IEnumerable<SvcDescriptor> EnumerateAllDescriptors()
     {
-        var frozen = _frozenCache;
+        var frozen = Volatile.Read(ref _frozenCache);
         if (frozen != null)
             return frozen.SelectMany(kvp => kvp.Value);
 
-        var cache = _descriptorCache;
+        var cache = Volatile.Read(ref _descriptorCache);
         return cache != null ? cache.SelectMany(kvp => kvp.Value) : [];
     }
 
@@ -242,22 +270,42 @@ public sealed class SvcContainer : ISvcContainer
     /// </summary>
     private void DisposeSingletonInstances()
     {
+        var disposedInstances = new HashSet<object>();
+        
         foreach (var svc in EnumerateAllDescriptors())
         {
-            switch (svc.SingleInstance)
+            var instance = Volatile.Read(ref svc.SingleInstance);
+            if (instance == null)
+                continue;
+                
+            // Skip if already disposed
+            if (!disposedInstances.Add(instance))
+                continue;
+                
+            try
             {
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-                // Handle objects that only implement IAsyncDisposable but not IDisposable.
-                case IAsyncDisposable asyncDisposable:
-                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    break;
+                switch (instance)
+                {
+                    case IDisposable disposable:
+                        disposable.Dispose();
+                        break;
+                    // Handle objects that only implement IAsyncDisposable but not IDisposable.
+                    case IAsyncDisposable asyncDisposable:
+                        asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the exception but continue disposing other instances
+                // In AOT environments, we prioritize completing cleanup over error reporting
+                LogDisposeError(instance, ex);
             }
         }
 
-        _descriptorCache?.Clear();
-        _descriptorCache = null;
+        var cache = Volatile.Read(ref _descriptorCache);
+        cache?.Clear();
+        Volatile.Write(ref _descriptorCache, null);
     }
 
     /// <summary>
@@ -265,20 +313,40 @@ public sealed class SvcContainer : ISvcContainer
     /// </summary>
     private async ValueTask DisposeSingletonInstancesAsync()
     {
+        var disposedInstances = new HashSet<object>();
+        
         foreach (var svc in EnumerateAllDescriptors())
         {
-            switch (svc.SingleInstance)
+            var instance = Volatile.Read(ref svc.SingleInstance);
+            if (instance == null)
+                continue;
+                
+            // Skip if already disposed
+            if (!disposedInstances.Add(instance))
+                continue;
+                
+            try
             {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
+                switch (instance)
+                {
+                    case IAsyncDisposable asyncDisposable:
+                        await asyncDisposable.DisposeAsync();
+                        break;
+                    case IDisposable disposable:
+                        disposable.Dispose();
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the exception but continue disposing other instances
+                // In AOT environments, we prioritize completing cleanup over error reporting
+                LogDisposeError(instance, ex);
             }
         }
 
-        _descriptorCache?.Clear();
-        _descriptorCache = null;
+        var cache = Volatile.Read(ref _descriptorCache);
+        cache?.Clear();
+        Volatile.Write(ref _descriptorCache, null);
     }
 }

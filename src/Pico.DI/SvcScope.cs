@@ -1,5 +1,7 @@
 namespace Pico.DI;
 
+using System.Diagnostics;
+
 /// <summary>
 /// Represents a service scope that manages the lifetime of scoped service instances.
 /// Supports hierarchical scopes where child scopes are automatically disposed when the parent is disposed.
@@ -40,7 +42,7 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
     {
-        if (_disposed != 0)
+        if (Volatile.Read(ref _disposed) != 0)
             ThrowObjectDisposedException();
     }
 
@@ -48,6 +50,14 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowObjectDisposedException() =>
         throw new ObjectDisposedException(nameof(SvcScope));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void LogDisposeError(object? instance, Exception exception)
+    {
+        // Use Trace for AOT-compatible logging
+        // Users can configure Trace listeners if they need to capture these errors
+        Trace.WriteLine($"Error disposing scoped service instance of type '{instance?.GetType().FullName ?? "unknown"}': {exception}");
+    }
 
     /// <summary>
     /// Initializes a new instance of <see cref="SvcScope"/> with a frozen (optimized) descriptor cache.
@@ -286,7 +296,16 @@ public sealed class SvcScope : ISvcScope
         while (child != null && !ReferenceEquals(child, DisposedSentinel))
         {
             var next = child.NextInList;
-            child.Dispose();
+            try
+            {
+                child.Dispose();
+            }
+            catch (Exception ex)
+            {
+                // Log the exception but continue disposing other child scopes
+                // In AOT environments, we prioritize completing cleanup over error reporting
+                Trace.WriteLine($"Error disposing child scope: {ex}");
+            }
             child = next;
         }
     }
@@ -300,7 +319,16 @@ public sealed class SvcScope : ISvcScope
         while (child != null && !ReferenceEquals(child, DisposedSentinel))
         {
             var next = child.NextInList;
-            await child.DisposeAsync();
+            try
+            {
+                await child.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                // Log the exception but continue disposing other child scopes
+                // In AOT environments, we prioritize completing cleanup over error reporting
+                Trace.WriteLine($"Error disposing child scope asynchronously: {ex}");
+            }
             child = next;
         }
     }
@@ -310,21 +338,30 @@ public sealed class SvcScope : ISvcScope
     /// </summary>
     private void DisposeScopedInstances()
     {
-        var instances = _scopedInstances;
+        var instances = Volatile.Read(ref _scopedInstances);
         if (instances == null)
             return;
 
         foreach (var svc in instances.Values)
         {
-            switch (svc)
+            try
             {
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-                // Handle objects that only implement IAsyncDisposable but not IDisposable.
-                case IAsyncDisposable asyncDisposable:
-                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    break;
+                switch (svc)
+                {
+                    case IDisposable disposable:
+                        disposable.Dispose();
+                        break;
+                    // Handle objects that only implement IAsyncDisposable but not IDisposable.
+                    case IAsyncDisposable asyncDisposable:
+                        asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the exception but continue disposing other instances
+                // In AOT environments, we prioritize completing cleanup over error reporting
+                LogDisposeError(svc, ex);
             }
         }
 
@@ -336,20 +373,29 @@ public sealed class SvcScope : ISvcScope
     /// </summary>
     private async ValueTask DisposeScopedInstancesAsync()
     {
-        var instances = _scopedInstances;
+        var instances = Volatile.Read(ref _scopedInstances);
         if (instances == null)
             return;
 
         foreach (var svc in instances.Values)
         {
-            switch (svc)
+            try
             {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
+                switch (svc)
+                {
+                    case IAsyncDisposable asyncDisposable:
+                        await asyncDisposable.DisposeAsync();
+                        break;
+                    case IDisposable disposable:
+                        disposable.Dispose();
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the exception but continue disposing other instances
+                // In AOT environments, we prioritize completing cleanup over error reporting
+                LogDisposeError(svc, ex);
             }
         }
 
