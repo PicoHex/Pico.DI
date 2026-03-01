@@ -129,30 +129,24 @@ public enum Lifetime
 /// </summary>
 public static class Factories
 {
-    public static readonly Func<ISvcScope, ISimpleService> SimpleService =
-        static _ => new SimpleService();
+    public static readonly Func<ISvcScope, ISimpleService> SimpleService = static _ =>
+        new SimpleService();
     public static readonly Func<ISvcScope, ILogger> Logger = static _ => new ConsoleLogger();
-    public static readonly Func<ISvcScope, IServiceWithDep> ServiceWithDep =
-        static s => new ServiceWithDep(s.GetService<ILogger>());
+    public static readonly Func<ISvcScope, IServiceWithDep> ServiceWithDep = static s =>
+        new ServiceWithDep(s.GetService<ILogger>());
     public static readonly Func<ISvcScope, IRepository> Repository = static _ => new Repository();
     public static readonly Func<ISvcScope, IServiceWithMultipleDeps> ServiceWithMultipleDeps =
-        static s => new ServiceWithMultipleDeps(
-            s.GetService<ILogger>(),
-            s.GetService<IRepository>()
-        );
+        static s =>
+            new ServiceWithMultipleDeps(s.GetService<ILogger>(), s.GetService<IRepository>());
     public static readonly Func<ISvcScope, ILevel1> Level1 = static _ => new Level1();
-    public static readonly Func<ISvcScope, ILevel2> Level2 = static s => new Level2(
-        s.GetService<ILevel1>()
-    );
-    public static readonly Func<ISvcScope, ILevel3> Level3 = static s => new Level3(
-        s.GetService<ILevel2>()
-    );
-    public static readonly Func<ISvcScope, ILevel4> Level4 = static s => new Level4(
-        s.GetService<ILevel3>()
-    );
-    public static readonly Func<ISvcScope, ILevel5> Level5 = static s => new Level5(
-        s.GetService<ILevel4>()
-    );
+    public static readonly Func<ISvcScope, ILevel2> Level2 = static s =>
+        new Level2(s.GetService<ILevel1>());
+    public static readonly Func<ISvcScope, ILevel3> Level3 = static s =>
+        new Level3(s.GetService<ILevel2>());
+    public static readonly Func<ISvcScope, ILevel4> Level4 = static s =>
+        new Level4(s.GetService<ILevel3>());
+    public static readonly Func<ISvcScope, ILevel5> Level5 = static s =>
+        new Level5(s.GetService<ILevel4>());
 }
 
 #endregion
@@ -246,10 +240,11 @@ public static class ContainerSetup
                 RegisterMs<IServiceWithMultipleDeps>(
                     services,
                     lifetime,
-                    sp => new ServiceWithMultipleDeps(
-                        sp.GetRequiredService<ILogger>(),
-                        sp.GetRequiredService<IRepository>()
-                    )
+                    sp =>
+                        new ServiceWithMultipleDeps(
+                            sp.GetRequiredService<ILogger>(),
+                            sp.GetRequiredService<IRepository>()
+                        )
                 );
                 break;
             case ServiceComplexity.DeepChain:
@@ -432,16 +427,15 @@ public static class Program
             ConsoleFormatter.WriteFileSaved("CSV", csvPath);
         }
 
-        var suite = new BenchmarkSuite
-        {
-            Name = "Pico.DI vs Microsoft.DI Benchmark",
-            Description = "Comprehensive DI container performance comparison",
-            Environment = env,
-            Results = comparisons.SelectMany(c => new[] { c.Baseline, c.Candidate }).ToList(),
-            Comparisons = comparisons,
-            Timestamp = startTime,
-            Duration = sw.Elapsed
-        };
+        var suite = new BenchmarkSuite(
+            name: "Pico.DI vs Microsoft.DI Benchmark",
+            environment: env,
+            results: comparisons.SelectMany(c => new[] { c.Baseline, c.Candidate }).ToList(),
+            duration: sw.Elapsed,
+            description: "Comprehensive DI container performance comparison",
+            comparisons: comparisons,
+            timestamp: startTime
+        );
 
         if (args.Contains("--markdown") || args.Contains("--all"))
         {
@@ -486,23 +480,28 @@ public static class Program
             Config
         );
 
-        return new ComparisonResult
-        {
-            Name = name,
-            Category = complexity.ToString(),
-            Tags = new Dictionary<string, string>
+        return new ComparisonResult(
+            name: name,
+            baseline: msResult,
+            candidate: picoResult,
+            category: complexity.ToString(),
+            tags: new Dictionary<string, string>
             {
                 ["Complexity"] = complexity.ToString(),
                 ["Lifetime"] = lifetime.ToString()
-            },
-            Baseline = msResult,
-            Candidate = picoResult
-        };
+            }
+        );
     }
 
     private static ComparisonResult RunContainerSetupBenchmark()
     {
-        var config = Config with { IterationsPerSample = Config.IterationsPerSample / 10 };
+        var config = new BenchmarkConfig
+        {
+            WarmupIterations = Config.WarmupIterations,
+            SampleCount = Config.SampleCount,
+            IterationsPerSample = Config.IterationsPerSample / 10,
+            RetainSamples = Config.RetainSamples
+        };
 
         var picoResult = Benchmark.Run(
             "Pico/ContainerSetup",
@@ -528,13 +527,12 @@ public static class Program
             config
         );
 
-        return new ComparisonResult
-        {
-            Name = "ContainerSetup",
-            Category = "Infrastructure",
-            Baseline = msResult,
-            Candidate = picoResult
-        };
+        return new ComparisonResult(
+            name: "ContainerSetup",
+            baseline: msResult,
+            candidate: picoResult,
+            category: "Infrastructure"
+        );
     }
 
     private static ComparisonResult RunScopeCreationBenchmark()
@@ -566,13 +564,12 @@ public static class Program
             Config
         );
 
-        return new ComparisonResult
-        {
-            Name = "ScopeCreation",
-            Category = "Infrastructure",
-            Baseline = msResult,
-            Candidate = picoResult
-        };
+        return new ComparisonResult(
+            name: "ScopeCreation",
+            baseline: msResult,
+            candidate: picoResult,
+            category: "Infrastructure"
+        );
     }
 
     private static ComparisonResult RunSingleResolutionBenchmark(Lifetime lifetime)
@@ -603,18 +600,17 @@ public static class Program
             Config
         );
 
-        return new ComparisonResult
-        {
-            Name = name,
-            Category = "Resolution",
-            Tags = new Dictionary<string, string>
+        return new ComparisonResult(
+            name: name,
+            baseline: msResult,
+            candidate: picoResult,
+            category: "Resolution",
+            tags: new Dictionary<string, string>
             {
                 ["Scenario"] = "SingleResolution",
                 ["Lifetime"] = lifetime.ToString()
-            },
-            Baseline = msResult,
-            Candidate = picoResult
-        };
+            }
+        );
     }
 
     private static ComparisonResult RunMultipleResolutionsBenchmark(Lifetime lifetime)
@@ -654,18 +650,17 @@ public static class Program
             Config
         );
 
-        return new ComparisonResult
-        {
-            Name = name,
-            Category = "Resolution",
-            Tags = new Dictionary<string, string>
+        return new ComparisonResult(
+            name: name,
+            baseline: msResult,
+            candidate: picoResult,
+            category: "Resolution",
+            tags: new Dictionary<string, string>
             {
                 ["Scenario"] = "MultipleResolutions",
                 ["Lifetime"] = lifetime.ToString()
-            },
-            Baseline = msResult,
-            Candidate = picoResult
-        };
+            }
+        );
     }
 
     private static (Action<ISvcScope> pico, Action<IServiceProvider> ms) GetResolveActions(

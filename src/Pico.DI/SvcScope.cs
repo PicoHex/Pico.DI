@@ -34,10 +34,11 @@ public sealed class SvcScope : ISvcScope
 
     private int _disposed; // 0 = not disposed, 1 = disposed (for thread-safe Interlocked operations)
 
-    // Eagerly initialized lock for scoped instance cache.
-    // Must NOT use lazy `field ??=` pattern — it is non-atomic and can cause two threads
-    // to obtain different lock objects, breaking mutual exclusion on the Dictionary.
-    private readonly Lock _scopedLock = new();
+    // Lazily initialized lock for scoped instance cache.
+    // Allocated on first scoped service resolution via thread-safe CAS to avoid
+    // per-scope allocation overhead when scoped services are never resolved
+    // (e.g. short-lived scopes that are created and immediately disposed).
+    private Lock? _scopedLock;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
@@ -56,7 +57,9 @@ public sealed class SvcScope : ISvcScope
     {
         // Use Trace for AOT-compatible logging
         // Users can configure Trace listeners if they need to capture these errors
-        Trace.WriteLine($"Error disposing scoped service instance of type '{instance?.GetType().FullName ?? "unknown"}': {exception}");
+        Trace.WriteLine(
+            $"Error disposing scoped service instance of type '{instance?.GetType().FullName ?? "unknown"}': {exception}"
+        );
     }
 
     /// <summary>
@@ -240,7 +243,16 @@ public sealed class SvcScope : ISvcScope
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private object GetOrAddScopedInstance(SvcDescriptor resolver)
     {
-        lock (_scopedLock)
+        // Lazy-init the lock via CAS to avoid allocating it for scopes that never
+        // resolve scoped services (the common create-use-dispose hot path).
+        var scopedLock = Volatile.Read(ref _scopedLock);
+        if (scopedLock is null)
+        {
+            var newLock = new Lock();
+            scopedLock = Interlocked.CompareExchange(ref _scopedLock, newLock, null) ?? newLock;
+        }
+
+        lock (scopedLock)
         {
             _scopedInstances ??= new Dictionary<SvcDescriptor, object>();
 

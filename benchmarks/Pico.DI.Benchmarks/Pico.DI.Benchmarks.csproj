@@ -36,10 +36,10 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />
+        <PackageReference Include="Pico.Bench" Version="2026.1.0" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\Pico.Bench\Pico.Bench.csproj" />
         <ProjectReference Include="..\..\src\Pico.DI\Pico.DI.csproj" />
         <!-- Explicitly add Source Generator for benchmark -->
         <ProjectReference Include="..\..\src\Pico.DI.Gen\Pico.DI.Gen.csproj" 
