@@ -15,7 +15,6 @@
     <!-- NuGet Package Metadata -->
     <PropertyGroup>
         <PackageId>Pico.DI</PackageId>
-        <Version>$(PicoDIVersion)</Version>
         <Description>A lightweight, zero-reflection, AOT-compatible dependency injection container for .NET with compile-time source generation</Description>
         <PackageTags>DI;IoC;AOT;Dependency Injection;Container;Source Generator</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>

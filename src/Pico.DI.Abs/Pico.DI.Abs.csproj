@@ -13,7 +13,6 @@
     <!-- NuGet Package Metadata -->
     <PropertyGroup>
         <PackageId>Pico.DI.Abs</PackageId>
-        <Version>$(PicoDIVersion)</Version>
         <Description>Abstractions for Pico.DI - a lightweight, zero-reflection, AOT-compatible dependency injection container</Description>
         <PackageTags>DI;IoC;AOT;Dependency Injection;Abstractions</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>

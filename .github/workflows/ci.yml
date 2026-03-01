@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DOTNET_VERSION: '10.x'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Required for SourceLink
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+    
+    - name: Run tests
+      run: dotnet test --project tests/Pico.DI.Test/Pico.DI.Test.csproj --configuration Release --no-build --verbosity normal --timeout 120s --no-progress --no-ansi
+
+  pack:
+    name: Pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration Release --no-restore -p:Version=${{ steps.version.outputs.VERSION }}
+
+    - name: Pack NuGet packages
+      run: |
+        dotnet pack src/Pico.DI.Abs/Pico.DI.Abs.csproj --configuration Release --no-build --output ./nupkg -p:Version=${{ steps.version.outputs.VERSION }}
+        dotnet pack src/Pico.DI.Gen/Pico.DI.Gen.csproj --configuration Release --no-build --output ./nupkg -p:Version=${{ steps.version.outputs.VERSION }}
+        dotnet pack src/Pico.DI/Pico.DI.csproj --configuration Release --no-build --output ./nupkg -p:Version=${{ steps.version.outputs.VERSION }}
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: nupkg
+        path: |
+          ./nupkg/*.nupkg
+          ./nupkg/*.snupkg
+
+  publish:
+    name: Publish to NuGet
+    runs-on: ubuntu-latest
+    needs: pack
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: release
+    
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: nupkg
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Publish to NuGet.org
+      run: |
+        for file in *.nupkg
+        do
+          if [[ $file != *.symbols.* ]] && [[ $file != *.snupkg ]]; then
+            echo "Publishing $file"
+            dotnet nuget push $file \
+              --api-key ${{ secrets.NUGET_API_KEY }} \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          fi
+        done

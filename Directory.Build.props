@@ -3,8 +3,8 @@
     <!-- Default: do not produce NuGet packages from every project in the repo -->
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
 
-    <!-- Shared version for all Pico.DI packages -->
-    <PicoDIVersion>0.1.2</PicoDIVersion>
+    <!-- Default version for local development; CI overrides via -p:Version=<tag> -->
+    <Version>0.0.0-dev</Version>
   </PropertyGroup>
 
   <!-- Common package metadata (applies to packed projects; harmless for others) -->
@@ -15,4 +15,21 @@
     <RepositoryUrl>https://github.com/pico-di/Pico.DI</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+
+  <!-- Deterministic build & SourceLink -->
+  <PropertyGroup>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- Symbol packages (snupkg) -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <!-- SourceLink for source-level debugging -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.*" PrivateAssets="All" />
+  </ItemGroup>
 </Project>

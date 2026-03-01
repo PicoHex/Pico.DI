@@ -34,7 +34,6 @@
     <!-- NuGet Package Metadata -->
     <PropertyGroup>
         <PackageId>Pico.DI.Gen</PackageId>
-        <Version>$(PicoDIVersion)</Version>
         <Description>Source generator for Pico.DI - generates AOT-compatible service registrations and open generic metadata at compile time. Use this package for building DI extension libraries.</Description>
         <PackageTags>DI;IoC;AOT;Source Generator;Roslyn;Analyzer</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
