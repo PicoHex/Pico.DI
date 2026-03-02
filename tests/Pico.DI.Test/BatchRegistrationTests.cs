@@ -96,7 +96,7 @@ public class BatchRegistrationTests
         container.RegisterRange(Array.Empty<SvcDescriptor>());
         using var scope = container.CreateScope();
         
-        await Assert.That(true).IsTrue(); // If we get here, no exception was thrown
+        // No assertion needed - if we get here, no exception was thrown
     }
 
     [Test]

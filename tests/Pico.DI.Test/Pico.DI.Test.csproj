@@ -9,6 +9,9 @@
         <OutputType>Exe</OutputType>
         <PublishAot>true</PublishAot>
         <TrimMode>full</TrimMode>
+        <!-- Enable source generator output for debugging -->
+        <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+        <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)/Generated</CompilerGeneratedFilesOutputPath>
     </PropertyGroup>
 
     <ItemGroup>

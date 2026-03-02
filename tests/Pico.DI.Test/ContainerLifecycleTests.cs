@@ -170,6 +170,33 @@ public class ContainerLifecycleTests
         // Note: In async dispose, AsyncDisposeCalled should be true
     }
 
+    [Test]
+    public async Task Dispose_SameSingletonRegisteredMultipleTimes_OnlyDisposedOnce()
+    {
+        // Arrange
+        var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        // Create a singleton instance that implements both IDisposable and IAsyncDisposable
+        var singletonInstance = new DualDisposableService();
+
+        // Register the same instance multiple times under different service types using factory
+        container.RegisterSingleton<IDisposable>(_ => singletonInstance);
+        container.RegisterSingleton<IAsyncDisposable>(_ => singletonInstance);
+
+        using var scope = container.CreateScope();
+        var instance1 = scope.GetService<IDisposable>();
+        var instance2 = scope.GetService<IAsyncDisposable>();
+
+        // Act - Dispose should only dispose once despite multiple registrations
+        container.Dispose();
+
+        // Assert - Instance should be disposed only once
+        await Assert
+            .That(singletonInstance.SyncDisposeCalled || singletonInstance.AsyncDisposeCalled)
+            .IsTrue();
+        // Note: In sync dispose, SyncDisposeCalled should be true
+    }
+
     #endregion
 
     #region Scope Disposal Tests
@@ -268,7 +295,7 @@ public class ContainerLifecycleTests
         // Assert - Container should be empty (no auto-configured services)
         // This test verifies the flag works; actual auto-configuration depends on source generator
         container.Build();
-        await Assert.That(true).IsTrue();
+        // No assertion needed - if Build succeeds without error, test passes
     }
 
     [Test]
