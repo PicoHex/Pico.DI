@@ -222,7 +222,7 @@ public class SingletonLifetimeTests
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterSingleton<ISimpleService>(static _ => new SimpleService());
         container.RegisterSingleton<IServiceWithDependency>(
-            static scope => new ServiceWithDependency(scope.GetService<ISimpleService>())
+            static s => new ServiceWithDependency(s.GetService<ISimpleService>())
         );
         using var scope1 = container.CreateScope();
         using var scope2 = container.CreateScope();
@@ -243,11 +243,11 @@ public class SingletonLifetimeTests
         // Arrange
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterSingleton<ILevelOneService>(static _ => new LevelOneService());
-        container.RegisterSingleton<ILevelTwoService>(static scope => new LevelTwoService(
-            scope.GetService<ILevelOneService>()
+        container.RegisterSingleton<ILevelTwoService>(static s => new LevelTwoService(
+            s.GetService<ILevelOneService>()
         ));
-        container.RegisterSingleton<ILevelThreeService>(static scope => new LevelThreeService(
-            scope.GetService<ILevelTwoService>()
+        container.RegisterSingleton<ILevelThreeService>(static s => new LevelThreeService(
+            s.GetService<ILevelTwoService>()
         ));
         using var scope1 = container.CreateScope();
         using var scope2 = container.CreateScope();

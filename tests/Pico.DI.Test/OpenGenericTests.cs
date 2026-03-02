@@ -164,8 +164,8 @@ public class OpenGenericTests
         // Arrange
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterSingleton<ILogger<User>>(static _ => new Logger<User>());
-        container.RegisterTransient<IRepository<User>>(static scope => 
-            new RepositoryWithLogger<User>(scope.GetService<ILogger<User>>()));
+        container.RegisterTransient<IRepository<User>>(static s => 
+            new RepositoryWithLogger<User>(s.GetService<ILogger<User>>()));
         using var scope = container.CreateScope();
 
         // Act

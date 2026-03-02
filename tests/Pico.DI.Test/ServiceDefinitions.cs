@@ -190,3 +190,72 @@ public class ConfigurableService(string config) : IConfigurableService
 }
 
 #endregion
+
+#region Fault-Injecting Disposable Services
+
+/// <summary>
+/// A service that implements only IDisposable and throws during Dispose().
+/// Used to test error-handling paths during synchronous dispose.
+/// </summary>
+public class FaultyDisposableService : IDisposable
+{
+    public bool DisposeCalled { get; private set; }
+
+    public void Dispose()
+    {
+        DisposeCalled = true;
+        throw new InvalidOperationException("Dispose failed on purpose");
+    }
+}
+
+/// <summary>
+/// A service that implements only IAsyncDisposable and throws during DisposeAsync().
+/// Used to test error-handling paths during asynchronous dispose.
+/// </summary>
+public class FaultyAsyncDisposableService : IAsyncDisposable
+{
+    public bool DisposeAsyncCalled { get; private set; }
+
+    public ValueTask DisposeAsync()
+    {
+        DisposeAsyncCalled = true;
+        throw new InvalidOperationException("DisposeAsync failed on purpose");
+    }
+}
+
+/// <summary>
+/// A service that implements both IDisposable and IAsyncDisposable.
+/// Tracks which dispose method was called.
+/// </summary>
+public class DualDisposableService : IDisposable, IAsyncDisposable
+{
+    public bool SyncDisposeCalled { get; private set; }
+    public bool AsyncDisposeCalled { get; private set; }
+    public Guid InstanceId { get; } = Guid.NewGuid();
+
+    public void Dispose() => SyncDisposeCalled = true;
+
+    public ValueTask DisposeAsync()
+    {
+        AsyncDisposeCalled = true;
+        return ValueTask.CompletedTask;
+    }
+}
+
+/// <summary>
+/// A service that implements only IAsyncDisposable (not IDisposable).
+/// Used to test the sync dispose fallback path that calls DisposeAsync().AsTask().GetAwaiter().GetResult().
+/// </summary>
+public class AsyncOnlyDisposableService : IAsyncDisposable
+{
+    public bool IsDisposed { get; private set; }
+    public Guid InstanceId { get; } = Guid.NewGuid();
+
+    public ValueTask DisposeAsync()
+    {
+        IsDisposed = true;
+        return ValueTask.CompletedTask;
+    }
+}
+
+#endregion

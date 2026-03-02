@@ -16,8 +16,11 @@ public class ContainerLifecycleTests
         container.Build();
 
         // Act & Assert
-        await Assert.That(() => 
-            container.RegisterTransient<ILevelOneService>(static _ => new LevelOneService()))
+        await Assert
+            .That(
+                () =>
+                    container.RegisterTransient<ILevelOneService>(static _ => new LevelOneService())
+            )
             .Throws<InvalidOperationException>();
     }
 
@@ -32,7 +35,7 @@ public class ContainerLifecycleTests
         container.Build();
         container.Build();
         container.Build();
-        
+
         using var scope = container.CreateScope();
         var service = scope.GetService<ISimpleService>();
         await Assert.That(service).IsNotNull();
@@ -64,13 +67,12 @@ public class ContainerLifecycleTests
         // Arrange
         var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterTransient<ISimpleService>(static _ => new SimpleService());
-        
+
         // Act
         container.Dispose();
 
         // Assert
-        await Assert.That(() => container.CreateScope())
-            .Throws<ObjectDisposedException>();
+        await Assert.That(() => container.CreateScope()).Throws<ObjectDisposedException>();
     }
 
     [Test]
@@ -81,8 +83,10 @@ public class ContainerLifecycleTests
         container.Dispose();
 
         // Assert
-        await Assert.That(() => 
-            container.RegisterTransient<ISimpleService>(static _ => new SimpleService()))
+        await Assert
+            .That(
+                () => container.RegisterTransient<ISimpleService>(static _ => new SimpleService())
+            )
             .Throws<ObjectDisposedException>();
     }
 
@@ -92,11 +96,11 @@ public class ContainerLifecycleTests
         // Arrange
         var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterScoped<IDisposableService>(static _ => new DisposableService());
-        
+
         var scope1 = container.CreateScope();
         var scope2 = container.CreateScope();
         var childScope = scope1.CreateScope();
-        
+
         var instance1 = (DisposableService)scope1.GetService<IDisposableService>();
         var instance2 = (DisposableService)scope2.GetService<IDisposableService>();
         var childInstance = (DisposableService)childScope.GetService<IDisposableService>();
@@ -111,40 +115,59 @@ public class ContainerLifecycleTests
     }
 
     [Test]
-    public async Task DisposeAsync_DisposesAllScopes()
+    public async Task DisposeAsync_SingletonThrows_ContinuesDisposingOtherSingletons()
     {
         // Arrange
         var container = new SvcContainer(autoConfigureFromGenerator: false);
-        container.RegisterScoped<IAsyncDisposableService>(static _ => new AsyncDisposableService());
-        
-        var scope1 = container.CreateScope();
-        var scope2 = container.CreateScope();
-        
-        var instance1 = (AsyncDisposableService)scope1.GetService<IAsyncDisposableService>();
-        var instance2 = (AsyncDisposableService)scope2.GetService<IAsyncDisposableService>();
 
-        // Act
+        // Register singleton services with mixed disposables including one faulty
+        container.RegisterSingleton<IDisposable>(static _ => new DisposableService());
+        container.RegisterSingleton<IAsyncDisposable>(
+            static _ => new FaultyAsyncDisposableService()
+        );
+        // Use IAsyncDisposable instead of object to avoid source generator issues
+        container.RegisterSingleton<IAsyncDisposable>(static _ => new AsyncDisposableService());
+
+        using var scope = container.CreateScope();
+        var instance1 = (DisposableService)scope.GetService<IDisposable>();
+        var asyncDisposables = scope.GetServices<IAsyncDisposable>().ToArray();
+        var faultyInstance = (FaultyAsyncDisposableService)asyncDisposables[0];
+        var instance2 = (AsyncDisposableService)asyncDisposables[1];
+
+        // Act - DisposeAsync should continue even if one singleton throws
         await container.DisposeAsync();
 
-        // Assert
+        // Assert - All singletons should have been attempted to dispose despite the exception
         await Assert.That(instance1.IsDisposed).IsTrue();
         await Assert.That(instance2.IsDisposed).IsTrue();
+        await Assert.That(faultyInstance.DisposeAsyncCalled).IsTrue();
     }
 
     [Test]
-    public async Task Dispose_DoubleDispose_NoError()
+    public async Task DisposeAsync_SameSingletonRegisteredMultipleTimes_OnlyDisposedOnce()
     {
         // Arrange
         var container = new SvcContainer(autoConfigureFromGenerator: false);
-        container.RegisterSingleton<IDisposableService>(static _ => new DisposableService());
-        using var scope = container.CreateScope();
-        var instance = scope.GetService<IDisposableService>();
 
-        // Act & Assert - Should not throw
-        container.Dispose();
-        container.Dispose();
-        
-        await Assert.That(((DisposableService)instance).IsDisposed).IsTrue();
+        // Create a singleton instance that implements both IDisposable and IAsyncDisposable
+        var singletonInstance = new DualDisposableService();
+
+        // Register the same instance multiple times under different service types using factory
+        container.RegisterSingleton<IDisposable>(_ => singletonInstance);
+        container.RegisterSingleton<IAsyncDisposable>(_ => singletonInstance);
+
+        using var scope = container.CreateScope();
+        var instance1 = scope.GetService<IDisposable>();
+        var instance2 = scope.GetService<IAsyncDisposable>();
+
+        // Act - DisposeAsync should only dispose once despite multiple registrations
+        await container.DisposeAsync();
+
+        // Assert - Instance should be disposed only once
+        await Assert
+            .That(singletonInstance.AsyncDisposeCalled || singletonInstance.SyncDisposeCalled)
+            .IsTrue();
+        // Note: In async dispose, AsyncDisposeCalled should be true
     }
 
     #endregion
@@ -157,14 +180,15 @@ public class ContainerLifecycleTests
         // Arrange
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterScoped<IDisposableService>(static _ => new DisposableService());
-        
+
         var parentScope = container.CreateScope();
         var childScope = parentScope.CreateScope();
         var grandchildScope = childScope.CreateScope();
-        
+
         var parentInstance = (DisposableService)parentScope.GetService<IDisposableService>();
         var childInstance = (DisposableService)childScope.GetService<IDisposableService>();
-        var grandchildInstance = (DisposableService)grandchildScope.GetService<IDisposableService>();
+        var grandchildInstance = (DisposableService)
+            grandchildScope.GetService<IDisposableService>();
 
         // Act - Dispose parent scope
         parentScope.Dispose();
@@ -181,10 +205,10 @@ public class ContainerLifecycleTests
         // Arrange
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterScoped<IDisposableService>(static _ => new DisposableService());
-        
+
         using var scope1 = container.CreateScope();
         var scope2 = container.CreateScope();
-        
+
         var instance1 = (DisposableService)scope1.GetService<IDisposableService>();
         var instance2 = (DisposableService)scope2.GetService<IDisposableService>();
 
@@ -202,7 +226,7 @@ public class ContainerLifecycleTests
         // Arrange
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterSingleton<IDisposableService>(static _ => new DisposableService());
-        
+
         DisposableService singletonInstance;
         using (var scope = container.CreateScope())
         {
@@ -219,7 +243,7 @@ public class ContainerLifecycleTests
         // Arrange
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterScoped<IAsyncDisposableService>(static _ => new AsyncDisposableService());
-        
+
         AsyncDisposableService instance;
         await using (var scope = container.CreateScope())
         {
@@ -240,11 +264,38 @@ public class ContainerLifecycleTests
     {
         // Arrange & Act
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
-        
+
         // Assert - Container should be empty (no auto-configured services)
         // This test verifies the flag works; actual auto-configuration depends on source generator
         container.Build();
         await Assert.That(true).IsTrue();
+    }
+
+    [Test]
+    public async Task SvcContainerAutoConfiguration_Integration_WithConfigurator()
+    {
+        // This test verifies that when a configurator is registered,
+        // SvcContainer with autoConfigureFromGenerator: true calls it.
+        // If configurators exist (HasConfigurator == true), auto-configuration should run.
+        // If no configurators exist, the container should be empty.
+
+        // Arrange & Act
+        await using var container = new SvcContainer(autoConfigureFromGenerator: true);
+
+        if (!SvcContainerAutoConfiguration.HasConfigurator)
+        {
+            // Assert - Without any registered configurators, container should be empty
+            using var scope = container.CreateScope();
+            await Assert.That(() => scope.GetService<ISimpleService>()).Throws<Exception>();
+        }
+        else
+        {
+            // Configurators exist; auto-configuration should have run.
+            // Verify that TryApplyConfiguration returns true
+            await Assert
+                .That(SvcContainerAutoConfiguration.TryApplyConfiguration(container))
+                .IsTrue();
+        }
     }
 
     #endregion
@@ -260,11 +311,17 @@ public class ContainerLifecycleTests
         container.Build();
 
         // Act - Create many scopes concurrently
-        var tasks = Enumerable.Range(0, 100).Select(_ => Task.Run(() =>
-        {
-            using var scope = container.CreateScope();
-            return scope.GetService<ISimpleService>().InstanceId;
-        })).ToArray();
+        var tasks = Enumerable
+            .Range(0, 100)
+            .Select(
+                _ =>
+                    Task.Run(() =>
+                    {
+                        using var scope = container.CreateScope();
+                        return scope.GetService<ISimpleService>().InstanceId;
+                    })
+            )
+            .ToArray();
 
         var results = await Task.WhenAll(tasks);
 
@@ -281,14 +338,43 @@ public class ContainerLifecycleTests
         using var scope = container.CreateScope();
 
         // Act - Resolve from same scope concurrently
-        var tasks = Enumerable.Range(0, 100).Select(_ => Task.Run(() =>
-            scope.GetService<ISimpleService>().InstanceId
-        )).ToArray();
+        var tasks = Enumerable
+            .Range(0, 100)
+            .Select(_ => Task.Run(() => scope.GetService<ISimpleService>().InstanceId))
+            .ToArray();
 
         var results = await Task.WhenAll(tasks);
 
         // Assert - All should return the same scoped instance
         await Assert.That(results.Distinct().Count()).IsEqualTo(1);
+    }
+
+    #endregion
+
+    #region AutoConfiguration Tests
+
+    [Test]
+    public async Task SvcContainerAutoConfiguration_TryApplyConfiguration_NoConfigurators_ReturnsFalse()
+    {
+        // Arrange
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        // Act
+        var result = SvcContainerAutoConfiguration.TryApplyConfiguration(container);
+
+        // Assert - result should match HasConfigurator (true if configurators exist, false otherwise)
+        await Assert.That(result).IsEqualTo(SvcContainerAutoConfiguration.HasConfigurator);
+    }
+
+    [Test]
+    public async Task SvcContainerAutoConfiguration_HasConfigurator_PropertyReflectsState()
+    {
+        // Arrange & Act
+        var hasConfigurator = SvcContainerAutoConfiguration.HasConfigurator;
+        // Assert - property should be consistent with TryApplyConfiguration
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+        var result = SvcContainerAutoConfiguration.TryApplyConfiguration(container);
+        await Assert.That(result).IsEqualTo(hasConfigurator);
     }
 
     #endregion

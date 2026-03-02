@@ -173,7 +173,7 @@ public class ScopedLifetimeTests
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterScoped<ISimpleService>(static _ => new SimpleService());
         container.RegisterScoped<IServiceWithDependency>(
-            static scope => new ServiceWithDependency(scope.GetService<ISimpleService>()));
+            static s => new ServiceWithDependency(s.GetService<ISimpleService>()));
         using var scope = container.CreateScope();
 
         // Act
@@ -193,7 +193,7 @@ public class ScopedLifetimeTests
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterScoped<ISimpleService>(static _ => new SimpleService());
         container.RegisterScoped<IServiceWithDependency>(
-            static scope => new ServiceWithDependency(scope.GetService<ISimpleService>()));
+            static s => new ServiceWithDependency(s.GetService<ISimpleService>()));
         using var scope1 = container.CreateScope();
         using var scope2 = container.CreateScope();
 
@@ -213,9 +213,9 @@ public class ScopedLifetimeTests
         await using var container = new SvcContainer(autoConfigureFromGenerator: false);
         container.RegisterScoped<ILevelOneService>(static _ => new LevelOneService());
         container.RegisterScoped<ILevelTwoService>(
-            static scope => new LevelTwoService(scope.GetService<ILevelOneService>()));
+            static s => new LevelTwoService(s.GetService<ILevelOneService>()));
         container.RegisterScoped<ILevelThreeService>(
-            static scope => new LevelThreeService(scope.GetService<ILevelTwoService>()));
+            static s => new LevelThreeService(s.GetService<ILevelTwoService>()));
         using var scope = container.CreateScope();
 
         // Act

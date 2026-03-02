@@ -799,7 +799,7 @@ public class SvcContainerExtensionTests
                 {
                     new SvcDescriptor(
                         typeof(ILevelTwoService),
-                        static scope => new LevelTwoService(scope.GetService<ILevelOneService>()),
+                        static s => new LevelTwoService(s.GetService<ILevelOneService>()),
                         SvcLifetime.Transient
                     )
                 }
