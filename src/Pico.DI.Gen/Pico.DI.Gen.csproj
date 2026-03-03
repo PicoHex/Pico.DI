@@ -23,7 +23,7 @@
         <IsAotCompatible>false</IsAotCompatible>
         <EnableAotAnalyzer>false</EnableAotAnalyzer>
         
-        <IsPackable>true</IsPackable>
+        <IsPackable>false</IsPackable>
         
         <!-- Source Generator specific packaging -->
         <IncludeBuildOutput>false</IncludeBuildOutput>

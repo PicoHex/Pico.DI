@@ -312,6 +312,8 @@ var plugin = scope.GetService<IPlugin>();   // PluginC
 | `Pico.DI` | Full package with runtime + source generator |
 | `Pico.DI.Abs` | Abstractions only (for library authors) |
 
+**Two‑package distribution:** The main `Pico.DI` package includes both the runtime container and the embedded source generator—just install it and you're ready to go. The `Pico.DI.Abs` package contains only the abstractions and is intended for library authors who need to depend on the DI contract without the concrete implementation.
+
 ## 🎮 Requirements
 
 - **.NET 10.0+** (uses C# 14 extension types)

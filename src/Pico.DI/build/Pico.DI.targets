@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    Build targets for Pico.DI package.
+    
+    This file can be used for post-build steps or customizations related to
+    the Pico.DI source generator and runtime container.
+    
+    Currently empty - reserved for future extensions.
+  -->
+</Project>

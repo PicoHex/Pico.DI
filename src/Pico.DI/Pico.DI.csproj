@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -25,10 +25,15 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="build/Pico.DI.props" Pack="true" PackagePath="build\" Visible="false" />
+        <None Include="build/Pico.DI.targets" Pack="true" PackagePath="build\" Visible="false" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj" />
         <!-- 
           For local development: use ProjectReference for the source generator.
-          For NuGet consumers: the generator is included via package dependencies.
+          For NuGet consumers: the generator is embedded in the package and automatically loaded via build/Pico.DI.props.
           Using ProjectReference avoids duplicate analyzer loading issues during rebuild.
         -->
         <ProjectReference Include="..\Pico.DI.Gen\Pico.DI.Gen.csproj" 

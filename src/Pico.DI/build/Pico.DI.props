@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Automatically reference the embedded Pico.DI.Gen source generator analyzer
+    when the Pico.DI NuGet package is consumed.
+    
+    This ensures the source generator runs automatically without requiring
+    explicit reference to a separate analyzer package.
+  -->
+  <ItemGroup>
+    <Analyzer Include="$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\Pico.DI.Gen.dll" />
+  </ItemGroup>
+</Project>

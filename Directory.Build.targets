@@ -5,7 +5,7 @@
     This ensures the generator runs automatically without explicit reference to Pico.DI.Gen.
     
     Note: This only applies to projects in this workspace (local development).
-    For NuGet consumers, the analyzer is included in the package via .props/.targets files.
+    For NuGet consumers, the analyzer is embedded in the Pico.DI package and automatically loaded via build/Pico.DI.props.
     
     IMPORTANT: Pico.DI project uses ProjectReference to Pico.DI.Gen (OutputItemType="Analyzer"),
     so we exclude it here to avoid duplicate analyzer loading.

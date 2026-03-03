@@ -8,7 +8,7 @@ This script performs the following steps:
 2. Restore dependencies
 3. Build in Release configuration
 4. Run all tests
-5. Create NuGet packages with symbols (Pico.DI, Pico.DI.Abs, Pico.DI.Gen)
+5. Create NuGet packages with symbols (Pico.DI, Pico.DI.Abs)
 6. Optionally publish to NuGet.org
 
 .PARAMETER Publish
@@ -76,7 +76,6 @@ function Write-Error {
 # Packable projects
 $PackableProjects = @(
     "src/Pico.DI.Abs/Pico.DI.Abs.csproj",
-    "src/Pico.DI.Gen/Pico.DI.Gen.csproj",
     "src/Pico.DI/Pico.DI.csproj"
 )
 
