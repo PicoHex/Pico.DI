@@ -31,6 +31,12 @@
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     </PropertyGroup>
 
+    <!-- Prevent deps file generation for source generator -->
+    <PropertyGroup>
+        <GenerateDependencyFile>false</GenerateDependencyFile>
+        <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    </PropertyGroup>
+
     <!-- NuGet Package Metadata -->
     <PropertyGroup>
         <PackageId>Pico.DI.Gen</PackageId>
@@ -45,7 +51,7 @@
 
     <!-- Pack the analyzer DLL into analyzers folder -->
     <ItemGroup>
-        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <None Include="$(OutputPath)/$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
 
     <ItemGroup>
