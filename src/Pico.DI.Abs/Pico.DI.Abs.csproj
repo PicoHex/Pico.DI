@@ -8,6 +8,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         
         <IsPackable>true</IsPackable>
+        <GenerateDepsFile>false</GenerateDepsFile>
         <PublishAot>false</PublishAot>
         <IsAotCompatible>false</IsAotCompatible>
         <ExcludeFromPublish>true</ExcludeFromPublish>

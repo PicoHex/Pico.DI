@@ -35,7 +35,7 @@ jobs:
       run: dotnet restore
     
     - name: Build
-      run: dotnet build --configuration Release --no-restore -p:UseSharedCompilation=false
+      run: dotnet build --configuration Release --no-restore
     
     - name: Run tests
       run: dotnet test --project tests/Pico.DI.Test/Pico.DI.Test.csproj --configuration Release --no-build --verbosity normal --timeout 120s --no-progress --no-ansi
@@ -66,7 +66,7 @@ jobs:
       run: dotnet restore
     
     - name: Build
-      run: dotnet build --configuration Release --no-restore -p:UseSharedCompilation=false -p:Version=${{ steps.version.outputs.VERSION }}
+      run: dotnet build --configuration Release --no-restore -p:Version=${{ steps.version.outputs.VERSION }}
 
     - name: Pack NuGet packages
       run: |
