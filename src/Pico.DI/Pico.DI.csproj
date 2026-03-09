@@ -38,14 +38,12 @@
         -->
         <ProjectReference Include="..\Pico.DI.Gen\Pico.DI.Gen.csproj" 
                           OutputItemType="Analyzer" 
-                          ReferenceOutputAssembly="false"
-                          SkipGetTargetFrameworkProperties="true"
-                          SetTargetFramework="TargetFramework=net8.0" />
+                          ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <!-- Embed Gen analyzer into NuGet package -->
     <ItemGroup>
-        <None Include="../Pico.DI.Gen/bin/$(Configuration)/net8.0/Pico.DI.Gen.dll"
+        <None Include="../Pico.DI.Gen/bin/$(Configuration)/netstandard2.0/Pico.DI.Gen.dll"
               Pack="true"
               PackagePath="analyzers/dotnet/cs"
               Visible="false" />

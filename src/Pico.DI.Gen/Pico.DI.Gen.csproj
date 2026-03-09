@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>netstandard2.0</TargetFramework>
 
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <IsRoslynComponent>true</IsRoslynComponent>
@@ -13,16 +13,6 @@
         <NoWarn>$(NoWarn);RS2008;RS1041</NoWarn>
 
         <OutputType>Library</OutputType>
-
-        <ImplicitUsings>enable</ImplicitUsings>
-
-        <!-- Disable AOT/trimming for source generator (source generators must disable AOT) -->
-        <PublishTrimmed>false</PublishTrimmed>
-        <IsTrimmable>false</IsTrimmable>
-        <PublishAot>false</PublishAot>
-        <IsAotCompatible>false</IsAotCompatible>
-        <EnableAotAnalyzer>false</EnableAotAnalyzer>
-        <ExcludeFromPublish>true</ExcludeFromPublish>
         
         <IsPackable>true</IsPackable>
         
