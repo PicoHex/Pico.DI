@@ -53,7 +53,17 @@
 dotnet add package Pico.DI
 ```
 
-> 📦 `Pico.DI` includes both the runtime and source generator. That's it. One package.
+> 📦 `Pico.DI` includes both the runtime and embedded source generator — a single package for most users. For extension authors, separate packages `Pico.DI.Abs` (abstractions) and `Pico.DI.Gen` (source generator) are available.
+
+### Package Architecture
+
+Pico.DI now ships as three separate NuGet packages:
+
+- **Pico.DI** – The main container with embedded source generator. This is the only package needed by applications using the DI container.
+- **Pico.DI.Abs** – Abstractions (interfaces and base types) required to build extensions. Extension libraries should reference this package.
+- **Pico.DI.Gen** – Stand‑alone source generator. Extension libraries that need to generate AOT‑compatible registration code should reference this package (with `PrivateAssets="all"`).
+
+The three‑package split allows extension authors to depend on the abstractions and source generator without pulling in the entire container, while keeping the single‑package experience for end‑users.
 
 ### Basic Usage
 

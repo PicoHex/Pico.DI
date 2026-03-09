@@ -76,6 +76,7 @@ function Write-Error {
 # Packable projects
 $PackableProjects = @(
     "src/Pico.DI.Abs/Pico.DI.Abs.csproj",
+    "src/Pico.DI.Gen/Pico.DI.Gen.csproj",
     "src/Pico.DI/Pico.DI.csproj"
 )
 

@@ -4,7 +4,7 @@
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
 
     <!-- Default version for local development; CI overrides via -p:Version=<tag> -->
-    <Version>0.0.0-dev</Version>
+    <Version>0.0.3-dev</Version>
   </PropertyGroup>
 
   <!-- Common package metadata (applies to packed projects; harmless for others) -->

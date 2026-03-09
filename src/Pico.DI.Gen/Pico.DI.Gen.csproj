@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFramework>netstandard2.1</TargetFramework>
 
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <IsRoslynComponent>true</IsRoslynComponent>
@@ -10,7 +10,7 @@
         <Nullable>enable</Nullable>
 
         <!-- Suppress release tracking warning -->
-        <NoWarn>$(NoWarn);RS2008</NoWarn>
+        <NoWarn>$(NoWarn);RS2008;RS1041</NoWarn>
 
         <OutputType>Library</OutputType>
 
@@ -23,7 +23,7 @@
         <IsAotCompatible>false</IsAotCompatible>
         <EnableAotAnalyzer>false</EnableAotAnalyzer>
         
-        <IsPackable>false</IsPackable>
+        <IsPackable>true</IsPackable>
         
         <!-- Source Generator specific packaging -->
         <IncludeBuildOutput>false</IncludeBuildOutput>
@@ -40,7 +40,7 @@
     <!-- NuGet Package Metadata -->
     <PropertyGroup>
         <PackageId>Pico.DI.Gen</PackageId>
-        <Description>Source generator for Pico.DI - generates AOT-compatible service registrations and open generic metadata at compile time. Use this package for building DI extension libraries.</Description>
+        <Description>Independent source generator for Pico.DI - generates AOT-compatible service registrations and open generic metadata at compile time. Use this package when building DI extension libraries based on Pico.DI.Abs.</Description>
         <PackageTags>DI;IoC;AOT;Source Generator;Roslyn;Analyzer</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
@@ -56,6 +56,8 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
+        <PackageReference Include="Pico.DI.Abs" Version="2026.1.3" PrivateAssets="all" />
+        <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.103" />
     </ItemGroup>
 
 </Project>

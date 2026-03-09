@@ -68,6 +68,7 @@ jobs:
     - name: Pack NuGet packages
       run: |
         dotnet pack src/Pico.DI.Abs/Pico.DI.Abs.csproj --configuration Release --no-build --output ./nupkg -p:Version=${{ steps.version.outputs.VERSION }}
+        dotnet pack src/Pico.DI.Gen/Pico.DI.Gen.csproj --configuration Release --no-build --output ./nupkg -p:Version=${{ steps.version.outputs.VERSION }}
         dotnet pack src/Pico.DI/Pico.DI.csproj --configuration Release --no-build --output ./nupkg -p:Version=${{ steps.version.outputs.VERSION }}
     
     - name: Upload artifacts

@@ -39,15 +39,18 @@
         <ProjectReference Include="..\Pico.DI.Gen\Pico.DI.Gen.csproj" 
                           OutputItemType="Analyzer" 
                           ReferenceOutputAssembly="false"
-                          SetTargetFramework="TargetFramework=netstandard2.0" />
+                          SetTargetFramework="TargetFramework=netstandard2.1" />
     </ItemGroup>
 
     <!-- Embed Gen analyzer into NuGet package -->
     <ItemGroup>
-        <None Include="../Pico.DI.Gen/bin/$(Configuration)/netstandard2.0/Pico.DI.Gen.dll"
+        <None Include="../Pico.DI.Gen/bin/$(Configuration)/netstandard2.1/Pico.DI.Gen.dll"
               Pack="true"
               PackagePath="analyzers/dotnet/cs"
               Visible="false" />
+    </ItemGroup>
+    <ItemGroup>
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.103" />
     </ItemGroup>
 
 </Project>
