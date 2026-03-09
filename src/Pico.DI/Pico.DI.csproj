@@ -30,7 +30,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj" />
+        <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj">
+          <Properties>PublishAot=false</Properties>
+        </ProjectReference>
         <!-- 
           For local development: use ProjectReference for the source generator.
           For NuGet consumers: the generator is embedded in the package and automatically loaded via build/Pico.DI.props.
@@ -39,12 +41,14 @@
         <ProjectReference Include="..\Pico.DI.Gen\Pico.DI.Gen.csproj" 
                           OutputItemType="Analyzer" 
                           ReferenceOutputAssembly="false"
-                          SetTargetFramework="TargetFramework=netstandard2.1" />
+                           SetTargetFramework="TargetFramework=net8.0">
+          <Properties>PublishAot=false</Properties>
+        </ProjectReference>
     </ItemGroup>
 
     <!-- Embed Gen analyzer into NuGet package -->
     <ItemGroup>
-        <None Include="../Pico.DI.Gen/bin/$(Configuration)/netstandard2.1/Pico.DI.Gen.dll"
+        <None Include="../Pico.DI.Gen/bin/$(Configuration)/net8.0/Pico.DI.Gen.dll"
               Pack="true"
               PackagePath="analyzers/dotnet/cs"
               Visible="false" />
