@@ -12,7 +12,6 @@
         <PublishAotOnRun>false</PublishAotOnRun>
         <PublishAOT>true</PublishAOT>
         <StripSymbols>false</StripSymbols>
-        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     </PropertyGroup>
 
     <ItemGroup>
@@ -31,6 +30,7 @@
   <Target Name="PublishAotIfRequested" BeforeTargets="Run" Condition="'$(PublishAotOnRun)'=='true'">
     <Message Text="Publishing AOT build (PublishAot=true) to $(PublishDir)..." Importance="high" />
     <PropertyGroup>
+      <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
       <PublishDir>$(OutputPath)publish\</PublishDir>
     </PropertyGroup>
     <Exec Command="dotnet publish &quot;$(MSBuildProjectFullPath)&quot; -c $(Configuration) -r $(RuntimeIdentifier) -p:PublishAot=true -o &quot;$(PublishDir)&quot;" />

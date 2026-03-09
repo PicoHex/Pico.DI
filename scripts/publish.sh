@@ -14,6 +14,7 @@ API_KEY="${API_KEY:-$NUGET_API_KEY}"
 # Packable projects
 PACKABLE_PROJECTS=(
     "src/Pico.DI.Abs/Pico.DI.Abs.csproj"
+    "src/Pico.DI.Gen/Pico.DI.Gen.csproj"
     "src/Pico.DI/Pico.DI.csproj"
 )
 

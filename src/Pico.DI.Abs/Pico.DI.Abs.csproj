@@ -27,7 +27,6 @@
 
     <ItemGroup>
       <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.3" />
-      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.103" />
     </ItemGroup>
 
 </Project>
