@@ -21,9 +21,7 @@
                          OutputItemType="Analyzer" 
                          ReferenceOutputAssembly="false"
                          SkipGetTargetFrameworkProperties="true"
-                          SetTargetFramework="TargetFramework=net8.0">
-        <Properties>PublishAot=false</Properties>
-      </ProjectReference>
+                         SetTargetFramework="TargetFramework=net8.0" />
       <ProjectReference Include="..\Pico.DI.Sample.Services\Pico.DI.Sample.Services.csproj" />
     </ItemGroup>
 
