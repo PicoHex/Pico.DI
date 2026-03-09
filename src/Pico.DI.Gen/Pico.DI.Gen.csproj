@@ -37,6 +37,23 @@
         <GenerateDependencyFile>false</GenerateDependencyFile>
         <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     </PropertyGroup>
+    
+    <!-- Suppress file copy warnings -->
+    <PropertyGroup>
+        <MSBuildWarningsAsMessages>MSB3026</MSBuildWarningsAsMessages>
+    </PropertyGroup>
+    
+    <!-- Prevent parallel build for this project to avoid file lock conflicts -->
+    <PropertyGroup>
+        <BuildInParallel>false</BuildInParallel>
+    </PropertyGroup>
+    
+    <!-- Completely disable copying of referenced assemblies -->
+    <Target Name="RemoveCopyLocalReferences" AfterTargets="ResolveAssemblyReferences">
+        <ItemGroup>
+            <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" />
+        </ItemGroup>
+    </Target>
 
     <!-- NuGet Package Metadata -->
     <PropertyGroup>
@@ -57,7 +74,7 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" PrivateAssets="all" />
-        <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj" PrivateAssets="all" />
+        <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj" PrivateAssets="all" ExcludeAssets="runtime" />
         <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.3" PrivateAssets="all" />
         <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.103" />
     </ItemGroup>
