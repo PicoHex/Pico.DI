@@ -53,17 +53,22 @@
 dotnet add package Pico.DI
 ```
 
-> 📦 `Pico.DI` includes both the runtime and embedded source generator — a single package for most users. For extension authors, separate packages `Pico.DI.Abs` (abstractions) and `Pico.DI.Gen` (source generator) are available.
+> 📦 Just install `Pico.DI` — it pulls in the source generator and abstractions automatically.
 
 ### Package Architecture
 
-Pico.DI now ships as three separate NuGet packages:
+Pico.DI ships as three NuGet packages with a clean dependency chain:
 
-- **Pico.DI** – The main container with embedded source generator. This is the only package needed by applications using the DI container.
-- **Pico.DI.Abs** – Abstractions (interfaces and base types) required to build extensions. Extension libraries should reference this package.
-- **Pico.DI.Gen** – Stand‑alone source generator. Extension libraries that need to generate AOT‑compatible registration code should reference this package (with `PrivateAssets="all"`).
+```
+Pico.DI  →  Pico.DI.Gen  →  Pico.DI.Abs
+(runtime)   (source gen)    (interfaces)
+```
 
-The three‑package split allows extension authors to depend on the abstractions and source generator without pulling in the entire container, while keeping the single‑package experience for end‑users.
+| Package | Install when… | What you get |
+|---------|--------------|-------------|
+| **Pico.DI** | You're building an **application** | Runtime container + source generator + abstractions (all transitive) |
+| **Pico.DI.Gen** | You're building a **library/extension** that needs compile-time code generation | Source generator + abstractions (no runtime container) |
+| **Pico.DI.Abs** | You're building a **library/extension** that only needs the interfaces | Interfaces and base types only |
 
 ### Basic Usage
 
@@ -317,12 +322,15 @@ var plugin = scope.GetService<IPlugin>();   // PluginC
 
 ## 📦 Packages
 
-| Package | Description |
-|---------|-------------|
-| `Pico.DI` | Full package with runtime + source generator |
-| `Pico.DI.Abs` | Abstractions only (for library authors) |
+| Package | Target Audience | Dependencies |
+|---------|----------------|-------------|
+| [`Pico.DI`](https://www.nuget.org/packages/Pico.DI) | Application developers | → `Pico.DI.Gen` → `Pico.DI.Abs` |
+| [`Pico.DI.Gen`](https://www.nuget.org/packages/Pico.DI.Gen) | Library / extension authors needing code generation | → `Pico.DI.Abs` |
+| [`Pico.DI.Abs`](https://www.nuget.org/packages/Pico.DI.Abs) | Library / extension authors needing only interfaces | None |
 
-**Two‑package distribution:** The main `Pico.DI` package includes both the runtime container and the embedded source generator—just install it and you're ready to go. The `Pico.DI.Abs` package contains only the abstractions and is intended for library authors who need to depend on the DI contract without the concrete implementation.
+**For most users:** just install `Pico.DI` — it transitively brings in the source generator (`Pico.DI.Gen`) and abstractions (`Pico.DI.Abs`).
+
+**For library authors:** reference `Pico.DI.Gen` if you need compile-time source generation, or `Pico.DI.Abs` if you only need the DI interfaces. This avoids pulling the runtime container into your library's dependency tree.
 
 ## 🎮 Requirements
 
