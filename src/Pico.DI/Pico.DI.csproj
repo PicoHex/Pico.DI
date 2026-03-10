@@ -25,28 +25,21 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="build/Pico.DI.props" Pack="true" PackagePath="build\" Visible="false" />
-        <None Include="build/Pico.DI.targets" Pack="true" PackagePath="build\" Visible="false" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj" />
-        <!-- 
-          For local development: use ProjectReference for the source generator.
-          For NuGet consumers: the generator is embedded in the package and automatically loaded via build/Pico.DI.props.
-          Using ProjectReference avoids duplicate analyzer loading issues during rebuild.
+        <!--
+          Abs: direct reference for local compilation and transitive visibility.
+          Also listed in nuspec (redundant with Gen → Abs, but harmless — NuGet deduplicates).
         -->
-        <ProjectReference Include="..\Pico.DI.Gen\Pico.DI.Gen.csproj" 
-                          OutputItemType="Analyzer" 
-                          ReferenceOutputAssembly="false" />
-    </ItemGroup>
-
-    <!-- Embed Gen analyzer into NuGet package -->
-    <ItemGroup>
-        <None Include="../Pico.DI.Gen/bin/$(Configuration)/netstandard2.0/Pico.DI.Gen.dll"
-              Pack="true"
-              PackagePath="analyzers/dotnet/cs"
-              Visible="false" />
+        <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj">
+          <PublishAot>false</PublishAot>
+        </ProjectReference>
+        <!--
+          Gen: loaded as Analyzer for source generation at build time.
+          Also appears as a nuspec dependency so NuGet consumers get Gen → Abs transitively.
+        -->
+        <ProjectReference Include="..\Pico.DI.Gen\Pico.DI.Gen.csproj"
+                          OutputItemType="Analyzer">
+          <PublishAot>false</PublishAot>
+        </ProjectReference>
     </ItemGroup>
 
 </Project>
