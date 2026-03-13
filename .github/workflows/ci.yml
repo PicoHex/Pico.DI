@@ -11,9 +11,6 @@ env:
   DOTNET_VERSION: '10.x'
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
-permissions:
-  contents: write
-
 jobs:
   test:
     name: Test (${{ matrix.os }})
@@ -79,7 +76,6 @@ jobs:
         name: nupkg
         path: |
           ./nupkg/*.nupkg
-          ./nupkg/*.snupkg
 
   publish:
     name: Publish to NuGet
@@ -87,6 +83,8 @@ jobs:
     needs: pack
     if: startsWith(github.ref, 'refs/tags/v')
     environment: release
+    permissions:
+      contents: write
     
     steps:
     - name: Download artifacts
@@ -134,8 +132,6 @@ jobs:
           - Pico.DI.Abs
 
           NuGet packages have already been pushed before this draft release was created.
-
-          Review the generated release notes below before publishing.
         files: |
           Pico.DI.Abs.${{ steps.version.outputs.VERSION }}.nupkg
           Pico.DI.Gen.${{ steps.version.outputs.VERSION }}.nupkg

@@ -3,8 +3,8 @@
     Source generator distribution:
     - Local development: each project that needs the generator has an explicit
       ProjectReference to Pico.DI.Gen with OutputItemType="Analyzer".
-    - NuGet consumers: the analyzer is embedded in the Pico.DI package and
-      automatically loaded via build/Pico.DI.props.
+    - NuGet consumers: the analyzer is distributed by the Pico.DI.Gen package
+      via buildTransitive/Pico.DI.Gen.props.
       
     A file-based <Analyzer> auto-import was previously here but removed because
     it caused file lock contention (CS2012) during parallel builds on Windows:

@@ -2,8 +2,6 @@
 
     <PropertyGroup>
         <TargetFramework>netstandard2.0</TargetFramework>
-        <PublishAot>false</PublishAot>
-        <IsAotCompatible>false</IsAotCompatible>
 
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <IsRoslynComponent>true</IsRoslynComponent>
@@ -13,8 +11,6 @@
 
         <!-- Suppress release tracking warning -->
         <NoWarn>$(NoWarn);RS2008;RS1041;NU5128</NoWarn>
-
-        <OutputType>Library</OutputType>
         
         <IsPackable>true</IsPackable>
         <DevelopmentDependency>false</DevelopmentDependency>

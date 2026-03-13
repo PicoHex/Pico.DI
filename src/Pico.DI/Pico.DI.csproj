@@ -7,8 +7,6 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
 
-        <OutputType>Library</OutputType>
-
         <IsPackable>true</IsPackable>
     </PropertyGroup>
 
@@ -30,15 +28,12 @@
           sibling projects are reflected immediately.
         -->
         <ProjectReference Include="..\Pico.DI.Abs\Pico.DI.Abs.csproj">
-          <PublishAot>false</PublishAot>
         </ProjectReference>
         <!--
           Gen: loaded as Analyzer during development builds.
         -->
         <ProjectReference Include="..\Pico.DI.Gen\Pico.DI.Gen.csproj"
-                          OutputItemType="Analyzer">
-          <PublishAot>false</PublishAot>
-        </ProjectReference>
+                          OutputItemType="Analyzer" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseProjectReferences)' != 'true'">

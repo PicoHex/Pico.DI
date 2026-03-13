@@ -111,7 +111,6 @@ pack() {
         dotnet pack "$project" \
             --configuration "$CONFIGURATION" \
             --output "$OUTPUT_DIR" \
-            --include-symbols \
             --no-cache \
             "-p:RestoreSources=$RESTORE_SOURCES" \
             ${RESTORE_ADDITIONAL:+"-p:RestoreAdditionalProjectSources=$RESTORE_ADDITIONAL"} \

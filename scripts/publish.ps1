@@ -8,7 +8,7 @@ This script performs the following steps:
 2. Restore dependencies
 3. Build in Release configuration
 4. Run all tests
-5. Create NuGet packages with symbols (Pico.DI, Pico.DI.Abs)
+5. Create NuGet packages (Pico.DI.Abs, Pico.DI.Gen, Pico.DI)
 6. Optionally publish to NuGet.org
 
 .PARAMETER Publish
@@ -142,7 +142,6 @@ function Invoke-Pack {
             'pack', $project,
             '--configuration', $Configuration,
             '--output', $OutputDir,
-            '--include-symbols',
             '--no-cache',
             "-p:UseProjectReferences=false",
             "-p:PicoDiPackageVersion=$Version",

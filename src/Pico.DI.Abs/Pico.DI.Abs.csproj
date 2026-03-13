@@ -2,8 +2,6 @@
 
     <PropertyGroup>
         <TargetFramework>netstandard2.0</TargetFramework>
-        <PublishAot>false</PublishAot>
-        <IsAotCompatible>false</IsAotCompatible>
 
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
