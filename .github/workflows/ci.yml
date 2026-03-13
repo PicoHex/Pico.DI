@@ -32,13 +32,13 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore -p:UseProjectReferences=true
     
     - name: Build
-      run: dotnet build --configuration Release --no-restore
+      run: dotnet build --configuration Release --no-restore -p:UseProjectReferences=true
     
     - name: Run tests
-      run: dotnet test --project tests/Pico.DI.Test/Pico.DI.Test.csproj --configuration Release --no-build --verbosity normal --timeout 120s --no-progress --no-ansi
+      run: dotnet test --project tests/Pico.DI.Test/Pico.DI.Test.csproj --configuration Release --no-build --verbosity normal --timeout 120s --no-progress --no-ansi -p:UseProjectReferences=true
 
   pack:
     name: Pack
@@ -61,18 +61,14 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-    
-    - name: Restore dependencies
-      run: dotnet restore
-    
-    - name: Build
-      run: dotnet build --configuration Release --no-restore -p:Version=${{ steps.version.outputs.VERSION }}
 
     - name: Pack NuGet packages
       run: |
-        dotnet pack src/Pico.DI.Abs/Pico.DI.Abs.csproj --configuration Release --no-build --output ./nupkg -p:Version=${{ steps.version.outputs.VERSION }}
-        dotnet pack src/Pico.DI.Gen/Pico.DI.Gen.csproj --configuration Release --no-build --output ./nupkg -p:Version=${{ steps.version.outputs.VERSION }}
-        dotnet pack src/Pico.DI/Pico.DI.csproj --configuration Release --no-build --output ./nupkg -p:Version=${{ steps.version.outputs.VERSION }}
+        rm -rf ./nupkg
+        mkdir -p ./nupkg
+        dotnet pack src/Pico.DI.Abs/Pico.DI.Abs.csproj --configuration Release --output ./nupkg --no-cache -p:RestoreSources=https://api.nuget.org/v3/index.json -p:Version=${{ steps.version.outputs.VERSION }} -p:UseProjectReferences=false -p:PicoDiPackageVersion=${{ steps.version.outputs.VERSION }}
+        dotnet pack src/Pico.DI.Gen/Pico.DI.Gen.csproj --configuration Release --output ./nupkg --no-cache -p:RestoreSources=https://api.nuget.org/v3/index.json -p:RestoreAdditionalProjectSources=${{ github.workspace }}/nupkg -p:Version=${{ steps.version.outputs.VERSION }} -p:UseProjectReferences=false -p:PicoDiPackageVersion=${{ steps.version.outputs.VERSION }}
+        dotnet pack src/Pico.DI/Pico.DI.csproj --configuration Release --output ./nupkg --no-cache -p:RestoreSources=${{ github.workspace }}/nupkg -p:Version=${{ steps.version.outputs.VERSION }} -p:UseProjectReferences=false -p:PicoDiPackageVersion=${{ steps.version.outputs.VERSION }}
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -99,16 +95,22 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
     
     - name: Publish to NuGet.org
       run: |
-        for file in *.nupkg
-        do
-          if [[ $file != *.symbols.* ]] && [[ $file != *.snupkg ]]; then
-            echo "Publishing $file"
-            dotnet nuget push $file \
-              --api-key ${{ secrets.NUGET_API_KEY }} \
-              --source https://api.nuget.org/v3/index.json \
-              --skip-duplicate
-          fi
-        done
+        dotnet nuget push Pico.DI.Abs.${{ steps.version.outputs.VERSION }}.nupkg \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+        dotnet nuget push Pico.DI.Gen.${{ steps.version.outputs.VERSION }}.nupkg \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+        dotnet nuget push Pico.DI.${{ steps.version.outputs.VERSION }}.nupkg \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate

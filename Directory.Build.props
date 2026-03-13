@@ -5,6 +5,14 @@
 
     <!-- Default version for local development; CI overrides via -p:Version=<tag> -->
      <Version>0.0.3-dev</Version>
+
+    <!--
+      Default to project references for inner-loop development.
+      Release/pack pipelines can switch to PackageReference mode with
+      -p:UseProjectReferences=false to validate and emit real NuGet dependencies.
+    -->
+    <UseProjectReferences Condition="'$(UseProjectReferences)' == ''">true</UseProjectReferences>
+    <PicoDiPackageVersion Condition="'$(PicoDiPackageVersion)' == ''">$(Version)</PicoDiPackageVersion>
   </PropertyGroup>
 
   <!-- Disable AOT for netstandard2.0 projects -->

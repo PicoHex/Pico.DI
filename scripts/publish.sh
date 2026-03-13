@@ -10,6 +10,11 @@ CONFIGURATION="${CONFIGURATION:-Release}"
 OUTPUT_DIR="${OUTPUT_DIR:-./nupkg}"
 PUBLISH="${PUBLISH:-false}"
 API_KEY="${API_KEY:-$NUGET_API_KEY}"
+VERSION="${VERSION:-0.0.3-dev}"
+
+if [[ "$OUTPUT_DIR" != /* ]]; then
+    OUTPUT_DIR="$(pwd)/${OUTPUT_DIR#./}"
+fi
 
 # Packable projects
 PACKABLE_PROJECTS=(
@@ -64,13 +69,13 @@ clean() {
 # Restore dependencies
 restore() {
     log_info "Restoring dependencies..."
-    dotnet restore
+    dotnet restore -p:UseProjectReferences=true
 }
 
 # Build solution
 build() {
     log_info "Building with configuration: $CONFIGURATION..."
-    dotnet build --configuration "$CONFIGURATION" --no-restore
+    dotnet build --configuration "$CONFIGURATION" --no-restore -p:UseProjectReferences=true
     if [ $? -ne 0 ]; then
         log_error "Build failed"
     fi
@@ -79,7 +84,7 @@ build() {
 # Run tests
 test() {
     log_info "Running tests..."
-    dotnet test --configuration "$CONFIGURATION" --no-build --verbosity normal
+    dotnet test --configuration "$CONFIGURATION" --no-build --verbosity normal -p:UseProjectReferences=true
     if [ $? -ne 0 ]; then
         log_error "Tests failed"
     fi
@@ -88,23 +93,39 @@ test() {
 # Create NuGet packages
 pack() {
     log_info "Creating NuGet packages..."
+    rm -rf "$OUTPUT_DIR"
     mkdir -p "$OUTPUT_DIR"
     
     for project in "${PACKABLE_PROJECTS[@]}"; do
         log_info "Packing $project..."
+        RESTORE_SOURCES="https://api.nuget.org/v3/index.json"
+        RESTORE_ADDITIONAL=""
+        if [ "$project" != "src/Pico.DI.Abs/Pico.DI.Abs.csproj" ]; then
+            if [ "$project" = "src/Pico.DI.Gen/Pico.DI.Gen.csproj" ]; then
+                RESTORE_ADDITIONAL="$OUTPUT_DIR"
+            else
+                RESTORE_SOURCES="$OUTPUT_DIR"
+            fi
+        fi
+
         dotnet pack "$project" \
             --configuration "$CONFIGURATION" \
-            --no-build \
             --output "$OUTPUT_DIR" \
-            --include-symbols
+            --include-symbols \
+            --no-cache \
+            "-p:RestoreSources=$RESTORE_SOURCES" \
+            ${RESTORE_ADDITIONAL:+"-p:RestoreAdditionalProjectSources=$RESTORE_ADDITIONAL"} \
+            -p:UseProjectReferences=false \
+            -p:PicoDiPackageVersion=$VERSION \
+            -p:Version=$VERSION
         if [ $? -ne 0 ]; then
             log_error "Pack failed for $project"
         fi
     done
     
     # Count packages
-    NUPKG_COUNT=$(find "$OUTPUT_DIR" -name "*.nupkg" ! -name "*.symbols.*" ! -name "*.snupkg" | wc -l)
-    SNUPKG_COUNT=$(find "$OUTPUT_DIR" -name "*.snupkg" | wc -l)
+    NUPKG_COUNT=$(find "$OUTPUT_DIR" -name "*.nupkg" ! -name "*.symbols.nupkg" ! -name "*.snupkg" | wc -l)
+    SNUPKG_COUNT=$(find "$OUTPUT_DIR" \( -name "*.snupkg" -o -name "*.symbols.nupkg" \) | wc -l)
     
     log_success "Created $NUPKG_COUNT package(s) and $SNUPKG_COUNT symbol package(s)"
     find "$OUTPUT_DIR" -name "*.nupkg" ! -name "*.symbols.*" ! -name "*.snupkg" -exec sh -c 'echo "  - $(basename {}) ($(($(stat -f%z {} 2>/dev/null || stat -c%s {}) / 1024)) KB)"' \;
@@ -118,20 +139,29 @@ publish() {
         log_error "NuGet API key not found. Set NUGET_API_KEY environment variable or API_KEY variable."
     fi
     
-    for file in "$OUTPUT_DIR"/*.nupkg; do
-        if [[ $file != *".symbols."* ]] && [[ $file != *".snupkg" ]] && [[ -f $file ]]; then
-            log_info "Publishing $(basename "$file")..."
-            dotnet nuget push "$file" \
-                --api-key "$API_KEY" \
-                --source https://api.nuget.org/v3/index.json \
-                --skip-duplicate
-            
-            if [ $? -ne 0 ]; then
-                log_error "Failed to publish $(basename "$file")"
-            fi
-            
-            log_success "Published $(basename "$file")"
+    PUBLISH_ORDER=(
+        "Pico.DI.Abs.$VERSION.nupkg"
+        "Pico.DI.Gen.$VERSION.nupkg"
+        "Pico.DI.$VERSION.nupkg"
+    )
+
+    for package_name in "${PUBLISH_ORDER[@]}"; do
+        file="$OUTPUT_DIR/$package_name"
+        if [ ! -f "$file" ]; then
+            log_error "Package not found: $package_name"
         fi
+
+        log_info "Publishing $package_name..."
+        dotnet nuget push "$file" \
+            --api-key "$API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        
+        if [ $? -ne 0 ]; then
+            log_error "Failed to publish $package_name"
+        fi
+        
+        log_success "Published $package_name"
     done
 }
 

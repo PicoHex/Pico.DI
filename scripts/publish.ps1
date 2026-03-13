@@ -41,10 +41,15 @@ param(
     [switch]$Publish,
     [string]$ApiKey,
     [string]$Configuration = "Release",
-    [string]$OutputDir = "./nupkg"
+    [string]$OutputDir = "./nupkg",
+    [string]$Version = "0.0.3-dev"
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not [System.IO.Path]::IsPathRooted($OutputDir)) {
+    $OutputDir = [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $OutputDir))
+}
 
 # Colors for output
 $Green = [ConsoleColor]::Green
@@ -102,13 +107,13 @@ function Invoke-Clean {
 # Restore dependencies
 function Invoke-Restore {
     Write-Info "Restoring dependencies..."
-    dotnet restore
+    dotnet restore -p:UseProjectReferences=true
 }
 
 # Build solution
 function Invoke-Build {
     Write-Info "Building with configuration: $Configuration..."
-    dotnet build --configuration $Configuration --no-restore
+    dotnet build --configuration $Configuration --no-restore -p:UseProjectReferences=true
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Build failed"
     }
@@ -117,7 +122,7 @@ function Invoke-Build {
 # Run tests
 function Invoke-Test {
     Write-Info "Running tests..."
-    dotnet test --configuration $Configuration --no-build --verbosity normal
+    dotnet test --configuration $Configuration --no-build --verbosity normal -p:UseProjectReferences=true
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Tests failed"
     }
@@ -126,22 +131,50 @@ function Invoke-Test {
 # Create NuGet packages
 function Invoke-Pack {
     Write-Info "Creating NuGet packages..."
+    if (Test-Path $OutputDir) {
+        Remove-Item -Path $OutputDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
     New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
     
     foreach ($project in $PackableProjects) {
         Write-Info "Packing $project..."
-        dotnet pack $project `
-            --configuration $Configuration `
-            --no-build `
-            --output $OutputDir `
-            --include-symbols
+        $packArgs = @(
+            'pack', $project,
+            '--configuration', $Configuration,
+            '--output', $OutputDir,
+            '--include-symbols',
+            '--no-cache',
+            "-p:UseProjectReferences=false",
+            "-p:PicoDiPackageVersion=$Version",
+            "-p:Version=$Version"
+        )
+
+        if ($project -ne "src/Pico.DI.Abs/Pico.DI.Abs.csproj") {
+            if ($project -eq "src/Pico.DI.Gen/Pico.DI.Gen.csproj") {
+                $packArgs += '-p:RestoreSources=https://api.nuget.org/v3/index.json'
+                $packArgs += "-p:RestoreAdditionalProjectSources=$OutputDir"
+            }
+            else {
+                $packArgs += "-p:RestoreSources=$OutputDir"
+            }
+        }
+
+        if ($project -eq "src/Pico.DI.Abs/Pico.DI.Abs.csproj") {
+            $packArgs += '-p:RestoreSources=https://api.nuget.org/v3/index.json'
+        }
+
+        dotnet @packArgs
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Pack failed for $project"
         }
     }
     
-    $nupkgFiles = Get-ChildItem -Path $OutputDir -Filter "*.nupkg" -Exclude "*.symbols.*", "*.snupkg"
-    $snupkgFiles = Get-ChildItem -Path $OutputDir -Filter "*.snupkg"
+    $nupkgFiles = Get-ChildItem -Path $OutputDir -File | Where-Object {
+        $_.Name -like '*.nupkg' -and $_.Name -notlike '*.symbols.nupkg' -and $_.Name -notlike '*.snupkg'
+    }
+    $snupkgFiles = Get-ChildItem -Path $OutputDir -File | Where-Object {
+        $_.Name -like '*.snupkg' -or $_.Name -like '*.symbols.nupkg'
+    }
     
     Write-Success "Created $($nupkgFiles.Count) package(s) and $($snupkgFiles.Count) symbol package(s)"
     foreach ($file in $nupkgFiles) {
@@ -162,20 +195,29 @@ function Invoke-Publish {
         Write-Error "NuGet API key not found. Set NUGET_API_KEY environment variable or use -ApiKey parameter."
     }
     
-    $nupkgFiles = Get-ChildItem -Path $OutputDir -Filter "*.nupkg" -Exclude "*.symbols.*", "*.snupkg"
-    
-    foreach ($file in $nupkgFiles) {
-        Write-Info "Publishing $($file.Name)..."
-        dotnet nuget push $file.FullName `
+    $publishOrder = @(
+        "Pico.DI.Abs.$Version.nupkg",
+        "Pico.DI.Gen.$Version.nupkg",
+        "Pico.DI.$Version.nupkg"
+    )
+
+    foreach ($packageName in $publishOrder) {
+        $file = Join-Path $OutputDir $packageName
+        if (-not (Test-Path $file)) {
+            Write-Error "Package not found: $packageName"
+        }
+
+        Write-Info "Publishing $packageName..."
+        dotnet nuget push $file `
             --api-key $ApiKey `
             --source https://api.nuget.org/v3/index.json `
             --skip-duplicate
         
         if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to publish $($file.Name)"
+            Write-Error "Failed to publish $packageName"
         }
         
-        Write-Success "Published $($file.Name)"
+        Write-Success "Published $packageName"
     }
 }
 
