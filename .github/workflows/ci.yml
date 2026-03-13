@@ -140,3 +140,10 @@ jobs:
           Pico.DI.Abs.${{ steps.version.outputs.VERSION }}.nupkg
           Pico.DI.Gen.${{ steps.version.outputs.VERSION }}.nupkg
           Pico.DI.${{ steps.version.outputs.VERSION }}.nupkg
+
+    - name: Publish GitHub release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Pico.DI ${{ steps.version.outputs.VERSION }}
+        draft: false
