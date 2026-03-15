@@ -31,6 +31,14 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
+    - name: Cache NuGet packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+    
     - name: Restore dependencies
       run: dotnet restore -p:UseProjectReferences=true
     
@@ -61,14 +69,25 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Cache NuGet packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
 
     - name: Pack NuGet packages
       run: |
         rm -rf ./nupkg
         mkdir -p ./nupkg
-        dotnet pack src/Pico.DI.Abs/Pico.DI.Abs.csproj --configuration Release --output ./nupkg --no-cache -p:RestoreSources=https://api.nuget.org/v3/index.json -p:Version=${{ steps.version.outputs.VERSION }} -p:UseProjectReferences=false -p:PicoDiPackageVersion=${{ steps.version.outputs.VERSION }}
-        dotnet pack src/Pico.DI.Gen/Pico.DI.Gen.csproj --configuration Release --output ./nupkg --no-cache -p:RestoreSources=https://api.nuget.org/v3/index.json -p:RestoreAdditionalProjectSources=${{ github.workspace }}/nupkg -p:Version=${{ steps.version.outputs.VERSION }} -p:UseProjectReferences=false -p:PicoDiPackageVersion=${{ steps.version.outputs.VERSION }}
-        dotnet pack src/Pico.DI/Pico.DI.csproj --configuration Release --output ./nupkg --no-cache -p:RestoreSources=${{ github.workspace }}/nupkg -p:Version=${{ steps.version.outputs.VERSION }} -p:UseProjectReferences=false -p:PicoDiPackageVersion=${{ steps.version.outputs.VERSION }}
+        # Pack independent package first
+        dotnet pack src/Pico.DI.Abs/Pico.DI.Abs.csproj --configuration Release --output ./nupkg -p:RestoreSources=https://api.nuget.org/v3/index.json -p:Version=${{ steps.version.outputs.VERSION }} -p:UseProjectReferences=false -p:PicoDiPackageVersion=${{ steps.version.outputs.VERSION }}
+        # Pack source generator with local package source
+        dotnet pack src/Pico.DI.Gen/Pico.DI.Gen.csproj --configuration Release --output ./nupkg -p:RestoreSources=https://api.nuget.org/v3/index.json -p:RestoreAdditionalProjectSources=${{ github.workspace }}/nupkg -p:Version=${{ steps.version.outputs.VERSION }} -p:UseProjectReferences=false -p:PicoDiPackageVersion=${{ steps.version.outputs.VERSION }}
+        # Pack main library with local package source
+        dotnet pack src/Pico.DI/Pico.DI.csproj --configuration Release --output ./nupkg -p:RestoreSources=${{ github.workspace }}/nupkg -p:Version=${{ steps.version.outputs.VERSION }} -p:UseProjectReferences=false -p:PicoDiPackageVersion=${{ steps.version.outputs.VERSION }}
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -76,6 +95,7 @@ jobs:
         name: nupkg
         path: |
           ./nupkg/*.nupkg
+          ./nupkg/*.snupkg
 
   publish:
     name: Publish to NuGet
@@ -103,18 +123,16 @@ jobs:
     
     - name: Publish to NuGet.org
       run: |
-        dotnet nuget push Pico.DI.Abs.${{ steps.version.outputs.VERSION }}.nupkg \
-          --api-key ${{ secrets.NUGET_API_KEY }} \
-          --source https://api.nuget.org/v3/index.json \
-          --skip-duplicate
-        dotnet nuget push Pico.DI.Gen.${{ steps.version.outputs.VERSION }}.nupkg \
-          --api-key ${{ secrets.NUGET_API_KEY }} \
-          --source https://api.nuget.org/v3/index.json \
-          --skip-duplicate
-        dotnet nuget push Pico.DI.${{ steps.version.outputs.VERSION }}.nupkg \
-          --api-key ${{ secrets.NUGET_API_KEY }} \
-          --source https://api.nuget.org/v3/index.json \
-          --skip-duplicate
+        for file in *.nupkg
+        do
+          if [[ $file != *.symbols.* ]] && [[ $file != *.snupkg ]]; then
+            echo "Publishing $file"
+            dotnet nuget push $file \
+              --api-key ${{ secrets.NUGET_API_KEY }} \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          fi
+        done
 
     - name: Create draft GitHub release
       uses: softprops/action-gh-release@v2

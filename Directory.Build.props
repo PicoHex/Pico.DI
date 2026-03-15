@@ -4,7 +4,7 @@
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
 
     <!-- Default version for local development; CI overrides via -p:Version=<tag> -->
-     <Version>0.0.3-dev</Version>
+    <Version>0.0.0-dev</Version>
 
     <!--
       Default to project references for inner-loop development.
@@ -37,6 +37,11 @@
   </PropertyGroup>
 
   <!-- Symbol packages (snupkg) -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
   <!-- SourceLink for source-level debugging -->
   <ItemGroup Condition="'$(IsPackable)' == 'true'">
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.103" PrivateAssets="All" />
